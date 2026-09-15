@@ -1,0 +1,95 @@
+/**
+ * print.css
+ * 印刷・PDF出力専用スタイル（A4縦サイズ・余白・罫線最適化）
+ */
+
+@page {
+  size: A4 portrait;
+  margin: 10mm 12mm;
+}
+
+@media print {
+  /* 操作系UI・サイドバー・ツールバーの完全非表示 */
+  html, body {
+    background: #ffffff !important;
+    color: #111827 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 11pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 非表示対象 */
+  header.app-header,
+  .editor-sidebar,
+  .preview-toolbar,
+  .modal-overlay,
+  .toast,
+  .btn,
+  .no-print {
+    display: none !important;
+  }
+
+  /* メインコンテナのリセット */
+  .app-layout {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .preview-container {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    overflow: visible !important;
+    height: auto !important;
+    width: 100% !important;
+  }
+
+  .preview-wrapper {
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* A4 用紙シート */
+  .invoice-sheet {
+    width: 100% !important;
+    min-height: auto !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    box-shadow: none !important;
+    border: none !important;
+    page-break-after: auto !important;
+    background: #ffffff !important;
+  }
+
+  /* テーブルの改ページ制御 */
+  table.sheet-items-table {
+    page-break-inside: auto;
+  }
+
+  table.sheet-items-table tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  table.sheet-items-table thead {
+    display: table-header-group;
+  }
+
+  .sheet-totals-section,
+  .sheet-bottom-section {
+    page-break-inside: avoid;
+  }
+
+  /* リンクのURL自動付加を無効化 */
+  a[href]:after {
+    content: none !important;
+  }
+}

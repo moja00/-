@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BillCraft - 納品書・請求書 かんたん発行アプリ</title>
+  <meta name="description" content="インボイス制度対応の納品書・請求書・見積書を直感的に作成、A4リアルタイムプレビュー＆PDF印刷できるWebアプリ">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/print.css" media="print">
+</head>
+<body>
+
+  <!-- アプリヘッダー -->
+  <header class="app-header">
+    <div class="brand-area">
+      <div class="brand-logo">B</div>
+      <div>
+        <h1 class="brand-title">
+          BillCraft
+          <span class="brand-subtitle">納品書・請求書 かんたん発行</span>
+        </h1>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button type="button" id="btnNewDoc" class="btn btn-secondary btn-sm" title="新しい書類を作成">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        新規作成
+      </button>
+      <button type="button" id="btnLoadSample" class="btn btn-secondary btn-sm" title="デモ用サンプルデータを読み込む">
+        サンプル読込
+      </button>
+      <button type="button" id="btnOpenHistory" class="btn btn-secondary btn-sm" title="作成履歴一覧を表示">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        保存履歴
+      </button>
+      <button type="button" id="btnOpenBackup" class="btn btn-secondary btn-sm" title="データの保存・復元">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        データ管理
+      </button>
+    </div>
+  </header>
+
+  <!-- メインレイアウト -->
+  <main class="app-layout">
+
+    <!-- 左側：入力エディタ -->
+    <aside class="editor-sidebar">
+      
+      <!-- 書類種別セレクター -->
+      <div style="padding: 16px 20px 0 20px; background: #ffffff;">
+        <label class="form-label" style="margin-bottom: 8px;">帳票の種類</label>
+        <div class="doc-type-selector" id="docTypeSelector">
+          <button type="button" class="doc-type-btn active" data-type="invoice">請求書</button>
+          <button type="button" class="doc-type-btn" data-type="delivery">納品書</button>
+          <button type="button" class="doc-type-btn" data-type="estimate">見積書</button>
+          <button type="button" class="doc-type-btn" data-type="receipt">領収書</button>
+        </div>
+      </div>
+
+      <!-- エディタタブ -->
+      <div class="editor-tabs">
+        <button type="button" class="editor-tab-btn active" data-tab="tab-basic">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          基本・取引先
+        </button>
+        <button type="button" class="editor-tab-btn" data-tab="tab-items">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          明細一覧 (<span id="itemCountBadge">0</span>)
+        </button>
+        <button type="button" class="editor-tab-btn" data-tab="tab-issuer">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 7v14M21 7v14M9 21V10M15 21V10M6 3h12v4H6z"/></svg>
+          自社・印鑑・口座
+        </button>
+      </div>
+
+      <!-- エディタコンテンツエリア -->
+      <div class="editor-content">
+
+        <!-- タブ1: 基本情報・取引先 -->
+        <div class="tab-pane active" id="tab-basic">
+          
+          <div class="form-section">
+            <div class="section-header">
+              <span class="section-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+                書類メタ情報
+              </span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="inputDocNumber">書類番号</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="text" id="inputDocNumber" class="form-input" placeholder="INV-202609-001">
+                <button type="button" id="btnRegenDocNumber" class="btn btn-secondary btn-sm" title="新しい番号を自動採番">採番</button>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="inputIssueDate" id="labelIssueDate">発行日</label>
+                <input type="date" id="inputIssueDate" class="form-input">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="inputDueDate" id="labelDueDate">お支払期日</label>
+                <input type="date" id="inputDueDate" class="form-input">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="inputTitle">件名 (タイトル)</label>
+              <input type="text" id="inputTitle" class="form-input" placeholder="例: Webサイト制作業務 8月分">
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="section-header">
+              <span class="section-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                取引先（宛名）情報
+              </span>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group" style="grid-column: span 1.5;">
+                <label class="form-label" for="inputClientName">取引先 会社名 / 屋号</label>
+                <input type="text" id="inputClientName" class="form-input" placeholder="例: 株式会社サンプル">
+              </div>
+              <div class="form-group" style="grid-column: span 0.5;">
+                <label class="form-label" for="inputClientHonorific">敬称</label>
+                <select id="inputClientHonorific" class="form-select">
+                  <option value="御中">御中</option>
+                  <option value="様">様</option>
+                  <option value="殿">殿</option>
+                  <option value="">なし</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="inputClientZip">郵便番号</label>
+                <input type="text" id="inputClientZip" class="form-input" placeholder="100-0001">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="inputClientContact">部署・担当者名 (任意)</label>
+                <input type="text" id="inputClientContact" class="form-input" placeholder="例: 開発部 佐藤 様">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="inputClientAddress">住所</label>
+              <input type="text" id="inputClientAddress" class="form-input" placeholder="東京都千代田区千代田1-1">
+            </div>
+          </div>
+
+        </div>
+
+        <!-- タブ2: 明細一覧 -->
+        <div class="tab-pane" id="tab-items" style="display: none;">
+          
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div style="font-size: 0.825rem; color: var(--text-secondary);">
+              品名・数量・単価・税率を入力してください
+            </div>
+            <button type="button" id="btnAddItem" class="btn btn-primary btn-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              行を追加
+            </button>
+          </div>
+
+          <!-- 明細カードリストコンテナ -->
+          <div id="itemsContainer"></div>
+
+          <!-- 計算・端数処理設定 -->
+          <div class="form-section" style="margin-top: 20px;">
+            <div class="section-header">
+              <span class="section-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+                税計算設定
+              </span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="selectFractionRule">消費税の端数処理</label>
+              <select id="selectFractionRule" class="form-select">
+                <option value="floor">切り捨て (推奨・一般的)</option>
+                <option value="round">四捨五入</option>
+                <option value="ceil">切り上げ</option>
+              </select>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- タブ3: 自社・印鑑・口座 -->
+        <div class="tab-pane" id="tab-issuer" style="display: none;">
+          
+          <div class="form-section">
+            <div class="section-header">
+              <span class="section-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="14" cy="7" r="4"/></svg>
+                自社（発行者）情報
+              </span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="inputIssuerName">会社名 / 屋号</label>
+              <input type="text" id="inputIssuerName" class="form-input" placeholder="例: デザインスタジオ・クラフト">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="inputIssuerInvoiceNo">適格請求書発行事業者登録番号 (インボイス番号)</label>
+              <input type="text" id="inputIssuerInvoiceNo" class="form-input" placeholder="T1234567890123">
+              <div style="font-size: 0.725rem; color: var(--text-muted); margin-top: 3px;">※「T」から始まる13桁の半角数字</div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="inputIssuerZip">郵便番号</label>
+                <input type="text" id="inputIssuerZip" class="form-input" placeholder="150-0002">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="inputIssuerTel">電話番号</label>
+                <input type="text" id="inputIssuerTel" class="form-input" placeholder="03-1234-5678">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="inputIssuerAddress">所在地・住所</label>
+              <input type="text" id="inputIssuerAddress" class="form-input" placeholder="東京都渋谷区渋谷2-2-2 クラフトビル 4F">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="inputIssuerEmail">メールアドレス</label>
+              <input type="email" id="inputIssuerEmail" class="form-input" placeholder="info@example.com">
+            </div>
+          </div>
+
+          <!-- 電子印鑑（角印）セクション -->
+          <div class="form-section">
+            <div class="section-header">
+              <span class="section-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24M14.83 14.83l4.24 4.24M14.83 9.17l4.24-4.24M4.93 19.07l4.24-4.24"/></svg>
+                電子社印（角印）
+              </span>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; cursor: pointer;">
+                <input type="checkbox" id="checkShowStamp" checked>
+                印鑑を表示する
+              </label>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 12px;">
+              <div style="width: 72px; height: 72px; border: 1px dashed var(--border-color); border-radius: 8px; display: flex; align-items: center; justify-content: center; background: #fff; overflow: hidden;" id="stampPreviewThumb">
+                <span style="font-size: 0.7rem; color: var(--text-muted);">プレビュー</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <button type="button" id="btnAutoGenerateStamp" class="btn btn-outline-primary btn-sm">
+                  💮 社名から角印を自動生成
+                </button>
+                <label class="btn btn-secondary btn-sm" style="margin: 0; cursor: pointer;">
+                  📁 印鑑画像をアップロード
+                  <input type="file" id="fileStampUpload" accept="image/png, image/jpeg" style="display: none;">
+                </label>
+              </div>
+            </div>
+            <div style="font-size: 0.725rem; color: var(--text-muted);">
+              社名を入力した状態で「自動生成」を押すと、本格的な朱色角印が自動で押印されます。
+            </div>
+          </div>
+
+          <!-- 振込先口座 & 備考 -->
+          <div class="form-section">
+            <div class="section-header">
+              <span class="section-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                振込先口座 & 備考
+              </span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="inputBankInfo">お振込先口座情報</label>
+              <textarea id="inputBankInfo" class="form-textarea" rows="3" placeholder="みずほ銀行 渋谷支店&#10;普通 1234567&#10;口座名義: カ）クラフトデザイン"></textarea>
+            </div>
+
+            <div class="form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <label class="form-label" for="inputNotes" style="margin-bottom: 0;">備考・特記事項</label>
+                <button type="button" id="btnInsertTemplateNote" class="btn btn-secondary btn-sm" style="padding: 2px 6px; font-size: 0.725rem;">定型文を挿入</button>
+              </div>
+              <textarea id="inputNotes" class="form-textarea" rows="3" placeholder="お振込手数料は貴社にてご負担くださいますようお願い申し上げます。"></textarea>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </aside>
+
+    <!-- 右側：A4リアルタイムプレビュー & ツールバー -->
+    <section class="preview-container">
+      
+      <!-- ツールバー -->
+      <div class="preview-toolbar">
+        <div class="toolbar-group">
+          <button type="button" id="btnPrint" class="btn btn-primary btn-sm" style="padding: 6px 16px; font-size: 0.9rem;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            PDF保存・印刷
+          </button>
+          <button type="button" id="btnSaveHistory" class="btn btn-secondary btn-sm" style="background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.25);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            履歴に保存
+          </button>
+        </div>
+
+        <div class="toolbar-divider"></div>
+
+        <div class="toolbar-group">
+          <span style="font-size: 0.8rem; color: #94a3b8;">テーマ色:</span>
+          <div class="color-picker-group">
+            <button type="button" class="color-dot-btn active" data-color="indigo" style="background-color: #3b5bdb;" title="モダンインディゴ"></button>
+            <button type="button" class="color-dot-btn" data-color="navy" style="background-color: #1e293b;" title="クラシックネイビー"></button>
+            <button type="button" class="color-dot-btn" data-color="emerald" style="background-color: #0f766e;" title="フォレストエメラルド"></button>
+            <button type="button" class="color-dot-btn" data-color="crimson" style="background-color: #881337;" title="ディープワイン"></button>
+            <button type="button" class="color-dot-btn" data-color="slate" style="background-color: #374151;" title="スレートチャコール"></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- A4 用紙シート本体 -->
+      <div class="preview-wrapper" id="previewWrapper">
+        <article class="invoice-sheet" id="invoiceSheet">
+          
+          <!-- シートヘッダー -->
+          <header class="sheet-header">
+            <div class="sheet-title-box">
+              <h2 class="sheet-title" id="sheetDocTitle">御 請 求 書</h2>
+              <div style="font-size: 0.95rem; font-weight: 600; color: #475569; margin-top: 6px;" id="sheetDocSubject">
+                Webサイト制作および運用保守業務
+              </div>
+            </div>
+
+            <!-- メタ情報テーブル（番号・日付） -->
+            <table class="sheet-meta-table">
+              <tr>
+                <td class="meta-label">書類番号</td>
+                <td class="meta-val" id="sheetDocNumber">INV-202609-001</td>
+              </tr>
+              <tr>
+                <td class="meta-label" id="sheetLabelIssueDate">請求日</td>
+                <td class="meta-val" id="sheetIssueDate">2026年9月15日</td>
+              </tr>
+              <tr id="sheetRowDueDate">
+                <td class="meta-label" id="sheetLabelDueDate">お支払期日</td>
+                <td class="meta-val" id="sheetDueDate">2026年10月31日</td>
+              </tr>
+            </table>
+          </header>
+
+          <!-- 宛先 & 発行者セクション -->
+          <div class="sheet-parties">
+            
+            <!-- 取引先情報 -->
+            <div class="sheet-client-box">
+              <div class="client-name-row">
+                <span class="client-name" id="sheetClientName">株式会社サンプル</span>
+                <span class="client-honorific" id="sheetClientHonorific">御中</span>
+              </div>
+              <div class="client-address-text">
+                <div id="sheetClientZip">〒100-0001</div>
+                <div id="sheetClientAddress">東京都千代田区千代田1-1</div>
+                <div id="sheetClientContact" style="margin-top: 4px; font-weight: 500;"></div>
+              </div>
+              <div class="sheet-lead-message" id="sheetLeadMessage">
+                下記の通り、御請求申し上げます。
+              </div>
+            </div>
+
+            <!-- 発行者情報（角印重ね合わせ） -->
+            <div class="sheet-issuer-box">
+              <div class="issuer-name" id="sheetIssuerName">デザインスタジオ・クラフト</div>
+              <div class="issuer-invoice-no" id="sheetIssuerInvoiceNo">登録番号: T1234567890123</div>
+              <div id="sheetIssuerZip">〒150-0002</div>
+              <div id="sheetIssuerAddress">東京都渋谷区渋谷2-2-2 クラフトビル 4F</div>
+              <div id="sheetIssuerTel">TEL: 03-1234-5678</div>
+              <div id="sheetIssuerEmail">Email: info@craft-design.example.jp</div>
+
+              <!-- 角印コンテナ -->
+              <div class="issuer-stamp-wrapper" id="sheetStampWrapper">
+                <img id="sheetStampImg" class="issuer-stamp-img" src="" alt="社印">
+              </div>
+            </div>
+
+          </div>
+
+          <!-- 合計請求金額バナー -->
+          <div class="sheet-grand-amount-banner">
+            <span class="banner-label" id="sheetAmountBannerLabel">御請求金額（税込）</span>
+            <div>
+              <span class="banner-value" id="sheetBannerGrandTotal">¥0</span>
+              <span class="banner-tax-hint" id="sheetBannerTaxTotal">(内消費税 ¥0)</span>
+            </div>
+          </div>
+
+          <!-- 明細テーブル -->
+          <table class="sheet-items-table">
+            <thead>
+              <tr>
+                <th class="th-num">No.</th>
+                <th>品名・摘要</th>
+                <th class="th-right" style="width: 70px;">数量</th>
+                <th style="width: 50px; text-align: center;">単位</th>
+                <th class="th-right" style="width: 110px;">単価</th>
+                <th class="th-right" style="width: 120px;">金額 (税抜)</th>
+                <th style="width: 75px; text-align: center;">税率</th>
+              </tr>
+            </thead>
+            <tbody id="sheetItemsTableBody">
+              <!-- JSで動的に明細行を出力 -->
+            </tbody>
+          </table>
+
+          <!-- 下部セクション：振込先/備考 ＆ 合計・インボイス税区分表 -->
+          <div class="sheet-bottom-section">
+            
+            <!-- 振込先口座 & 備考 -->
+            <div class="sheet-notes-box">
+              <div class="notes-card" id="sheetBankCard">
+                <div class="notes-card-title">【お振込先】</div>
+                <div class="notes-content" id="sheetBankInfo"></div>
+              </div>
+
+              <div class="notes-card" id="sheetNotesCard">
+                <div class="notes-card-title">【備考・特記事項】</div>
+                <div class="notes-content" id="sheetNotes"></div>
+              </div>
+            </div>
+
+            <!-- 計算集計 ＆ 税率内訳 -->
+            <div class="sheet-totals-box">
+              <table class="totals-table">
+                <tr>
+                  <td class="label-col">税抜小計</td>
+                  <td class="val-col" id="sheetSubtotalWithoutTax">¥0</td>
+                </tr>
+                <tr>
+                  <td class="label-col">消費税額合計</td>
+                  <td class="val-col" id="sheetTaxTotal">¥0</td>
+                </tr>
+                <tr class="grand-total-row">
+                  <td class="label-col" id="sheetGrandTotalLabel">御請求金額 (税込)</td>
+                  <td class="val-col" id="sheetGrandTotal">¥0</td>
+                </tr>
+              </table>
+
+              <!-- インボイス制度対応 税率別消費税内訳表 -->
+              <table class="tax-breakdown-table">
+                <thead>
+                  <tr>
+                    <th>税率区分</th>
+                    <th class="text-right">税抜金額</th>
+                    <th class="text-right">消費税額</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>10% 対象</td>
+                    <td class="text-right" id="sheetSubtotal10">¥0</td>
+                    <td class="text-right" id="sheetTax10">¥0</td>
+                  </tr>
+                  <tr>
+                    <td>8% 軽減対象</td>
+                    <td class="text-right" id="sheetSubtotal8">¥0</td>
+                    <td class="text-right" id="sheetTax8">¥0</td>
+                  </tr>
+                  <tr id="sheetRowTax0" style="display: none;">
+                    <td>非課税 対象</td>
+                    <td class="text-right" id="sheetSubtotal0">¥0</td>
+                    <td class="text-right">-</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+
+        </article>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- 履歴一覧モーダル -->
+  <div class="modal-overlay" id="historyModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">保存された書類履歴</h3>
+        <button type="button" class="btn-icon-danger" id="btnCloseHistoryModal" style="font-size: 1.2rem;">✕</button>
+      </div>
+      <div class="modal-body" id="historyListContainer">
+        <!-- 履歴一覧をJSでレンダリング -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCloseHistoryModal2">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- データ管理・バックアップモーダル -->
+  <div class="modal-overlay" id="backupModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">データ管理・バックアップ</h3>
+        <button type="button" class="btn-icon-danger" id="btnCloseBackupModal" style="font-size: 1.2rem;">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 16px;">
+          本アプリのデータはお使いのブラウザ内に安全に保存されています。別のパソコンへの移行やバックアップのためにファイルとして保存・復元できます。
+        </p>
+
+        <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 16px; background: var(--bg-main);">
+          <h4 style="font-size: 0.9rem; margin-bottom: 6px;">📥 バックアップのダウンロード</h4>
+          <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 10px;">
+            自社情報やこれまでに作成した書類履歴をすべて1つのJSONファイルとして書き出します。
+          </p>
+          <button type="button" id="btnExportJSON" class="btn btn-primary btn-sm">
+            JSONファイルを保存
+          </button>
+        </div>
+
+        <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; background: var(--bg-main);">
+          <h4 style="font-size: 0.9rem; margin-bottom: 6px;">📤 バックアップから復元</h4>
+          <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 10px;">
+            過去に保存したJSONファイルを読み込んで、自社情報や履歴を復元します。
+          </p>
+          <label class="btn btn-secondary btn-sm" style="cursor: pointer; margin: 0;">
+            JSONファイルを選択して復元
+            <input type="file" id="fileImportJSON" accept="application/json" style="display: none;">
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCloseBackupModal2">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- トースト通知コンテナ -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- JavaScript エントリーポイント (file:// 及び http:// 両対応) -->
+  <script src="js/app.bundle.js"></script>
+</body>
+</html>
