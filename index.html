@@ -5,8 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BillCraft - 納品書・請求書 かんたん発行アプリ</title>
   <meta name="description" content="インボイス制度対応の納品書・請求書・見積書を直感的に作成、A4リアルタイムプレビュー＆PDF印刷できるWebアプリ">
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/print.css" media="print">
+  <link rel="stylesheet" href="css/style.css?v=20260925_desc_bank">
+  <link rel="stylesheet" href="css/print.css?v=20260925_desc_bank" media="print">
+  <!-- ブラウザ内AI文字認識（OCR）エンジン -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
 
@@ -32,6 +34,22 @@
       <button type="button" id="btnOpenHistory" class="btn btn-secondary btn-sm" title="作成履歴一覧を表示">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         保存履歴
+      </button>
+      <button type="button" id="btnOpenItemMaster" class="btn btn-secondary btn-sm" title="商品・サービスマスタの管理">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        商品マスタ
+      </button>
+      <button type="button" id="btnOpenClientMaster" class="btn btn-secondary btn-sm" title="取引先（得意先・仕入先）マスタの管理">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        取引先マスタ
+      </button>
+      <button type="button" id="btnOpenAccounting" class="btn btn-primary btn-sm" onclick="window.openAccountingModal &amp;&amp; window.openAccountingModal()" title="財務会計・損益ダッシュボード・経費・入金消込">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        会計・収支
+      </button>
+      <button type="button" id="btnOpenAttendance" class="btn btn-secondary btn-sm" onclick="window.openAttendanceModal &amp;&amp; window.openAttendanceModal()" title="スマホ対応 出退勤打刻（タイムカード）">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="14" r="2"/></svg>
+        勤怠打刻
       </button>
       <button type="button" id="btnOpenBackup" class="btn btn-secondary btn-sm" title="データの保存・復元">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -122,8 +140,14 @@
 
             <div class="form-row">
               <div class="form-group" style="grid-column: span 1.5;">
-                <label class="form-label" for="inputClientName">取引先 会社名 / 屋号</label>
-                <input type="text" id="inputClientName" class="form-input" placeholder="例: 株式会社サンプル">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <label class="form-label" for="inputClientName" style="margin-bottom: 0;">取引先 会社名 / 屋号</label>
+                  <button type="button" id="btnSelectClientFromMaster" class="btn btn-outline btn-xs" style="font-size: 0.7rem; padding: 2px 7px; color: var(--primary); border-color: var(--primary);" title="取引先マスタから選択して一発入力">
+                    🏢 マスタから選択
+                  </button>
+                </div>
+                <input type="text" id="inputClientName" class="form-input" placeholder="例: 株式会社サンプル" list="clientMasterDatalist" autocomplete="off">
+                <datalist id="clientMasterDatalist"></datalist>
               </div>
               <div class="form-group" style="grid-column: span 0.5;">
                 <label class="form-label" for="inputClientHonorific">敬称</label>
@@ -158,13 +182,20 @@
         <!-- タブ2: 明細一覧 -->
         <div class="tab-pane" id="tab-items" style="display: none;">
           
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <div style="font-size: 0.825rem; color: var(--text-secondary);">
-              品名・数量・単価・税率を入力してください
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; flex-wrap: wrap;">
+            <div style="display: flex; gap: 6px;">
+              <button type="button" id="btnOpenItemSelectModal" class="btn btn-primary btn-sm" style="display: flex; align-items: center; gap: 5px;" title="商品マスタから選んで明細行に追加">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/></svg>
+                商品から追加
+              </button>
+              <button type="button" id="btnOpenDiscountModal" class="btn btn-secondary btn-sm" style="display: flex; align-items: center; gap: 4px;" title="ユーザー価格から仕切り値引きを自動計算して明細に追加">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                値引きを追加
+              </button>
             </div>
-            <button type="button" id="btnAddItem" class="btn btn-primary btn-sm">
+            <button type="button" id="btnAddItem" class="btn btn-secondary btn-sm" style="display: flex; align-items: center; gap: 4px;" title="空の明細行を手入力で追加">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              行を追加
+              空行を追加
             </button>
           </div>
 
@@ -204,34 +235,40 @@
 
             <div class="form-group">
               <label class="form-label" for="inputIssuerName">会社名 / 屋号</label>
-              <input type="text" id="inputIssuerName" class="form-input" placeholder="例: デザインスタジオ・クラフト">
+              <input type="text" id="inputIssuerName" class="form-input" placeholder="例: スタジオ・ネクサス合同会社">
             </div>
 
             <div class="form-group">
               <label class="form-label" for="inputIssuerInvoiceNo">適格請求書発行事業者登録番号 (インボイス番号)</label>
-              <input type="text" id="inputIssuerInvoiceNo" class="form-input" placeholder="T1234567890123">
+              <input type="text" id="inputIssuerInvoiceNo" class="form-input" placeholder="T9012345678901">
               <div style="font-size: 0.725rem; color: var(--text-muted); margin-top: 3px;">※「T」から始まる13桁の半角数字</div>
             </div>
 
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label" for="inputIssuerZip">郵便番号</label>
-                <input type="text" id="inputIssuerZip" class="form-input" placeholder="150-0002">
+                <input type="text" id="inputIssuerZip" class="form-input" placeholder="150-0043">
               </div>
               <div class="form-group">
-                <label class="form-label" for="inputIssuerTel">電話番号</label>
-                <input type="text" id="inputIssuerTel" class="form-input" placeholder="03-1234-5678">
+                <label class="form-label" for="inputIssuerTel">電話番号 (TEL)</label>
+                <input type="text" id="inputIssuerTel" class="form-input" placeholder="03-6800-9988">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="inputIssuerFax">FAX番号</label>
+                <input type="text" id="inputIssuerFax" class="form-input" placeholder="03-6800-9989">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="inputIssuerEmail">メールアドレス</label>
+                <input type="email" id="inputIssuerEmail" class="form-input" placeholder="billing@nexus-studio.example.com">
               </div>
             </div>
 
             <div class="form-group">
               <label class="form-label" for="inputIssuerAddress">所在地・住所</label>
-              <input type="text" id="inputIssuerAddress" class="form-input" placeholder="東京都渋谷区渋谷2-2-2 クラフトビル 4F">
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="inputIssuerEmail">メールアドレス</label>
-              <input type="email" id="inputIssuerEmail" class="form-input" placeholder="info@example.com">
+              <input type="text" id="inputIssuerAddress" class="form-input" placeholder="東京都渋谷区道玄坂1丁目20-8 渋谷インフォスタワー 7F">
             </div>
           </div>
 
@@ -377,17 +414,19 @@
 
             <!-- 発行者情報（角印重ね合わせ） -->
             <div class="sheet-issuer-box">
-              <div class="issuer-name" id="sheetIssuerName">デザインスタジオ・クラフト</div>
-              <div class="issuer-invoice-no" id="sheetIssuerInvoiceNo">登録番号: T1234567890123</div>
-              <div id="sheetIssuerZip">〒150-0002</div>
-              <div id="sheetIssuerAddress">東京都渋谷区渋谷2-2-2 クラフトビル 4F</div>
-              <div id="sheetIssuerTel">TEL: 03-1234-5678</div>
-              <div id="sheetIssuerEmail">Email: info@craft-design.example.jp</div>
-
-              <!-- 角印コンテナ -->
-              <div class="issuer-stamp-wrapper" id="sheetStampWrapper">
-                <img id="sheetStampImg" class="issuer-stamp-img" src="" alt="社印">
+              <div class="issuer-name-row">
+                <div class="issuer-name" id="sheetIssuerName">スタジオ・ネクサス合同会社</div>
+                <!-- 角印コンテナ（社名末尾に捺印） -->
+                <div class="issuer-stamp-wrapper" id="sheetStampWrapper">
+                  <img id="sheetStampImg" class="issuer-stamp-img" src="" alt="社印">
+                </div>
               </div>
+              <div id="sheetIssuerZip">〒150-0043</div>
+              <div id="sheetIssuerAddress">東京都渋谷区道玄坂1丁目20-8 渋谷インフォスタワー 7F</div>
+              <div id="sheetIssuerTel">TEL: 03-6800-9988</div>
+              <div id="sheetIssuerFax"></div>
+              <div id="sheetIssuerEmail">billing@nexus-studio.example.com</div>
+              <div class="issuer-invoice-no" id="sheetIssuerInvoiceNo">登録番号: T9012345678901</div>
             </div>
 
           </div>
@@ -405,13 +444,14 @@
           <table class="sheet-items-table">
             <thead>
               <tr>
-                <th class="th-num">No.</th>
+                <th class="th-num" style="width: 32px;">No.</th>
                 <th>品名・摘要</th>
-                <th class="th-right" style="width: 70px;">数量</th>
-                <th style="width: 50px; text-align: center;">単位</th>
-                <th class="th-right" style="width: 110px;">単価</th>
-                <th class="th-right" style="width: 120px;">金額 (税抜)</th>
-                <th style="width: 75px; text-align: center;">税率</th>
+                <th class="th-right" style="width: 58px;">数量</th>
+                <th style="width: 44px; text-align: center;">単位</th>
+                <th class="th-right" style="width: 95px;">単価</th>
+                <th class="th-right" style="width: 105px;">金額 (税抜)</th>
+                <th style="width: 65px; text-align: center;">税率</th>
+                <th style="width: 95px;">備考</th>
               </tr>
             </thead>
             <tbody id="sheetItemsTableBody">
@@ -545,10 +585,827 @@
     </div>
   </div>
 
+  <!-- 商品マスタ管理＆明細呼出モーダル -->
+  <div class="modal-overlay" id="itemMasterModal">
+    <div class="modal-card" style="max-width: 720px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/></svg>
+          <h3 class="modal-title">商品マスタ管理・明細に追加</h3>
+        </div>
+        <button type="button" class="btn-icon-danger" id="btnCloseItemMasterModal" style="font-size: 1.2rem;">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 16px 20px;">
+        
+        <!-- 上部アクションバー（検索 ＆ 新規商品登録展開ボタン） -->
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 200px; position: relative;">
+            <input type="text" id="inputSearchItemMaster" class="form-input" placeholder="🔍 品名や備考で絞り込み検索..." style="padding-left: 12px;">
+          </div>
+          <button type="button" id="btnToggleNewItemForm" class="btn btn-primary btn-sm" style="display: flex; align-items: center; gap: 4px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            新規商品を登録
+          </button>
+        </div>
+
+        <!-- 新規登録・編集フォーム（初期は折りたたみ、トグル可能） -->
+        <div id="itemMasterFormContainer" style="display: none; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+          <h4 id="itemMasterFormTitle" style="font-size: 0.9rem; margin-bottom: 12px; color: var(--text-primary);">新規商品の登録</h4>
+          <input type="hidden" id="itemMasterEditId" value="">
+
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label class="form-label" for="itemMasterInputName" style="font-size: 0.8rem;">品名・項目名 <span style="color: var(--danger);">*</span></label>
+            <input type="text" id="itemMasterInputName" class="form-input" placeholder="例: 製品基本セット、導入作業費 など">
+          </div>
+
+          <!-- ユーザー税込価格からの単価自動計算アシスト -->
+          <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 14px; margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+              <span style="font-size: 0.8rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+                💡 ユーザー税込価格からの自動計算
+                <span id="badgeAutoApplied" style="font-size: 11px; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; padding: 1px 7px; border-radius: 9999px; font-weight: 600;">
+                  ⚡ 税抜単価へ自動入力中
+                </span>
+              </span>
+              <!-- 計算方式の切り替え -->
+              <div style="display: flex; align-items: center; gap: 12px; font-size: 0.75rem; color: #475569;">
+                <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;" title="税抜きユーザー ＝ 税抜き仕切り ＋ 販売店利益（税込仕切り × 20%）">
+                  <input type="radio" name="calcMode" id="calcModeWholesale" value="wholesale" checked>
+                  <strong>販売店仕切り（利益20%逆算）</strong>
+                </label>
+                <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;" title="単純にユーザー税込 ÷ (1 + 税率) で税抜単価を計算">
+                  <input type="radio" name="calcMode" id="calcModeStandard" value="standard">
+                  <span>通常税抜（税込÷税率）</span>
+                </label>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 220px;">
+                <label class="form-label" style="font-size: 0.75rem; margin-bottom: 3px; font-weight: 600; color: #334155;">
+                  ユーザー税込価格 (円) <span style="font-size: 11px; font-weight: normal; color: #64748b;">※入力すると下の税抜単価に自動で即座に入力されます</span>
+                </label>
+                <div style="position: relative;">
+                  <span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #64748b; font-weight: 600;">¥</span>
+                  <input type="number" id="calcInputUserPriceInc" class="form-input" placeholder="例: 110000" min="0" style="padding-left: 24px; font-weight: 700; font-size: 0.95rem;">
+                </div>
+              </div>
+            </div>
+
+            <!-- 自動算出プレビュー表示 -->
+            <div id="calcResultPreview" style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #cbd5e1; display: flex; justify-content: space-between; align-items: center; font-size: 0.775rem; color: #475569; flex-wrap: wrap; gap: 6px;">
+              <div id="calcPreviewDetails">
+                <span>自動算出単価: <strong id="calcDisplayUnitPrice" style="color: var(--primary); font-size: 1rem;">¥0</strong></span>
+                <span id="calcPreviewSubInfo" style="margin-left: 8px; font-size: 0.725rem; color: #64748b;">(税込仕切り: <span id="calcDisplayWholesaleInc">¥0</span> / 販売店利益: <span id="calcDisplayProfit" style="color: #059669; font-weight: 600;">¥0</span>)</span>
+              </div>
+              <button type="button" id="btnApplyCalcPrice" class="btn btn-secondary btn-sm" style="padding: 2px 10px; font-size: 0.75rem;">単価に再適用</button>
+            </div>
+          </div>
+
+          <div class="form-row" style="margin-bottom: 10px;">
+            <div class="form-group" style="flex: 1.2;">
+              <label class="form-label" for="itemMasterInputPrice" style="font-size: 0.8rem;">帳票の単価 (税抜) <span style="color: var(--danger);">*</span></label>
+              <input type="number" id="itemMasterInputPrice" class="form-input" placeholder="0" min="0">
+            </div>
+            <div class="form-group" style="flex: 0.8;">
+              <label class="form-label" for="itemMasterInputUnit" style="font-size: 0.8rem;">単位</label>
+              <input type="text" id="itemMasterInputUnit" class="form-input" placeholder="式、個、台、月 など" value="式">
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label" for="itemMasterSelectTax" style="font-size: 0.8rem;">税率</label>
+              <select id="itemMasterSelectTax" class="form-select">
+                <option value="10">10% (標準)</option>
+                <option value="8">8% (軽減税率)</option>
+                <option value="0">0% (非課税)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label" for="itemMasterInputNote" style="font-size: 0.8rem;">備考・補足（任意）</label>
+            <input type="text" id="itemMasterInputNote" class="form-input" placeholder="型番、仕様、納期など">
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 8px;">
+            <button type="button" id="btnCancelItemMasterForm" class="btn btn-secondary btn-sm">キャンセル</button>
+            <button type="button" id="btnSaveItemMasterForm" class="btn btn-primary btn-sm">マスタに保存</button>
+          </div>
+        </div>
+
+        <!-- 登録済み商品一覧コンテナ -->
+        <div id="itemMasterListContainer" style="max-height: 48vh; overflow-y: auto;">
+          <!-- JSでレンダリング -->
+        </div>
+
+      </div>
+
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.775rem; color: var(--text-muted);">
+          ※マスタの価格を変更しても、過去に作成・保存された伝票データには影響しません。
+        </span>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCloseItemMasterModal2">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 取引先マスタ管理＆伝票呼出モーダル -->
+  <div class="modal-overlay" id="clientMasterModal">
+    <div class="modal-card" style="max-width: 800px; width: 95vw; max-height: 88vh; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: #e0f2fe; color: #0284c7; display: flex; align-items: center; justify-content: center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <div>
+            <h3 class="modal-title" style="margin: 0; font-size: 1.1rem;">取引先マスタ管理</h3>
+            <span style="font-size: 0.725rem; color: #64748b;">得意先・仕入先情報の一括管理・伝票宛先へのワンクリック反映</span>
+          </div>
+        </div>
+        <button type="button" class="btn-icon-danger" id="btnCloseClientMasterModal" style="font-size: 1.2rem;">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 16px 20px; overflow-y: auto; flex: 1;">
+        
+        <!-- 上部アクションバー（検索 ＆ 区分フィルター ＆ 新規登録ボタン） -->
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 220px;">
+            <input type="text" id="inputSearchClientMaster" class="form-input" placeholder="🔍 会社名、住所、担当者、インボイス番号で検索..." style="padding-left: 12px; font-size: 0.85rem;">
+          </div>
+          
+          <!-- 区分フィルター -->
+          <div style="display: flex; gap: 4px;">
+            <button type="button" class="btn btn-secondary btn-xs client-filter-btn active" data-filter="all">すべて</button>
+            <button type="button" class="btn btn-secondary btn-xs client-filter-btn" data-filter="customer">得意先のみ</button>
+            <button type="button" class="btn btn-secondary btn-xs client-filter-btn" data-filter="vendor">仕入・支払先のみ</button>
+          </div>
+
+          <button type="button" id="btnToggleNewClientForm" class="btn btn-primary btn-sm" style="display: flex; align-items: center; gap: 4px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            新規取引先を登録
+          </button>
+        </div>
+
+        <!-- 新規登録・編集フォーム（初期非表示） -->
+        <div id="clientMasterFormContainer" style="display: none; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+          <h4 id="clientMasterFormTitle" style="font-size: 0.925rem; margin: 0 0 12px 0; color: #1e293b; font-weight: 700;">新規取引先の登録</h4>
+          <input type="hidden" id="clientMasterEditId" value="">
+
+          <div class="form-row" style="margin-bottom: 10px;">
+            <div class="form-group" style="flex: 1.6;">
+              <label class="form-label" for="clientMasterInputName" style="font-size: 0.8rem;">取引先 会社名 / 屋号 <span style="color: var(--danger);">*</span></label>
+              <input type="text" id="clientMasterInputName" class="form-input" placeholder="例: 株式会社サンプル">
+            </div>
+            <div class="form-group" style="flex: 0.6;">
+              <label class="form-label" for="clientMasterInputHonorific" style="font-size: 0.8rem;">敬称</label>
+              <select id="clientMasterInputHonorific" class="form-select">
+                <option value="御中">御中</option>
+                <option value="様">様</option>
+                <option value="殿">殿</option>
+                <option value="">なし</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex: 0.8;">
+              <label class="form-label" for="clientMasterSelectCategory" style="font-size: 0.8rem;">取引区分</label>
+              <select id="clientMasterSelectCategory" class="form-select">
+                <option value="customer">得意先 (売上)</option>
+                <option value="vendor">仕入・支払先 (経費)</option>
+                <option value="both">両方</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row" style="margin-bottom: 10px;">
+            <div class="form-group" style="flex: 0.8;">
+              <label class="form-label" for="clientMasterInputZip" style="font-size: 0.8rem;">郵便番号</label>
+              <input type="text" id="clientMasterInputZip" class="form-input" placeholder="例: 100-0001">
+            </div>
+            <div class="form-group" style="flex: 2.2;">
+              <label class="form-label" for="clientMasterInputAddress" style="font-size: 0.8rem;">住所</label>
+              <input type="text" id="clientMasterInputAddress" class="form-input" placeholder="例: 東京都千代田区千代田1-1">
+            </div>
+          </div>
+
+          <div class="form-row" style="margin-bottom: 10px;">
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label" for="clientMasterInputContact" style="font-size: 0.8rem;">部署・担当者名 (任意)</label>
+              <input type="text" id="clientMasterInputContact" class="form-input" placeholder="例: 営業部 佐藤 様">
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label" for="clientMasterInputTel" style="font-size: 0.8rem;">電話番号 (任意)</label>
+              <input type="text" id="clientMasterInputTel" class="form-input" placeholder="例: 03-1234-5678">
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label" for="clientMasterInputEmail" style="font-size: 0.8rem;">メールアドレス (任意)</label>
+              <input type="email" id="clientMasterInputEmail" class="form-input" placeholder="例: info@example.jp">
+            </div>
+          </div>
+
+          <div class="form-row" style="margin-bottom: 10px;">
+            <div class="form-group" style="flex: 1.2;">
+              <label class="form-label" for="clientMasterInputInvoiceNum" style="font-size: 0.8rem;">インボイス登録番号 (T+13桁・任意)</label>
+              <input type="text" id="clientMasterInputInvoiceNum" class="form-input" placeholder="T1234567890123" maxlength="14" style="font-family: monospace;">
+            </div>
+            <div class="form-group" style="flex: 0.9;">
+              <label class="form-label" for="clientMasterInputClosingDay" style="font-size: 0.8rem;">締め日 (任意)</label>
+              <input type="text" id="clientMasterInputClosingDay" class="form-input" placeholder="例: 末日、20日">
+            </div>
+            <div class="form-group" style="flex: 0.9;">
+              <label class="form-label" for="clientMasterInputPaymentTerms" style="font-size: 0.8rem;">支払期日・条件 (任意)</label>
+              <input type="text" id="clientMasterInputPaymentTerms" class="form-input" placeholder="例: 翌月末、翌々月10日">
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label" for="clientMasterInputNote" style="font-size: 0.8rem;">備考・特記事項 (任意)</label>
+            <input type="text" id="clientMasterInputNote" class="form-input" placeholder="例: 請求書はPDFメール送付、振込手数料先方負担 など">
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 8px;">
+            <button type="button" id="btnCancelClientMasterForm" class="btn btn-secondary btn-sm">キャンセル</button>
+            <button type="button" id="btnSaveClientMasterForm" class="btn btn-primary btn-sm">マスタに保存</button>
+          </div>
+        </div>
+
+        <!-- 登録済み取引先一覧コンテナ -->
+        <div id="clientMasterListContainer" style="max-height: 48vh; overflow-y: auto;">
+          <!-- JSでレンダリング -->
+        </div>
+
+      </div>
+
+      <div class="modal-footer" style="padding: 12px 20px; background: #ffffff; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.775rem; color: #64748b;">
+          ※マスタの取引先情報を変更しても、過去に作成・保存された伝票データには影響しません。
+        </span>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCloseClientMasterModal2">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 値引き追加モーダル（ユーザー価格基準 & 頻度順名目サジェスト） -->
+  <div class="modal-overlay" id="discountModal">
+    <div class="modal-card" style="max-width: 580px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <h3 class="modal-title">値引きの追加（ユーザー価格基準）</h3>
+        </div>
+        <button type="button" class="btn-icon-danger" id="btnCloseDiscountModal" style="font-size: 1.2rem;">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 16px 20px;">
+        <p style="font-size: 0.825rem; color: var(--text-secondary); margin-bottom: 12px;">
+          ユーザー価格（定価）に対する値引きから、販売店利益（20%）を維持した仕切り値引き単価を自動算出して明細に追加します。
+        </p>
+
+        <!-- 割引きの名目入力 & 以前使った名目クイック選択（使用頻度順） -->
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label" for="discountInputReason" style="font-size: 0.8rem; display: flex; justify-content: space-between;">
+            <span>値引きの名目 <span style="color: var(--danger);">*</span></span>
+            <span style="font-size: 0.7rem; color: #64748b;">よく使う名目をクリックで自動入力</span>
+          </label>
+          <input type="text" id="discountInputReason" class="form-input" placeholder="例: 出精値引き、特別キャンペーン値引き、下取り値引き など" value="出精値引き">
+          
+          <!-- 使用頻度順クイックタグコンテナ -->
+          <div id="discountReasonTagsContainer" style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px;">
+            <!-- JSで使用頻度順に出力 -->
+          </div>
+        </div>
+
+        <!-- ユーザー価格と値引き計算 -->
+        <div style="background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 14px;">
+          <div class="form-row" style="margin-bottom: 10px;">
+            <div class="form-group">
+              <label class="form-label" for="discountBaseUserPriceInc" style="font-size: 0.775rem;">基準ユーザー税込価格 (円)</label>
+              <input type="number" id="discountBaseUserPriceInc" class="form-input" placeholder="例: 100000" min="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="font-size: 0.775rem;">値引き方法</label>
+              <div style="display: flex; gap: 4px;">
+                <select id="discountSelectType" class="form-select" style="width: 80px; font-size: 0.8rem;">
+                  <option value="percent">%指定</option>
+                  <option value="amount">円指定</option>
+                  <option value="direct">直接指定</option>
+                </select>
+                <input type="number" id="discountInputValue" class="form-input" placeholder="例: 10" min="0">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="discountSelectTaxRate" style="font-size: 0.775rem;">適用税率</label>
+            <select id="discountSelectTaxRate" class="form-select">
+              <option value="10">10% (標準)</option>
+              <option value="8">8% (軽減税率)</option>
+              <option value="0">0% (非課税)</option>
+            </select>
+          </div>
+
+          <!-- 自動算出結果表示パネル -->
+          <div style="margin-top: 12px; padding: 10px; background: #ffffff; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.825rem;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span style="color: #64748b;">ユーザー価格の値引き額:</span>
+              <span id="displayUserDiscountAmount">¥0</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 6px; border-top: 1px dashed #e2e8f0;">
+              <span style="font-weight: 700; color: #1e293b;">帳票に追加される値引き単価 (税抜):</span>
+              <strong id="displayWholesaleDiscountUnitPrice" style="color: var(--danger); font-size: 1.05rem;">-¥0</strong>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCloseDiscountModal2">キャンセル</button>
+        <button type="button" id="btnAddDiscountToItems" class="btn btn-primary btn-sm" style="background: var(--danger); border-color: var(--danger);">
+          値引き行を明細に追加
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 会計・収支ダッシュボードモーダル -->
+  <div class="modal-overlay" id="accountingModal">
+    <div class="modal-card" style="max-width: 980px; width: 95vw; max-height: 92vh; display: flex; flex-direction: column;">
+      
+      <div class="modal-header" style="padding: 16px 24px; border-bottom: 1px solid var(--border-color); background: #ffffff;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: #e0e7ff; color: var(--primary); display: flex; align-items: center; justify-content: center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          </div>
+          <div>
+            <h3 class="modal-title" style="margin: 0; font-size: 1.15rem;">財務会計・収支ダッシュボード</h3>
+            <span style="font-size: 0.725rem; color: #64748b;">請求書連動の売上・入金消込・レシート経費OCR・損益計算書（P/L）</span>
+          </div>
+        </div>
+        <button type="button" class="btn-icon-danger" id="btnCloseAccountingModal" style="font-size: 1.2rem;">✕</button>
+      </div>
+
+      <!-- 会計サブタブナビゲーション -->
+      <div class="accounting-tabs-bar" style="display: flex; gap: 4px; padding: 8px 24px 0 24px; background: #f8fafc; border-bottom: 1px solid var(--border-color); overflow-x: auto;">
+        <button type="button" class="acc-tab-btn active" data-tab="acc-tab-dashboard">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          損益ダッシュボード
+        </button>
+        <button type="button" class="acc-tab-btn" data-tab="acc-tab-sales">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          売上・入金消込
+        </button>
+        <button type="button" class="acc-tab-btn" data-tab="acc-tab-expenses">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          レシート読取＆経費入力
+        </button>
+        <button type="button" class="acc-tab-btn" data-tab="acc-tab-journals">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          仕訳帳・税理士用CSV
+        </button>
+      </div>
+
+      <!-- 会計モーダル本文コンテンツ -->
+      <div class="modal-body" style="padding: 20px 24px; overflow-y: auto; flex: 1; background: #f8fafc;">
+
+        <!-- 1. 損益ダッシュボードペイン -->
+        <div class="acc-pane active" id="acc-tab-dashboard">
+          <!-- 期間セレクター -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 0.85rem; font-weight: 700; color: #334155;">集計対象期間:</span>
+              <select id="accSelectMonth" class="form-select" style="width: 160px; font-weight: 600;">
+                <!-- JSで月リストを出力 -->
+              </select>
+            </div>
+            <span style="font-size: 0.75rem; color: #64748b;">※請求書・経費データからリアルタイム自動集計</span>
+          </div>
+
+          <!-- KPIサマリーカード群 -->
+          <div class="kpi-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px;">
+            <div class="kpi-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; border-left: 4px solid var(--primary);">
+              <span style="font-size: 0.75rem; color: #64748b; font-weight: 600;">当月 売上高 (税抜)</span>
+              <div id="kpiTotalSales" style="font-size: 1.4rem; font-weight: 800; color: #1e293b; margin: 4px 0;">¥0</div>
+              <span id="kpiTotalSalesInc" style="font-size: 0.725rem; color: #64748b;">税込: ¥0</span>
+            </div>
+
+            <div class="kpi-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; border-left: 4px solid #059669;">
+              <span style="font-size: 0.75rem; color: #64748b; font-weight: 600;">売上総利益 (粗利益)</span>
+              <div id="kpiGrossProfit" style="font-size: 1.4rem; font-weight: 800; color: #059669; margin: 4px 0;">¥0</div>
+              <span id="kpiGrossMargin" style="font-size: 0.725rem; color: #059669; font-weight: 600;">粗利率: 0.0%</span>
+            </div>
+
+            <div class="kpi-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; border-left: 4px solid #d97706;">
+              <span style="font-size: 0.75rem; color: #64748b; font-weight: 600;">当月 経費総額 (販管費)</span>
+              <div id="kpiTotalExpenses" style="font-size: 1.4rem; font-weight: 800; color: #d97706; margin: 4px 0;">¥0</div>
+              <span id="kpiExpenseItemsCount" style="font-size: 0.725rem; color: #64748b;">0件の経費支出</span>
+            </div>
+
+            <div class="kpi-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; border-left: 4px solid #3b82f6;">
+              <span style="font-size: 0.75rem; color: #64748b; font-weight: 600;">営業利益 (純利益)</span>
+              <div id="kpiOperatingProfit" style="font-size: 1.4rem; font-weight: 800; color: #3b82f6; margin: 4px 0;">¥0</div>
+              <span id="kpiOperatingMargin" style="font-size: 0.725rem; color: #3b82f6; font-weight: 600;">純利益率: 0.0%</span>
+            </div>
+
+            <div class="kpi-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; border-left: 4px solid var(--danger);">
+              <span style="font-size: 0.75rem; color: #64748b; font-weight: 600;">未回収売掛金 (未入金)</span>
+              <div id="kpiUnpaidSales" style="font-size: 1.4rem; font-weight: 800; color: var(--danger); margin: 4px 0;">¥0</div>
+              <span id="kpiCollectionRate" style="font-size: 0.725rem; color: #64748b;">回収率: 100%</span>
+            </div>
+          </div>
+
+          <!-- 月別収支推移バーグラフコンテナ -->
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <span style="font-size: 0.875rem; font-weight: 700; color: #1e293b;">📈 月別収支推移（売上・経費・利益）</span>
+              <div style="display: flex; gap: 12px; font-size: 0.75rem;">
+                <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 10px; height: 10px; background: var(--primary); border-radius: 2px;"></span>売上</span>
+                <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 10px; height: 10px; background: #d97706; border-radius: 2px;"></span>経費</span>
+                <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 10px; height: 10px; background: #059669; border-radius: 2px;"></span>純利益</span>
+              </div>
+            </div>
+            <!-- Canvas推移グラフ -->
+            <div id="accChartContainer" style="width: 100%; height: 200px; position: relative;">
+              <canvas id="accMonthlyChart" style="width: 100%; height: 100%;"></canvas>
+            </div>
+          </div>
+
+          <!-- 科目別経費内訳 -->
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
+            <span style="font-size: 0.875rem; font-weight: 700; color: #1e293b; display: block; margin-bottom: 12px;">📑 経費科目別内訳</span>
+            <div id="accExpenseCategoryList" style="display: flex; flex-direction: column; gap: 8px;">
+              <!-- JSで科目別プログレスバーを出力 -->
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. 売上・入金消込ペイン -->
+        <div class="acc-pane" id="acc-tab-sales">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <div>
+              <span style="font-size: 0.875rem; font-weight: 700; color: #1e293b;">請求書・売掛金 入金消込台帳</span>
+              <p style="font-size: 0.75rem; color: #64748b; margin: 2px 0 0 0;">発行した請求書の入金状況をワンクリックで消し込み・管理できます</p>
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" class="btn btn-secondary btn-sm" id="btnFilterAllInvoices">すべて</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btnFilterUnpaidInvoices" style="color: var(--danger); font-weight: 700;">未入金のみ</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btnFilterPaidInvoices" style="color: #059669;">入金済のみ</button>
+            </div>
+          </div>
+
+          <!-- 売掛金テーブル -->
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+            <table class="acc-table" style="width: 100%; border-collapse: collapse; font-size: 0.825rem;">
+              <thead>
+                <tr style="background: #f1f5f9; color: #475569; text-align: left;">
+                  <th style="padding: 10px 12px;">書類番号</th>
+                  <th style="padding: 10px 12px;">取引先</th>
+                  <th style="padding: 10px 12px;">発行日</th>
+                  <th style="padding: 10px 12px;">お支払期日</th>
+                  <th style="padding: 10px 12px; text-align: right;">請求金額 (税込)</th>
+                  <th style="padding: 10px 12px; text-align: center;">ステータス</th>
+                  <th style="padding: 10px 12px; text-align: center;">入金日 / 消込操作</th>
+                </tr>
+              </thead>
+              <tbody id="accSalesTableBody">
+                <!-- JSでレンダリング -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 3. レシート読取＆経費入力ペイン -->
+        <div class="acc-pane" id="acc-tab-expenses">
+          <!-- 上部：レシート写真（左）と入力フォーム（右）の2カラムグリッド -->
+          <div style="display: grid; grid-template-columns: 1fr 1.3fr; gap: 16px; margin-bottom: 20px;">
+            
+            <!-- 左側：レシート画像アップロード＆プレビュー -->
+            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <span style="font-size: 0.875rem; font-weight: 700; color: #1e293b;">
+                  📸 レシート画像アップロード（自動読み取り）
+                </span>
+                <span id="geminiOcrBadge" style="display: none; font-size: 0.65rem; background: linear-gradient(135deg, #e0e7ff, #ede9fe); color: #4338ca; border: 1px solid #c7d2fe; padding: 2px 7px; border-radius: 12px; font-weight: 700;">
+                  ✨ Gemini AI 連携中
+                </span>
+              </div>
+
+              <!-- 画像アップロードドロップゾーン -->
+              <div id="receiptDropZone" style="border: 2px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; background: #f8fafc; cursor: pointer; margin-bottom: 14px; transition: border-color 0.2s;">
+                <input type="file" id="receiptFileInput" accept="image/*" style="display: none;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" style="margin: 0 auto 6px auto; display: block;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <span style="font-size: 0.8rem; font-weight: 700; color: #334155; display: block;">レシート写真を選択 または ドラッグ</span>
+                <span style="font-size: 0.7rem; color: #64748b;">日付・金額・店名を自動認識して入力補完します</span>
+              </div>
+
+              <!-- アップロード済み画像プレビュー枠（スクロール＆拡大表示可能） -->
+              <div id="receiptImagePreviewContainer" style="display: none; margin-bottom: 14px; border-radius: 8px; overflow: hidden; border: 1px solid #cbd5e1; background: #0f172a;">
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: #1e293b; border-bottom: 1px solid #334155;">
+                  <span style="font-size: 0.725rem; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 4px;">
+                    📄 領収書・レシート画像
+                  </span>
+                  <div style="display: flex; gap: 6px;">
+                    <button type="button" id="btnZoomReceiptImage" style="background: #3b82f6; color: white; border: none; border-radius: 4px; padding: 2px 8px; font-size: 0.7rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 3px;" title="レシートを大画面で確認">
+                      🔍 全体を拡大
+                    </button>
+                    <button type="button" id="btnClearReceiptImage" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid #ef4444; border-radius: 4px; padding: 2px 8px; font-size: 0.7rem; font-weight: 600; cursor: pointer;" title="画像を削除">
+                      ✕ 解除
+                    </button>
+                  </div>
+                </div>
+                <div id="receiptImageScrollBox" style="max-height: 280px; overflow-y: auto; overflow-x: hidden; padding: 12px; text-align: center; cursor: zoom-in;" title="クリックして大画面で拡大表示">
+                  <img id="receiptImagePreview" src="" alt="レシートプレビュー" style="max-width: 100%; height: auto; display: inline-block; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+                </div>
+              </div>
+
+              <!-- OCR解析ステータス表示 -->
+              <div id="receiptOcrStatus" style="display: none; padding: 8px 12px; background: #e0e7ff; border-radius: 6px; font-size: 0.75rem; color: #3730a3; margin-bottom: 12px; align-items: center; gap: 8px;">
+                <span class="ocr-spinner" style="display: inline-block; width: 14px; height: 14px; border: 2px solid #6366f1; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
+                <span id="receiptOcrStatusText" style="font-weight: 600;">レシートから文字を解析しています...</span>
+              </div>
+            </div>
+
+            <!-- 右側：経費入力フォーム -->
+            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
+              <form id="formExpenseInput">
+                <input type="hidden" id="expenseEditId" value="">
+                <div class="form-row" style="margin-bottom: 8px;">
+                  <div class="form-group" style="flex: 1;">
+                    <label class="form-label" style="font-size: 0.75rem;" for="expenseInputDate">出費日 <span style="color: var(--danger);">*</span></label>
+                    <input type="date" id="expenseInputDate" class="form-input" style="font-size: 0.8rem;" required>
+                  </div>
+                  <div class="form-group" style="flex: 1.2;">
+                    <label class="form-label" style="font-size: 0.75rem;" for="expenseSelectCategory">勘定科目 <span style="color: var(--danger);">*</span></label>
+                    <select id="expenseSelectCategory" class="form-select" style="font-size: 0.8rem;" required>
+                      <option value="消耗品費">消耗品費 (文具・備品)</option>
+                      <option value="旅費交通費">旅費交通費 (電車・タクシー・ガソリン)</option>
+                      <option value="通信費">通信費 (携帯・切手・ネット)</option>
+                      <option value="接待交際費">接待交際費 (飲食・手土産)</option>
+                      <option value="仕入高">仕入高 (商品・材料仕入)</option>
+                      <option value="外注加工費">外注加工費 (業務委託)</option>
+                      <option value="支払手数料">支払手数料 (振込・決済手数料)</option>
+                      <option value="水道光熱費">水道光熱費 (電気・ガス・水道)</option>
+                      <option value="車両費">車両費 (車検・保険・高速)</option>
+                      <option value="広告宣伝費">広告宣伝費 (広告・チラシ・名刺)</option>
+                      <option value="地代家賃">地代家賃 (事務所・駐車場)</option>
+                      <option value="新聞図書費">新聞図書費 (書籍・専門誌)</option>
+                      <option value="福利厚生費">福利厚生費 (飲料・健康診断)</option>
+                      <option value="修繕費">修繕費 (修理・メンテ)</option>
+                      <option value="租税公課">租税公課 (印紙・公租公課)</option>
+                      <option value="保険料">保険料 (損保・賠償保険)</option>
+                      <option value="雑費">雑費 (その他費用)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-row" style="margin-bottom: 8px;">
+                  <div class="form-group" style="flex: 1.4;">
+                    <label class="form-label" style="font-size: 0.75rem;" for="expenseInputAmount">金額 (税抜 または 税込) <span style="color: var(--danger);">*</span></label>
+                    <input type="number" id="expenseInputAmount" class="form-input" placeholder="例: 1200" min="0" style="font-size: 0.9rem; font-weight: 700;" required>
+                  </div>
+                  <div class="form-group" style="flex: 0.8;">
+                    <label class="form-label" style="font-size: 0.75rem;" for="expenseSelectTax">税率</label>
+                    <select id="expenseSelectTax" class="form-select" style="font-size: 0.8rem;">
+                      <option value="10">10% (標準)</option>
+                      <option value="8">8% (軽減)</option>
+                      <option value="0">0% (非課税)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-row" style="margin-bottom: 8px;">
+                  <div class="form-group" style="flex: 1.1;">
+                    <label class="form-label" style="font-size: 0.75rem;" for="expenseInputPayee">支払先・店名（任意）</label>
+                    <input type="text" id="expenseInputPayee" class="form-input" placeholder="例: セブン-イレブン、出光興産 など" list="clientMasterDatalist" autocomplete="off" style="font-size: 0.8rem;">
+                  </div>
+                  <div class="form-group" style="flex: 1;">
+                    <label class="form-label" style="font-size: 0.75rem;" for="expenseInputInvoiceNum">インボイス登録番号 (T+13桁)</label>
+                    <input type="text" id="expenseInputInvoiceNum" class="form-input" placeholder="T1234567890123" maxlength="14" style="font-size: 0.8rem; font-family: monospace; letter-spacing: 0.5px;">
+                  </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 12px;">
+                  <label class="form-label" style="font-size: 0.75rem;" for="expenseInputNote">摘要・メモ（任意）</label>
+                  <input type="text" id="expenseInputNote" class="form-input" placeholder="例: 打ち合わせ時のお茶代、消耗品購入 など" style="font-size: 0.8rem;">
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnResetExpenseForm">クリア</button>
+                  <button type="button" class="btn btn-primary btn-sm" id="btnSaveExpense">経費として登録</button>
+                </div>
+              </form>
+            </div>
+
+          </div><!-- /上部グリッド終了 -->
+
+          <!-- 下部：登録済み経費一覧（横幅いっぱいに全幅表示！） -->
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <span style="font-size: 0.875rem; font-weight: 700; color: #1e293b;">登録済み経費・仕入一覧</span>
+              <span id="expenseListTotalAmount" style="font-size: 0.85rem; font-weight: 700; color: #d97706;">合計: ¥0</span>
+            </div>
+            <div id="expenseTableContainer" style="overflow-x: auto;">
+              <table class="acc-table" style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                <thead>
+                  <tr style="background: #f1f5f9; color: #475569; text-align: left;">
+                    <th style="padding: 8px 10px; width: 100px;">出費日</th>
+                    <th style="padding: 8px 10px; width: 95px;">科目</th>
+                    <th style="padding: 8px 10px;">支払先 / 摘要</th>
+                    <th style="padding: 8px 10px; text-align: right; width: 110px;">金額</th>
+                    <th style="padding: 8px 10px; text-align: center; width: 65px;">税率</th>
+                    <th style="padding: 8px 10px; text-align: center; width: 110px;">レシート</th>
+                    <th style="padding: 8px 10px; text-align: center; width: 110px;">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="expenseTableBody">
+                  <!-- JSでレンダリング -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 4. 仕訳帳・税理士用CSVペイン -->
+        <div class="acc-pane" id="acc-tab-journals">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <div>
+              <span style="font-size: 0.875rem; font-weight: 700; color: #1e293b;">複式簿記 仕訳帳（自動生成）</span>
+              <p style="font-size: 0.75rem; color: #64748b; margin: 2px 0 0 0;">請求書と経費から自動生成された仕訳データを税理士提出用CSVとして一括出力できます</p>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" id="btnExportJournalCSV" style="display: flex; align-items: center; gap: 6px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              仕訳データCSVダウンロード
+            </button>
+          </div>
+
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; max-height: 58vh; overflow-y: auto;">
+            <table class="acc-table" style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+              <thead>
+                <tr style="background: #f1f5f9; color: #475569; text-align: left;">
+                  <th style="padding: 8px 10px; width: 90px;">取引日</th>
+                  <th style="padding: 8px 10px; width: 120px;">借方科目</th>
+                  <th style="padding: 8px 10px; text-align: right; width: 110px;">借方金額</th>
+                  <th style="padding: 8px 10px; width: 120px;">貸方科目</th>
+                  <th style="padding: 8px 10px; text-align: right; width: 110px;">貸方金額</th>
+                  <th style="padding: 8px 10px;">摘要・取引先</th>
+                  <th style="padding: 8px 10px; text-align: center; width: 80px;">種別</th>
+                </tr>
+              </thead>
+              <tbody id="accJournalTableBody">
+                <!-- JSでレンダリング -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+
+
+    </div>
+  </div>
+
+  <!-- 勤怠打刻（タイムカード）モーダル（スマホ対応） -->
+  <div class="modal-overlay" id="attendanceModal">
+    <div class="modal-card" style="max-width: 520px; width: 95vw; max-height: 90vh; display: flex; flex-direction: column;">
+      
+      <div class="modal-header" style="padding: 16px 20px; background: #ffffff; border-bottom: 1px solid var(--border-color);">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: #ecfdf5; color: #059669; display: flex; align-items: center; justify-content: center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+          </div>
+          <div>
+            <h3 class="modal-title" style="margin: 0; font-size: 1.1rem;">出退勤打刻（タイムカード）</h3>
+            <span style="font-size: 0.725rem; color: #64748b;">休憩1時間自動控除・スマホ対応ワンタップ打刻</span>
+          </div>
+        </div>
+        <button type="button" class="btn-icon-danger" id="btnCloseAttendanceModal" style="font-size: 1.2rem;">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 20px; overflow-y: auto; background: #f8fafc;">
+        
+        <!-- 現在日時・大きな時計カード -->
+        <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #ffffff; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 18px; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);">
+          <div id="attendanceLiveDate" style="font-size: 0.85rem; color: #94a3b8; font-weight: 500; margin-bottom: 4px;">2026年9月25日 (金)</div>
+          <div id="attendanceLiveTime" style="font-size: 2.8rem; font-weight: 800; font-family: monospace; letter-spacing: 2px;">12:00:00</div>
+          
+          <div style="margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; background: rgba(255,255,255,0.1); font-size: 0.8rem;">
+            <span>本日の状況:</span>
+            <strong id="attendanceTodayStatusText" style="color: #38bdf8;">未出勤</strong>
+          </div>
+        </div>
+
+        <!-- 打刻ボタン（出勤・退勤の2つのみ！休憩1時間自動） -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px;">
+          <button type="button" id="btnClockIn" class="btn-stamp-action btn-clock-in" style="background: #059669; color: #ffffff; border: none; border-radius: 10px; padding: 18px 10px; font-size: 1.15rem; font-weight: 800; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; cursor: pointer; box-shadow: 0 4px 10px rgba(5, 150, 105, 0.25); transition: transform 0.1s, background 0.15s;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            出勤する
+            <span id="displayClockInTime" style="font-size: 0.725rem; font-weight: normal; opacity: 0.9;">未打刻</span>
+          </button>
+
+          <button type="button" id="btnClockOut" class="btn-stamp-action btn-clock-out" style="background: #475569; color: #ffffff; border: none; border-radius: 10px; padding: 18px 10px; font-size: 1.15rem; font-weight: 800; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; cursor: pointer; box-shadow: 0 4px 10px rgba(71, 85, 105, 0.25); transition: transform 0.1s, background 0.15s;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            退勤する
+            <span id="displayClockOutTime" style="font-size: 0.725rem; font-weight: normal; opacity: 0.9;">未打刻</span>
+          </button>
+        </div>
+
+        <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 8px 12px; margin-bottom: 18px; font-size: 0.75rem; color: #065f46; display: flex; align-items: center; gap: 6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+          <span>休憩時間は打刻不要です。勤務時間から<strong>1時間自動で差し引いて</strong>実働時間を算出します。</span>
+        </div>
+
+        <!-- 今月の勤務実績サマリー -->
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-size: 0.825rem; font-weight: 700; color: #1e293b;">今月の勤怠実績</span>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnExportAttendanceCSV" style="font-size: 0.725rem; padding: 2px 8px;">
+              CSV出力
+            </button>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; text-align: center;">
+            <div style="background: #f8fafc; padding: 8px; border-radius: 6px;">
+              <span style="font-size: 0.7rem; color: #64748b;">出勤日数</span>
+              <div id="summaryWorkDays" style="font-size: 1.15rem; font-weight: 800; color: #1e293b;">0日</div>
+            </div>
+            <div style="background: #f8fafc; padding: 8px; border-radius: 6px;">
+              <span style="font-size: 0.7rem; color: #64748b;">総実働時間</span>
+              <div id="summaryTotalWorkHours" style="font-size: 1.15rem; font-weight: 800; color: #059669;">0時間</div>
+            </div>
+            <div style="background: #f8fafc; padding: 8px; border-radius: 6px;">
+              <span style="font-size: 0.7rem; color: #64748b;">総残業時間</span>
+              <div id="summaryTotalOvertime" style="font-size: 1.15rem; font-weight: 800; color: #d97706;">0時間</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 直近の打刻履歴一覧 -->
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+          <span style="font-size: 0.8rem; font-weight: 700; color: #1e293b; display: block; margin-bottom: 8px;">直近のタイムカード履歴</span>
+          <div style="max-height: 25vh; overflow-y: auto;">
+            <table class="acc-table" style="width: 100%; border-collapse: collapse; font-size: 0.75rem;">
+              <thead>
+                <tr style="background: #f1f5f9; color: #475569; text-align: left;">
+                  <th style="padding: 6px 8px;">日付</th>
+                  <th style="padding: 6px 8px;">出勤</th>
+                  <th style="padding: 6px 8px;">退勤</th>
+                  <th style="padding: 6px 8px;">休憩</th>
+                  <th style="padding: 6px 8px;">実働</th>
+                  <th style="padding: 6px 8px; text-align: right;">残業</th>
+                  <th style="padding: 6px 8px; text-align: center;">操作</th>
+                </tr>
+              </thead>
+              <tbody id="attendanceTableBody">
+                <!-- JSでレンダリング -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer" style="padding: 10px 20px; background: #ffffff; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end;">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCloseAttendanceModal2">閉じる</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- レシート画像 全体拡大確認モーダル（電子帳簿保存法スキャナ保存対応） -->
+  <div id="receiptZoomModal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 99999; background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); align-items: center; justify-content: center; padding: 16px; box-sizing: border-box;">
+    <div style="position: relative; max-width: 92vw; max-height: 94vh; display: flex; flex-direction: column; background: #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6); border: 1px solid #334155;">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; background: #0f172a; border-bottom: 1px solid #334155;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 0.9rem; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 6px;">
+            📸 領収書・レシート原本写真
+          </span>
+          <span style="font-size: 11px; background: #065f46; color: #34d399; padding: 2px 8px; border-radius: 4px; font-weight: 600;">
+            ✓ 電子帳簿保存法 スキャナ保存対応
+          </span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <a id="btnDownloadReceiptZoom" href="#" download="receipt.jpg" class="btn btn-outline btn-xs" style="background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.3); display: inline-flex; align-items: center; gap: 4px; text-decoration: none;">
+            📥 画像を保存
+          </a>
+          <button type="button" id="btnCloseReceiptZoom" style="background: rgba(255,255,255,0.15); border: none; color: #f8fafc; font-size: 16px; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;" title="閉じる">✕</button>
+        </div>
+      </div>
+      <!-- 紐づく経費情報バナー -->
+      <div id="receiptZoomMetaBanner" style="background: #1e293b; padding: 8px 18px; font-size: 12px; color: #cbd5e1; border-bottom: 1px solid #334155; display: flex; flex-wrap: wrap; gap: 16px;">
+        <span id="receiptZoomMetaDate">📅 取引日: -</span>
+        <span id="receiptZoomMetaPayee">🏢 取引先: -</span>
+        <span id="receiptZoomMetaAmount" style="font-weight: 700; color: #38bdf8;">💴 金額: -</span>
+        <span id="receiptZoomMetaInvoice" style="font-family: monospace; color: #a5b4fc;">🏷️ インボイス: -</span>
+      </div>
+      <div style="overflow: auto; padding: 18px; text-align: center; max-height: calc(94vh - 110px); display: flex; justify-content: center; align-items: flex-start; background: #090d16;">
+        <img id="receiptZoomImage" src="" alt="レシート拡大プレビュー" style="max-width: 100%; height: auto; border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+      </div>
+    </div>
+  </div>
+
   <!-- トースト通知コンテナ -->
   <div class="toast-container" id="toastContainer"></div>
 
-  <!-- JavaScript エントリーポイント (file:// 及び http:// 両対応) -->
-  <script src="js/app.bundle.js"></script>
+  <!-- JavaScript エントリーポイント (file:// 及び http:// 部分両対応) -->
+  <script src="js/app.bundle.js?v=20260925_desc_bank"></script>
 </body>
 </html>

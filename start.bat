@@ -13,9 +13,8 @@ cd /d "%~dp0"
 :: Python がインストールされているかチェック
 where python >nul 2>nul
 if %errorlevel% equ 0 (
-    echo Pythonローカルサーバーを起動してブラウザを開きます...
-    start "" http://localhost:3000
-    python -m http.server 3000
+    echo Pythonローカルサーバー（Gemini API連携対応）を起動します...
+    python server.py
 ) else (
     echo ブラウザで直接 index.html を開きます...
     start "" index.html

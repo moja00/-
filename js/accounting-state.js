@@ -1,0 +1,285 @@
+/**
+ * accounting-state.js
+ * 財務会計・損益計算・自動仕訳・税理士用CSV出力エンジン
+ */
+
+// 標準的な日本の青色申告・法人勘定科目リスト
+export const ACCOUNT_CATEGORIES = [
+  { code: '501', name: '仕入高', group: 'cost', taxType: 'taxable', description: '商品・原材料の仕入れ' },
+  { code: '502', name: '外注加工費', group: 'cost', taxType: 'taxable', description: '外部委託・加工・業務委託費' },
+  { code: '601', name: '旅費交通費', group: 'expense', taxType: 'taxable', description: '電車、タクシー、ガソリン、宿泊費' },
+  { code: '602', name: '通信費', group: 'expense', taxType: 'taxable', description: '携帯電話、インターネット、切手・郵送' },
+  { code: '603', name: '消耗品費', group: 'expense', taxType: 'taxable', description: '文具、事務用品、10万円未満の備品' },
+  { code: '604', name: '接待交際費', group: 'expense', taxType: 'taxable', description: '取引先との飲食、慶弔見舞金、贈答品' },
+  { code: '605', name: '地代家賃', group: 'expense', taxType: 'exempt', description: '事務所・店舗・駐車場代' },
+  { code: '606', name: '水道光熱費', group: 'expense', taxType: 'taxable', description: '電気、ガス、水道料金' },
+  { code: '607', name: '支払手数料', group: 'expense', taxType: 'taxable', description: '振込手数料、各種決済・仲介手数料' },
+  { code: '608', name: '車両費', group: 'expense', taxType: 'taxable', description: '社用車の車検、保険、整備、高速代' },
+  { code: '609', name: '広告宣伝費', group: 'expense', taxType: 'taxable', description: 'WEB広告、チラシ、看板、名刺作成' },
+  { code: '610', name: '新聞図書費', group: 'expense', taxType: 'taxable', description: '書籍、新聞、専門誌、情報サービス' },
+  { code: '611', name: '福利厚生費', group: 'expense', taxType: 'taxable', description: '従業員の健康診断、慶弔費、飲料・軽食' },
+  { code: '612', name: '租税公課', group: 'expense', taxType: 'exempt', description: '印紙税、固定資産税、自動車税、登録免許税' },
+  { code: '613', name: '保険料', group: 'expense', taxType: 'exempt', description: '損害保険、火災保険、賠償責任保険' },
+  { code: '614', name: '修繕費', group: 'expense', taxType: 'taxable', description: '建物・設備・PC等の修理・メンテナンス' },
+  { code: '699', name: '雑費', group: 'expense', taxType: 'taxable', description: '他の科目に当てはまらない少額出費' }
+];
+
+/**
+ * 期間内の損益計算書（P/L）および経営KPIを集計
+ * @param {Array} invoices 請求書リスト (fullDoc)
+ * @param {Array} expenses 経費リスト
+ * @param {string} targetMonth 'YYYY-MM' または 'all'
+ * @returns {object} P/L詳細・粗利益・純利益・未回収残高
+ */
+export function calculateProfitAndLoss(invoices = [], expenses = [], targetMonth = 'all') {
+  // 引数が文字列1つの場合（targetMonthのみ渡された場合）のフォールバック
+  if (typeof invoices === 'string') {
+    targetMonth = invoices || 'all';
+    invoices = [];
+    expenses = [];
+  }
+  if (!Array.isArray(invoices)) invoices = [];
+  if (!Array.isArray(expenses)) expenses = [];
+  if (!targetMonth) targetMonth = 'all';
+
+  let totalSales = 0; // 総売上高（税抜）
+  let totalSalesTax = 0; // 売上消費税
+  let totalSalesInc = 0; // 総売上高（税込）
+  let totalWholesaleCost = 0; // 請求書ベースの原価（仕切り原価）
+  let unpaidSalesInc = 0; // 未回収売掛金（税込）
+  let paidSalesInc = 0; // 回収済み売上（税込）
+
+  // 1. 請求書からの売上集計
+  invoices.forEach(inv => {
+    if (!inv) return;
+    const issueDate = inv.issueDate || '';
+    if (targetMonth !== 'all' && !issueDate.startsWith(targetMonth)) {
+      return;
+    }
+
+    // ドキュメントタイプがinvoice（請求書）または未指定
+    const isDeliveryOnly = inv.docType === 'delivery';
+    if (isDeliveryOnly) return; // 納品書のみは売上二重計上防止のためスキップ
+
+    let docSubtotal = 0;
+    let docTax = 0;
+    let docWholesaleCost = 0;
+
+    if (Array.isArray(inv.items)) {
+      inv.items.forEach(it => {
+        const qty = Number(it.quantity) || 0;
+        const price = Number(it.unitPrice) || 0;
+        const lineTotal = qty * price;
+        const taxRate = Number(it.taxRate !== undefined ? it.taxRate : 10);
+        
+        docSubtotal += lineTotal;
+        docTax += Math.round(lineTotal * (taxRate / 100));
+
+        // 原価（もし仕入れ原価が定義されていれば加算）
+        if (it.costPrice) {
+          docWholesaleCost += qty * Number(it.costPrice);
+        }
+      });
+    }
+
+    const docTotalInc = docSubtotal + docTax;
+    totalSales += docSubtotal;
+    totalSalesTax += docTax;
+    totalSalesInc += docTotalInc;
+    totalWholesaleCost += docWholesaleCost;
+
+    // 入金ステータス（未入金／入金済）
+    if (inv.paymentStatus === 'paid') {
+      paidSalesInc += docTotalInc;
+    } else {
+      unpaidSalesInc += docTotalInc;
+    }
+  });
+
+  // 2. 経費・仕入の集計
+  let totalPurchaseCost = 0; // 仕入高（原価）
+  let totalOperatingExpenses = 0; // 販管費（経費計）
+  let totalExpenseTax = 0; // 経費消費税
+  const expenseByCategory = {};
+
+  expenses.forEach(exp => {
+    if (!exp) return;
+    const date = exp.date || '';
+    if (targetMonth !== 'all' && !date.startsWith(targetMonth)) {
+      return;
+    }
+
+    const amount = Number(exp.amount) || 0;
+    const taxRate = Number(exp.taxRate !== undefined ? exp.taxRate : 10);
+    const taxAmount = Math.round(amount * (taxRate / 100));
+    const isCost = exp.category === '仕入高' || exp.category === '外注加工費' || exp.isCost;
+
+    if (isCost) {
+      totalPurchaseCost += amount;
+    } else {
+      totalOperatingExpenses += amount;
+    }
+
+    totalExpenseTax += taxAmount;
+
+    // 科目別集計
+    const cat = exp.category || '雑費';
+    expenseByCategory[cat] = (expenseByCategory[cat] || 0) + amount;
+  });
+
+  // 3. 利益計算
+  const totalCostOfGoodsSold = totalPurchaseCost + totalWholesaleCost; // 売上原価計
+  const grossProfit = totalSales - totalCostOfGoodsSold; // 売上総利益（粗利）
+  const grossProfitMargin = totalSales > 0 ? (grossProfit / totalSales) * 100 : 0; // 粗利率
+  const operatingProfit = grossProfit - totalOperatingExpenses; // 営業利益（純利益）
+  const operatingProfitMargin = totalSales > 0 ? (operatingProfit / totalSales) * 100 : 0; // 営業利益率
+
+  return {
+    targetMonth,
+    totalSales,
+    totalSalesTax,
+    totalSalesInc,
+    unpaidSalesInc,
+    paidSalesInc,
+    collectionRate: totalSalesInc > 0 ? (paidSalesInc / totalSalesInc) * 100 : 100,
+    totalCostOfGoodsSold,
+    totalPurchaseCost,
+    grossProfit,
+    grossProfitMargin,
+    totalOperatingExpenses,
+    totalExpenseTax,
+    operatingProfit,
+    operatingProfitMargin,
+    expenseByCategory
+  };
+}
+
+/**
+ * 請求書や経費から複式簿記の仕訳リストを自動生成
+ * @param {Array} invoices 請求書リスト
+ * @param {Array} expenses 経費リスト
+ * @returns {Array<object>} 仕訳帳データ
+ */
+export function generateJournalEntries(invoices = [], expenses = []) {
+  if (typeof invoices === 'string') {
+    invoices = [];
+    expenses = [];
+  }
+  if (!Array.isArray(invoices)) invoices = [];
+  if (!Array.isArray(expenses)) expenses = [];
+
+  const journals = [];
+
+  // 1. 請求書発行（売上計上）
+  invoices.forEach(inv => {
+    if (!inv || inv.docType === 'delivery') return;
+    const date = inv.issueDate || new Date().toISOString().split('T')[0];
+    const client = inv.client?.name || '取引先';
+    const docNo = inv.docNumber || '';
+
+    let subtotal = 0;
+    let tax10 = 0;
+    let tax8 = 0;
+
+    if (Array.isArray(inv.items)) {
+      inv.items.forEach(it => {
+        const amt = (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0);
+        subtotal += amt;
+        const rate = Number(it.taxRate !== undefined ? it.taxRate : 10);
+        if (rate === 10) tax10 += Math.round(amt * 0.10);
+        else if (rate === 8) tax8 += Math.round(amt * 0.08);
+      });
+    }
+
+    const totalInc = subtotal + tax10 + tax8;
+
+    // 売上計上の仕訳: （借）売掛金 totalInc / （貸）売上高 totalInc
+    journals.push({
+      id: `jnl_inv_${inv.id}`,
+      date,
+      debitAccount: '売掛金',
+      debitAmount: totalInc,
+      creditAccount: '売上高',
+      creditAmount: totalInc,
+      description: `売上計上: ${client} (${docNo})`,
+      docId: inv.id,
+      type: 'sales'
+    });
+
+    // 入金済みの場合の仕訳: （借）普通預金 / （貸）売掛金
+    if (inv.paymentStatus === 'paid') {
+      journals.push({
+        id: `jnl_pay_${inv.id}`,
+        date: inv.paidDate || inv.dueDate || date,
+        debitAccount: '普通預金',
+        debitAmount: totalInc,
+        creditAccount: '売掛金',
+        creditAmount: totalInc,
+        description: `売掛金回収: ${client} (${docNo})`,
+        docId: inv.id,
+        type: 'receipt'
+      });
+    }
+  });
+
+  // 2. 経費・仕入の仕訳
+  expenses.forEach(exp => {
+    if (!exp) return;
+    const date = exp.date || new Date().toISOString().split('T')[0];
+    const amount = Number(exp.amount) || 0;
+    const taxRate = Number(exp.taxRate !== undefined ? exp.taxRate : 10);
+    const amountInc = Math.round(amount * (1 + taxRate / 100));
+    const payee = exp.payee ? ` (${exp.payee})` : '';
+
+    journals.push({
+      id: `jnl_exp_${exp.id}`,
+      date,
+      debitAccount: exp.category || '雑費',
+      debitAmount: amountInc,
+      creditAccount: exp.paymentMethod || '普通預金',
+      creditAmount: amountInc,
+      description: `${exp.category}: ${exp.note || ''}${payee}`.trim(),
+      expenseId: exp.id,
+      type: 'expense'
+    });
+  });
+
+  // 日付順（昇順）にソート
+  journals.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+  return journals;
+}
+
+/**
+ * 税理士・主要会計ソフト（弥生会計、freee、マネーフォワード）対応の汎用仕訳CSVを出力
+ * @param {Array} journals 仕訳リスト
+ * @returns {string} CSV文字列 (Shift_JIS互換ヘッダー付き)
+ */
+export function exportJournalsToCSV(journals = []) {
+  const headers = [
+    '取引No',
+    '取引日',
+    '借方勘定科目',
+    '借方金額(税込)',
+    '貸方勘定科目',
+    '貸方金額(税込)',
+    '摘要',
+    '税区分',
+    '種別'
+  ];
+
+  const rows = journals.map((j, idx) => [
+    idx + 1,
+    j.date,
+    `"${j.debitAccount}"`,
+    j.debitAmount,
+    `"${j.creditAccount}"`,
+    j.creditAmount,
+    `"${(j.description || '').replace(/"/g, '""')}"`,
+    '課税仕入・売上10%',
+    j.type
+  ]);
+
+  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+  return csvContent;
+}

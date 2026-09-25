@@ -350,9 +350,54 @@ label.form-label {
 
 .item-grid {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1.2fr 1.2fr;
+  grid-template-columns: 56px 52px 1.5fr 74px 1.1fr;
   gap: 8px;
+  align-items: flex-end;
+}
+
+.item-input-price-large {
+  font-size: 1.15rem !important;
+  font-weight: 700 !important;
+  color: var(--primary) !important;
+  height: 42px !important;
+  background: #ffffff !important;
+  border: 2px solid #cbd5e1 !important;
+  border-radius: 6px !important;
+  padding: 4px 10px !important;
+  transition: all 0.2s ease !important;
+}
+
+.item-input-price-large:focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(59, 91, 219, 0.15) !important;
+  outline: none !important;
+}
+
+.item-label-price-large {
+  font-size: 0.825rem !important;
+  font-weight: 700 !important;
+  color: #1e293b !important;
+  display: flex;
   align-items: center;
+  gap: 4px;
+}
+
+.item-input-note {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  background-color: #ffffff;
+  border-color: #e2e8f0;
+}
+
+.item-input-note::placeholder {
+  color: #94a3b8;
+  font-size: 0.775rem;
+}
+
+.item-input-note:focus {
+  color: var(--text-primary);
+  border-color: var(--primary);
+  background-color: #ffffff;
 }
 
 /* プレビューコンテナ（右側） */
@@ -554,34 +599,31 @@ label.form-label {
   line-height: 1.6;
   color: #334155;
   text-align: right;
-  padding-right: 16px;
+  padding-right: 32px;
+}
+
+.issuer-name-row {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 44px;
+  margin-bottom: 6px;
 }
 
 .issuer-name {
   font-size: 1.15rem;
   font-weight: 700;
   color: #0f172a;
-  margin-bottom: 4px;
   display: inline-block;
-}
-
-.issuer-invoice-no {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #0f172a;
-  background: var(--theme-primary-light);
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
-  margin-bottom: 6px;
 }
 
 .issuer-stamp-wrapper {
   position: absolute;
-  top: -12px;
-  right: -6px;
-  width: 76px;
-  height: 76px;
+  top: -10px;
+  right: -28px;
+  width: 66px;
+  height: 66px;
   pointer-events: none;
   z-index: 10;
   opacity: 0.85;
@@ -593,6 +635,18 @@ label.form-label {
   height: 100%;
   object-fit: contain;
   transform: rotate(-1.5deg);
+}
+
+.issuer-invoice-no {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #0f172a;
+  background: var(--theme-primary-light);
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-top: 6px;
+  margin-bottom: 0;
 }
 
 /* ハイライト請求金額バー */
@@ -678,6 +732,23 @@ label.form-label {
 
 .sheet-items-table td.td-item-name {
   font-weight: 500;
+}
+
+.sheet-item-subnote {
+  font-size: 0.725rem;
+  color: #475569;
+  margin-top: 3px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-weight: normal;
+}
+
+.sheet-items-table td.td-item-note {
+  font-size: 0.775rem;
+  color: #64748b;
+  word-break: break-word;
+  line-height: 1.35;
 }
 
 .tax-badge-pill {
@@ -999,3 +1070,438 @@ label.form-label {
     padding: 30px 24px;
   }
 }
+
+/* ==========================================================================
+   商品マスタ & 値引き機能の専用UIスタイル
+   ========================================================================== */
+
+/* 商品マスタ一覧カード */
+.master-item-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  transition: all 0.15s ease;
+  gap: 12px;
+}
+
+.master-item-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
+  background: #f8fafc;
+}
+
+.master-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.master-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+
+.master-item-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.master-item-note {
+  font-size: 0.775rem;
+  color: #64748b;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.master-item-pricing {
+  text-align: right;
+  min-width: 110px;
+}
+
+.master-item-price {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.master-item-meta {
+  font-size: 0.725rem;
+  color: #64748b;
+}
+
+.master-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 値引き名目クイック選択タグボタン（使用頻度順） */
+.reason-tag-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.reason-tag-btn:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.reason-tag-btn .tag-count {
+  font-size: 0.65rem;
+  background: #cbd5e1;
+  color: #475569;
+  padding: 0 4px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+/* 明細行カード内の「マスタ登録」クイックボタン */
+.btn-save-to-master {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  color: #64748b;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.btn-save-to-master:hover {
+  background: var(--theme-primary-light);
+  border-color: var(--theme-primary);
+  color: var(--theme-primary);
+}
+
+/* 値引き明細カードの強調 */
+.item-card.is-discount {
+  border-left: 3px solid var(--danger);
+  background: #fffafa;
+}
+
+.item-card.is-discount .item-amount-preview {
+  color: var(--danger);
+}
+
+/* ==========================================================================
+   各明細内のインライン割引き・ユーザー参考価格スタイル
+   ========================================================================== */
+
+/* インライン割引き・ユーザー価格パネル */
+.item-discount-panel {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.item-discount-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.item-discount-panel-title {
+  font-weight: 700;
+  font-size: 0.775rem;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.item-discount-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1.4fr 1.4fr;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+/* ユーザー参考価格プレビューバー（明細カード内） */
+.item-user-price-preview-bar {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid var(--primary);
+  border-radius: 6px;
+  padding: 6px 12px;
+  margin-top: 8px;
+  font-size: 0.775rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.item-user-price-badge {
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 0.85rem;
+}
+
+.item-profit-badge {
+  color: #059669;
+  font-weight: 600;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.725rem;
+}
+
+/* プレビュー帳票（納品書・請求書）内の単価および参考ユーザー価格表示 */
+.sheet-items-table td.td-price {
+  text-align: right;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet-user-ref-price {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 2px;
+  font-weight: normal;
+  display: block;
+}
+
+/* ユーザー価格入力欄のカスタム履歴スピンコントロール */
+.user-price-control-group {
+  display: flex;
+  align-items: stretch;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  max-width: 320px;
+}
+
+.user-price-control-group:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.user-price-control-group input.item-input-user-price {
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  -moz-appearance: textfield;
+}
+
+.user-price-control-group input.item-input-user-price::-webkit-outer-spin-button,
+.user-price-control-group input.item-input-user-price::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* 上下ボタングループ（過去履歴を頻度順に参照） */
+.user-price-spin-btns {
+  display: flex;
+  flex-direction: column;
+  width: 28px;
+  border-left: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.user-price-spin-btns button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  transition: background 0.1s, color 0.1s;
+}
+
+.user-price-spin-btns button:hover {
+  background: #e2e8f0;
+  color: var(--primary);
+}
+
+.user-price-spin-btns button:active {
+  background: #cbd5e1;
+}
+
+.user-price-spin-btns button.btn-spin-up {
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 8px;
+}
+
+.user-price-spin-btns button.btn-spin-down {
+  font-size: 8px;
+}
+
+/* 頻度順ドロップダウンセレクト */
+.item-select-price-history {
+  border: none !important;
+  border-left: 1px solid #e2e8f0 !important;
+  border-radius: 0 !important;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 0.725rem;
+  font-weight: 500;
+  padding: 0 6px;
+  cursor: pointer;
+  max-width: 130px;
+  outline: none;
+  transition: background 0.15s;
+}
+
+.item-select-price-history:hover {
+  background: #e2e8f0;
+}
+
+/* 商品マスタ一覧の使用頻度バッジ */
+.master-usage-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+/* ==========================================================================
+   会計・収支ダッシュボード ＆ 勤怠打刻（タイムカード）スタイル
+   ========================================================================== */
+
+/* 会計タブボタン */
+.acc-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #64748b;
+  font-size: 0.825rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.acc-tab-btn:hover {
+  color: var(--primary);
+}
+
+.acc-tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  background: #ffffff;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+}
+
+/* 会計ペイン表示切替 */
+.acc-pane {
+  display: none;
+}
+.acc-pane.active {
+  display: block;
+}
+
+/* KPIカードアニメーション */
+.kpi-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* 会計用テーブルスタイル */
+.acc-table th {
+  font-weight: 700;
+  border-bottom: 1px solid #e2e8f0;
+}
+.acc-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.acc-table tr:hover td {
+  background: #f8fafc;
+}
+
+/* 入金ステータスバッジ */
+.badge-paid {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  font-size: 0.725rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.badge-unpaid {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  font-size: 0.725rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+/* 打刻ボタンのタップ効果 */
+.btn-stamp-action:active {
+  transform: scale(0.97);
+}
+.btn-stamp-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+
+

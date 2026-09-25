@@ -24,6 +24,7 @@ export const SAMPLE_DOCUMENTS = {
       zip: '150-0043',
       address: '東京都渋谷区道玄坂1丁目20-8 渋谷インフォスタワー 7F',
       tel: '03-6800-9988',
+      fax: '',
       email: 'billing@nexus-studio.example.com',
       bankInfo: '三菱UFJ銀行 渋谷支店 (店番: 135)\n普通預金 0987654\n口座名義: ド）スタジオネクサス',
       stampDataUrl: '',
@@ -36,7 +37,8 @@ export const SAMPLE_DOCUMENTS = {
         quantity: 1,
         unit: '式',
         unitPrice: 350000,
-        taxRate: 10
+        taxRate: 10,
+        note: '第1期フェーズ'
       },
       {
         id: 'sample_item_2',
@@ -44,7 +46,8 @@ export const SAMPLE_DOCUMENTS = {
         quantity: 1,
         unit: '式',
         unitPrice: 280000,
-        taxRate: 10
+        taxRate: 10,
+        note: 'HTML5/Tailwind/JS'
       },
       {
         id: 'sample_item_3',
@@ -52,7 +55,8 @@ export const SAMPLE_DOCUMENTS = {
         quantity: 1,
         unit: '式',
         unitPrice: 180000,
-        taxRate: 10
+        taxRate: 10,
+        note: 'カスタム投稿3種'
       },
       {
         id: 'sample_item_4',
@@ -60,7 +64,8 @@ export const SAMPLE_DOCUMENTS = {
         quantity: 1,
         unit: '月',
         unitPrice: 40000,
-        taxRate: 10
+        taxRate: 10,
+        note: '24時間監視含む'
       },
       {
         id: 'sample_item_5',
@@ -68,7 +73,8 @@ export const SAMPLE_DOCUMENTS = {
         quantity: 2,
         unit: '冊',
         unitPrice: 4200,
-        taxRate: 8
+        taxRate: 8,
+        note: '公式ガイド本'
       }
     ],
     taxFractionRule: 'floor',
@@ -90,13 +96,14 @@ export const SAMPLE_DOCUMENTS = {
       contactPerson: '総務部 佐藤 翔太 様'
     },
     issuer: {
-      name: '株式会社オフィスサプライ東京',
-      invoiceNumber: 'T1012345678901',
-      zip: '101-0041',
-      address: '東京都千代田区神田須田町2-15-3',
-      tel: '03-3250-1122',
-      email: 'order@officesupply.example.jp',
-      bankInfo: '三井住友銀行 神田支店\n当座 5544332\nカ）オフィスサプライトウキョウ',
+      name: 'スタジオ・ネクサス合同会社',
+      invoiceNumber: 'T9012345678901',
+      zip: '150-0043',
+      address: '東京都渋谷区道玄坂1丁目20-8 渋谷インフォスタワー 7F',
+      tel: '03-6800-9988',
+      fax: '',
+      email: 'billing@nexus-studio.example.com',
+      bankInfo: '',
       stampDataUrl: '',
       showStamp: true
     },
@@ -107,7 +114,8 @@ export const SAMPLE_DOCUMENTS = {
         quantity: 5,
         unit: '台',
         unitPrice: 48000,
-        taxRate: 10
+        taxRate: 10,
+        note: '型番: MON-4K-27'
       },
       {
         id: 'del_item_2',
@@ -115,7 +123,8 @@ export const SAMPLE_DOCUMENTS = {
         quantity: 5,
         unit: '脚',
         unitPrice: 62000,
-        taxRate: 10
+        taxRate: 10,
+        note: 'ブラック / 肘掛付'
       },
       {
         id: 'del_item_3',
@@ -123,7 +132,8 @@ export const SAMPLE_DOCUMENTS = {
         quantity: 4,
         unit: '箱',
         unitPrice: 3800,
-        taxRate: 8
+        taxRate: 8,
+        note: '賞味期限: 12ヶ月'
       }
     ],
     taxFractionRule: 'floor',

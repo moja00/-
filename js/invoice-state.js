@@ -126,13 +126,14 @@ export function createEmptyInvoice(docType = 'invoice') {
       contactPerson: ''
     },
     issuer: {
-      name: 'デザインスタジオ・クラフト',
-      invoiceNumber: 'T1234567890123',
-      zip: '150-0002',
-      address: '東京都渋谷区渋谷2-2-2 クラフトビル 4F',
-      tel: '03-1234-5678',
-      email: 'info@craft-design.example.jp',
-      bankInfo: 'みずほ銀行 渋谷支店\n普通 1234567\n口座名義：カ）クラフトデザイン',
+      name: 'スタジオ・ネクサス合同会社',
+      invoiceNumber: 'T9012345678901',
+      zip: '150-0043',
+      address: '東京都渋谷区道玄坂1丁目20-8 渋谷インフォスタワー 7F',
+      tel: '03-6800-9988',
+      fax: '',
+      email: 'billing@nexus-studio.example.com',
+      bankInfo: '',
       stampDataUrl: '',
       showStamp: true
     },
@@ -143,7 +144,8 @@ export function createEmptyInvoice(docType = 'invoice') {
         quantity: 1,
         unit: '式',
         unitPrice: 280000,
-        taxRate: 10
+        taxRate: 10,
+        note: 'トップページ＋下層5P'
       },
       {
         id: 'item_2',
@@ -151,7 +153,8 @@ export function createEmptyInvoice(docType = 'invoice') {
         quantity: 1,
         unit: '式',
         unitPrice: 150000,
-        taxRate: 10
+        taxRate: 10,
+        note: 'HTML/CSS/JS対応'
       },
       {
         id: 'item_3',
@@ -159,7 +162,8 @@ export function createEmptyInvoice(docType = 'invoice') {
         quantity: 2,
         unit: '冊',
         unitPrice: 3500,
-        taxRate: 8
+        taxRate: 8,
+        note: 'デザイン参考資料'
       }
     ],
     taxFractionRule: 'floor', // 'floor' | 'round' | 'ceil'
@@ -220,10 +224,83 @@ export function calculateTotals(items = [], fractionRule = 'floor') {
 }
 
 /**
- * 通貨フォーマット (¥1,234,567)
+ * 販売店仕切り価格の自動計算
+ * 条件1: 販売店利益 ＝ 税込み仕切り価格 × 20%
+ * 条件2: 税抜きユーザー価格 ＝ 税抜き仕切り価格 ＋ 販売店利益
+ * 
+ * 連立方程式:
+ *   税抜きユーザー価格 ＝ (税込み仕切り価格 ÷ (1 + 税率)) ＋ (税込み仕切り価格 × 0.20)
+ *   税抜きユーザー価格 ＝ 税込み仕切り価格 × ( (1 ÷ (1 + 税率)) ＋ 0.20 )
+ *   したがって:
+ *   税込み仕切り価格 ＝ 税抜きユーザー価格 ÷ ( (1 ÷ (1 + 税率)) ＋ 0.20 )
+ *   ＝ ユーザー税込価格 ÷ ( 1 ＋ 0.20 × (1 + 税率) )
+ * 
+ * @param {number} userPriceInc ユーザー税込価格
+ * @param {number} taxRate 消費税率 (10 | 8 | 0)
+ * @param {object} discount 割引き設定 { type: 'none'|'percent'|'amount', value: number, reason: string }
+ * @returns {object} 計算結果詳細
+ */
+export function calculateWholesalePrice(userPriceInc = 0, taxRate = 10, discount = { type: 'none', value: 0, reason: '' }) {
+  const baseInc = Math.max(0, Number(userPriceInc) || 0);
+  const rateMultiplier = 1 + (Number(taxRate) || 0) / 100;
+
+  // 1. ユーザー価格に対する割引き計算
+  let discountAmountInc = 0;
+  if (discount.type === 'percent' && discount.value > 0) {
+    discountAmountInc = Math.round(baseInc * (Math.min(100, Math.max(0, Number(discount.value))) / 100));
+  } else if (discount.type === 'amount' && discount.value > 0) {
+    discountAmountInc = Math.min(baseInc, Math.round(Number(discount.value)));
+  }
+
+  // 割引き後のユーザー税込価格
+  const finalUserPriceInc = Math.max(0, baseInc - discountAmountInc);
+
+  // 2. 税抜きユーザー価格
+  const finalUserPriceEx = Math.round(finalUserPriceInc / rateMultiplier);
+
+  // 3. 税込み仕切り価格の逆算
+  // 式: 税抜きユーザー価格 = 税抜き仕切り + 利益 = W_inc / rateMultiplier + 0.20 * W_inc
+  const denominator = (1 / rateMultiplier) + 0.20;
+  const wholesalePriceInc = finalUserPriceEx > 0 ? Math.round(finalUserPriceEx / denominator) : 0;
+
+  // 4. 販売店利益（税込み仕切り価格の20%）
+  const retailerProfit = Math.round(wholesalePriceInc * 0.20);
+
+  // 5. 帳票の税抜き仕切り単価（税抜きユーザー価格 − 販売店利益）
+  // これにより「税抜き仕切り ＋ 販売店利益 ＝ 税抜きユーザー」が端数も含めて1円の狂いなく成立
+  const wholesaleUnitPriceEx = Math.max(0, finalUserPriceEx - retailerProfit);
+
+  // 参考: 割引き前の仕切り単価
+  const baseUserPriceEx = Math.round(baseInc / rateMultiplier);
+  const baseWholesalePriceInc = baseUserPriceEx > 0 ? Math.round(baseUserPriceEx / denominator) : 0;
+  const baseRetailerProfit = Math.round(baseWholesalePriceInc * 0.20);
+  const baseWholesaleUnitPriceEx = Math.max(0, baseUserPriceEx - baseRetailerProfit);
+  const discountWholesaleAmountEx = Math.max(0, baseWholesaleUnitPriceEx - wholesaleUnitPriceEx);
+
+  return {
+    baseUserPriceInc: baseInc,
+    discountAmountInc,
+    finalUserPriceInc,
+    finalUserPriceEx,
+    wholesalePriceInc,
+    wholesaleUnitPriceEx,
+    wholesaleUnitPrice: wholesaleUnitPriceEx,
+    retailerProfit,
+    profit: retailerProfit,
+    baseWholesaleUnitPriceEx,
+    discountWholesaleAmountEx,
+    discountReason: discount.reason || ''
+  };
+}
+
+/**
+ * 通貨フォーマット (¥1,234,567 / -¥5,000)
  */
 export function formatCurrency(amount) {
   const num = Number(amount) || 0;
+  if (num < 0) {
+    return '-¥' + Math.abs(num).toLocaleString('ja-JP');
+  }
   return '¥' + num.toLocaleString('ja-JP');
 }
 

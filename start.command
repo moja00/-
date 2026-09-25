@@ -11,30 +11,5 @@ echo " http://localhost:$PORT をブラウザで開きます..."
 echo " 終了するにはこのウィンドウを閉じるか Ctrl+C を押してください"
 echo "========================================================"
 
-# Python3 を使ってローカルサーバーを起動し、ブラウザで開く
-python3 -c "
-import http.server
-import socketserver
-import webbrowser
-import threading
-import sys
-
-PORT = 3000
-
-class Handler(http.server.SimpleHTTPRequestHandler):
-    def end_headers(self):
-        self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
-        super().end_headers()
-
-def open_browser():
-    webbrowser.open(f'http://localhost:{PORT}')
-
-threading.Timer(0.8, open_browser).start()
-
-try:
-    with socketserver.TCPServer(('', PORT), Handler) as httpd:
-        httpd.serve_forever()
-except OSError:
-    # ポートが使用中の場合はそのままブラウザを開く
-    webbrowser.open(f'http://localhost:{PORT}')
-"
+# Python3 を使ってローカルサーバー（Gemini API連携対応）を起動し、ブラウザで開く
+python3 server.py

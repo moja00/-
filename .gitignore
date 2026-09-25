@@ -1,0 +1,26 @@
+# 業務実データ・機密情報（GitHubに公開・プッシュしない）
+data/
+バックアップ/
+*.json.bak
+*.bak
+BillCraft_Backup_*.json
+BillCraft_ERP_Backup_*.json
+
+# 領収書・レシート画像原本（スキャン画像・写真）
+data/receipts/
+
+# 環境変数・APIキー設定
+.env
+.env.local
+.env.*.local
+
+# OS・エディタ生成ファイル
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
+
+# 一時ファイル
+scratch/
+scratch_*
