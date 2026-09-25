@@ -4351,7 +4351,7 @@ function setupEventListeners() {
 
   // 取引先マスタ制御
   if (DOM.btnOpenClientMaster) {
-    DOM.btnOpenClientMaster.addEventListener('click', () => openClientMasterModal('all'));
+    DOM.btnOpenClientMaster.addEventListener('click', () => openClientMasterModal('customer'));
   }
   if (DOM.btnSelectClientFromMaster) {
     DOM.btnSelectClientFromMaster.addEventListener('click', () => openClientMasterModal('customer'));
@@ -4903,9 +4903,9 @@ function renderItemMasterList(searchQuery = '') {
 // ==========================================================================
 // 取引先マスタ コントローラー
 // ==========================================================================
-let currentClientFilter = 'all';
+let currentClientFilter = 'customer';
 
-function openClientMasterModal(defaultFilter = 'all') {
+function openClientMasterModal(defaultFilter = 'customer') {
   currentClientFilter = defaultFilter;
   if (DOM.clientFilterBtns) {
     DOM.clientFilterBtns.forEach(btn => {
