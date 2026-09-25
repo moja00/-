@@ -567,6 +567,17 @@ export function getClientMasterList(sortByFrequency = true) {
       list = JSON.parse(raw);
     }
 
+    if (list && Array.isArray(list)) {
+      const hasDetailedTimes = list.some(c => c.name && c.name.includes('高崎郵便局駐車場'));
+      if (hasDetailedTimes) {
+        const filtered = list.filter(c => !(c.name === 'タイムズ２４株式会社' || c.id === 'client_mst_5'));
+        if (filtered.length !== list.length) {
+          list = filtered;
+          localStorage.setItem(KEYS.CLIENT_MASTER, JSON.stringify(list));
+        }
+      }
+    }
+
     if (sortByFrequency) {
       const historyUsage = getClientMasterUsageMap();
       list.sort((a, b) => {
@@ -842,10 +853,16 @@ export async function syncMastersWithServer() {
         }
       });
 
-      const mergedClients = Array.from(clientMap.values());
-      localStorage.setItem(KEYS.CLIENT_MASTER, JSON.stringify(mergedClients));
-      await saveServerMasterClients(mergedClients);
-      console.log(`[マスタ同期完了] 取引先マスタ: 全 ${mergedClients.length} 件をサーバー・ローカルで完全同期しました`);
+      // タイムズの重複統合（経費との1対1対応を完全に維持）
+      const mergedList = Array.from(clientMap.values());
+      const hasDetailedTimes = mergedList.some(c => c.name && c.name.includes('高崎郵便局駐車場'));
+      const finalClients = hasDetailedTimes 
+        ? mergedList.filter(c => !(c.name === 'タイムズ２４株式会社' || c.id === 'client_mst_5'))
+        : mergedList;
+
+      localStorage.setItem(KEYS.CLIENT_MASTER, JSON.stringify(finalClients));
+      await saveServerMasterClients(finalClients);
+      console.log(`[マスタ同期完了] 取引先マスタ: 全 ${finalClients.length} 件をサーバー・ローカルで完全同期しました`);
     } else {
       const localClients = getClientMasterList(false);
       await saveServerMasterClients(localClients);
