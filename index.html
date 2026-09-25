@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BillCraft - 納品書・請求書 かんたん発行アプリ</title>
   <meta name="description" content="インボイス制度対応の納品書・請求書・見積書を直感的に作成、A4リアルタイムプレビュー＆PDF印刷できるWebアプリ">
-  <link rel="stylesheet" href="css/style.css?v=20260925_desc_bank">
-  <link rel="stylesheet" href="css/print.css?v=20260925_desc_bank" media="print">
+  <link rel="stylesheet" href="css/style.css?v=20260925_attendance_sheet">
+  <link rel="stylesheet" href="css/print.css?v=20260925_attendance_sheet" media="print">
   <!-- ブラウザ内AI文字認識（OCR）エンジン -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
@@ -1316,11 +1316,17 @@
 
         <!-- 今月の勤務実績サマリー -->
         <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
             <span style="font-size: 0.825rem; font-weight: 700; color: #1e293b;">今月の勤怠実績</span>
-            <button type="button" class="btn btn-secondary btn-sm" id="btnExportAttendanceCSV" style="font-size: 0.725rem; padding: 2px 8px;">
-              CSV出力
-            </button>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" class="btn btn-primary btn-sm" id="btnOpenAttendanceSheetModal" style="font-size: 0.75rem; padding: 4px 10px; display: inline-flex; align-items: center; gap: 4px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                出勤簿を出力・印刷
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btnExportAttendanceCSV" style="font-size: 0.725rem; padding: 4px 8px;">
+                CSV出力
+              </button>
+            </div>
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; text-align: center;">
             <div style="background: #f8fafc; padding: 8px; border-radius: 6px;">
@@ -1338,9 +1344,45 @@
           </div>
         </div>
 
+        <!-- 打刻漏れ修正・手動追加フォーム（トグル表示） -->
+        <div id="attendanceManualFormCard" style="display: none; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span id="attendanceManualFormTitle" style="font-size: 0.85rem; font-weight: 700; color: #166534;">✏️ 打刻漏れ修正・過去の勤怠入力</span>
+            <button type="button" id="btnCloseAttendanceManualForm" style="background: none; border: none; font-size: 14px; color: #64748b; cursor: pointer;">✕</button>
+          </div>
+          <input type="hidden" id="inputManualAttId" value="">
+          <div class="form-row" style="margin-bottom: 8px;">
+            <div class="form-group" style="flex: 1.2;">
+              <label class="form-label" for="inputManualAttDate" style="font-size: 0.75rem;">勤務日 <span style="color: var(--danger);">*</span></label>
+              <input type="date" id="inputManualAttDate" class="form-input" style="font-size: 0.8rem; padding: 4px 8px;">
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label" for="inputManualAttClockIn" style="font-size: 0.75rem;">出勤 (始業) <span style="color: var(--danger);">*</span></label>
+              <input type="time" id="inputManualAttClockIn" class="form-input" style="font-size: 0.8rem; padding: 4px 8px;">
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label" for="inputManualAttClockOut" style="font-size: 0.75rem;">退勤 (終業)</label>
+              <input type="time" id="inputManualAttClockOut" class="form-input" style="font-size: 0.8rem; padding: 4px 8px;">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label class="form-label" for="inputManualAttNote" style="font-size: 0.75rem;">備考・メモ（有休、直行直帰、打刻漏れ修正など）</label>
+            <input type="text" id="inputManualAttNote" class="form-input" placeholder="例: 直行のため手動打刻、打刻忘れ修正" style="font-size: 0.8rem; padding: 4px 8px;">
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btnCancelAttendanceManual" style="font-size: 0.75rem; padding: 4px 10px;">キャンセル</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btnSaveAttendanceManual" style="font-size: 0.75rem; padding: 4px 14px; background: #059669; border-color: #059669;">保存する</button>
+          </div>
+        </div>
+
         <!-- 直近の打刻履歴一覧 -->
         <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
-          <span style="font-size: 0.8rem; font-weight: 700; color: #1e293b; display: block; margin-bottom: 8px;">直近のタイムカード履歴</span>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 0.8rem; font-weight: 700; color: #1e293b;">タイムカード履歴・打刻一覧</span>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnToggleManualAttendanceForm" style="font-size: 0.725rem; padding: 3px 8px; color: #059669; border-color: #86efac; background: #f0fdf4;">
+              ➕ 打刻漏れ・手動入力
+            </button>
+          </div>
           <div style="max-height: 25vh; overflow-y: auto;">
             <table class="acc-table" style="width: 100%; border-collapse: collapse; font-size: 0.75rem;">
               <thead>
@@ -1365,6 +1407,128 @@
 
       <div class="modal-footer" style="padding: 10px 20px; background: #ffffff; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end;">
         <button type="button" class="btn btn-secondary btn-sm" id="btnCloseAttendanceModal2">閉じる</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 出勤簿 印刷・PDFプレビューモーダル（A4縦帳票） -->
+  <div class="modal-overlay" id="attendanceSheetModal">
+    <div class="modal-card" style="max-width: 900px; width: 95vw; max-height: 94vh; display: flex; flex-direction: column;">
+      
+      <!-- モーダルヘッダー（印刷時は非表示） -->
+      <div class="modal-header no-print" style="padding: 12px 20px; background: #ffffff; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <h3 class="modal-title" style="display: flex; align-items: center; gap: 6px;">
+            📋 出勤簿（A4帳票出力）
+          </h3>
+          <!-- 年月セレクター -->
+          <div style="display: flex; align-items: center; gap: 6px; background: #f1f5f9; padding: 3px 8px; border-radius: 6px;">
+            <button type="button" id="btnPrevSheetMonth" class="btn btn-secondary btn-xs" style="padding: 2px 6px;">◀ 前月</button>
+            <input type="month" id="sheetMonthSelector" class="form-input" style="padding: 2px 6px; font-size: 0.85rem; width: 135px; background: #ffffff;">
+            <button type="button" id="btnNextSheetMonth" class="btn btn-secondary btn-xs" style="padding: 2px 6px;">次月 ▶</button>
+          </div>
+        </div>
+        
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" id="btnPrintAttendanceSheet" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            A4で印刷 / PDF保存
+          </button>
+          <button type="button" class="btn-icon-danger" id="btnCloseAttendanceSheetModal" style="font-size: 1.2rem;" title="閉じる">✕</button>
+        </div>
+      </div>
+
+      <!-- 出勤簿 A4用紙プレビューコンテナ（スクロール可能） -->
+      <div class="modal-body" style="padding: 20px; overflow-y: auto; background: #64748b; display: flex; justify-content: center;">
+        
+        <!-- A4印刷用紙シート -->
+        <article class="attendance-sheet-paper" id="attendanceSheetPaper">
+          
+          <!-- 上部タイトル・年月 ＆ 承認印欄 -->
+          <div class="att-sheet-header">
+            <div class="att-sheet-title-box">
+              <div class="att-sheet-title-row">
+                <span class="att-sheet-year-box" id="dispSheetYear">2026</span>
+                <span class="att-sheet-label">年</span>
+                <span class="att-sheet-month-box" id="dispSheetMonth">9</span>
+                <span class="att-sheet-label">月分　出勤簿</span>
+              </div>
+              <div class="att-sheet-subnote">(西暦年月を指定してください)</div>
+            </div>
+
+            <!-- 右上：承認印欄（4枠） -->
+            <div class="att-stamp-grid">
+              <div class="att-stamp-col">
+                <div class="att-stamp-cell-top"></div>
+                <div class="att-stamp-cell-body"></div>
+              </div>
+              <div class="att-stamp-col">
+                <div class="att-stamp-cell-top"></div>
+                <div class="att-stamp-cell-body"></div>
+              </div>
+              <div class="att-stamp-col">
+                <div class="att-stamp-cell-top"></div>
+                <div class="att-stamp-cell-body"></div>
+              </div>
+              <div class="att-stamp-col">
+                <div class="att-stamp-cell-top"></div>
+                <div class="att-stamp-cell-body"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 社員情報バー（社員番号、氏名） -->
+          <div class="att-employee-bar">
+            <div class="att-emp-label">社員番号</div>
+            <div class="att-emp-val">
+              <input type="text" id="inputSheetEmpNo" class="att-sheet-editable-input" value="1111" placeholder="社員番号" title="クリックして社員番号を編集">
+            </div>
+            <div class="att-emp-label">氏名</div>
+            <div class="att-emp-val" style="flex: 2;">
+              <input type="text" id="inputSheetEmpName" class="att-sheet-editable-input" value="山田 一郎" placeholder="氏名" title="クリックして氏名を編集">
+            </div>
+          </div>
+
+          <!-- 1日〜31日 出勤簿テーブル -->
+          <table class="att-calendar-table">
+            <thead>
+              <tr>
+                <th style="width: 44px;">日付</th>
+                <th style="width: 44px;">曜日</th>
+                <th style="width: 110px;">始業時刻</th>
+                <th style="width: 110px;">終業時刻</th>
+                <th style="width: 90px;">所定内</th>
+                <th style="width: 90px;">時間外</th>
+                <th>備考</th>
+              </tr>
+            </thead>
+            <tbody id="attCalendarTableBody">
+              <!-- JSで1日〜末日までをレンダリング -->
+            </tbody>
+            <tfoot>
+              <tr class="att-summary-tr">
+                <td colspan="2" style="font-weight: 700; text-align: center;">合計</td>
+                <td colspan="2" style="text-align: center;">
+                  出勤日数: <strong id="dispSheetSummaryDays">0</strong> 日
+                </td>
+                <td style="text-align: center; font-weight: 700;" id="dispSheetSummaryRegular">0 : 00</td>
+                <td style="text-align: center; font-weight: 700;" id="dispSheetSummaryOvertime">0 : 00</td>
+                <td style="font-size: 10px; color: #475569;" id="dispSheetSummaryTotal">実働総計: 0時間</td>
+              </tr>
+            </tfoot>
+          </table>
+
+        </article>
+
+      </div>
+
+      <!-- モーダルフッター（印刷時は非表示） -->
+      <div class="modal-footer no-print" style="padding: 10px 20px; background: #ffffff; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.8rem; color: var(--text-secondary);">
+          💡 表の時刻や備考をクリックすると、その場で打刻漏れの修正・入力ができます。
+        </span>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCloseAttendanceSheetModal2">閉じる</button>
       </div>
 
     </div>
@@ -1406,6 +1570,6 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- JavaScript エントリーポイント (file:// 及び http:// 部分両対応) -->
-  <script src="js/app.bundle.js?v=20260925_filter_customer"></script>
+  <script src="js/app.bundle.js?v=20260925_attendance_sheet"></script>
 </body>
 </html>

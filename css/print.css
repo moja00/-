@@ -92,4 +92,48 @@
   a[href]:after {
     content: none !important;
   }
+
+  /* ========================================================================
+     出勤簿印刷モード（A4縦1枚ジャストフィット）
+     ======================================================================== */
+  body.printing-attendance-sheet .app-header,
+  body.printing-attendance-sheet .app-layout,
+  body.printing-attendance-sheet .modal-overlay:not(#attendanceSheetModal),
+  body.printing-attendance-sheet .toast-container,
+  body.printing-attendance-sheet .no-print {
+    display: none !important;
+  }
+
+  body.printing-attendance-sheet #attendanceSheetModal {
+    display: block !important;
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  body.printing-attendance-sheet #attendanceSheetModal .modal-card {
+    box-shadow: none !important;
+    border: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  body.printing-attendance-sheet #attendanceSheetModal .modal-body {
+    background: transparent !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  body.printing-attendance-sheet .attendance-sheet-paper {
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    min-height: auto !important;
+  }
 }
+

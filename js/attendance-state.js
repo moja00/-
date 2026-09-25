@@ -142,3 +142,140 @@ export function exportAttendanceToCSV(attendanceList = [], targetMonth = '') {
 
   return [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
 }
+
+/**
+ * 分数を「H : M」形式のオブジェクトに変換
+ */
+export function formatMinutesToHM(minutes = 0) {
+  if (!minutes || minutes <= 0) return { h: '', m: '', text: '' };
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return {
+    h: String(h),
+    m: String(m).padStart(2, '0'),
+    text: `${h} : ${String(m).padStart(2, '0')}`
+  };
+}
+
+/**
+ * 時刻文字列（HH:MM）を「H : M」形式に分解
+ */
+export function splitTimeToHM(timeStr = '') {
+  if (!timeStr || !timeStr.includes(':')) return { h: '', m: '', text: '' };
+  const [hStr, mStr] = timeStr.split(':');
+  const h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10);
+  return {
+    h: isNaN(h) ? '' : String(h),
+    m: isNaN(m) ? '' : String(m).padStart(2, '0'),
+    text: isNaN(h) ? '' : `${h} : ${String(m).padStart(2, '0')}`
+  };
+}
+
+const WEEKDAY_NAMES = ['日', '月', '火', '水', '木', '金', '土'];
+
+/**
+ * 指定年月の月次出勤簿カレンダー全日（1日〜末日）データを生成
+ * @param {Array} attendanceList 全打刻データ
+ * @param {number} year 西暦年（例: 2026）
+ * @param {number} month 月（1〜12）
+ * @returns {object} { year, month, days: [], summary: {} }
+ */
+export function generateMonthlyCalendarSheet(attendanceList = [], year, month) {
+  const y = parseInt(year, 10) || new Date().getFullYear();
+  const m = parseInt(month, 10) || (new Date().getMonth() + 1);
+  const ymStr = `${y}-${String(m).padStart(2, '0')}`;
+
+  // 月の日数を取得（翌月の0日目 = 当月末日）
+  const daysInMonth = new Date(y, m, 0).getDate();
+
+  // 当月の打刻データを日付キーのMapに変換
+  const attMap = new Map();
+  (attendanceList || []).forEach(att => {
+    if (att && att.date && att.date.startsWith(ymStr)) {
+      attMap.set(att.date, att);
+    }
+  });
+
+  const days = [];
+  let totalWorkDays = 0;
+  let totalWorkMinutes = 0;
+  let totalRegularMinutes = 0;
+  let totalOvertimeMinutes = 0;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dayStr = String(d).padStart(2, '0');
+    const fullDate = `${ymStr}-${dayStr}`;
+    const dateObj = new Date(y, m - 1, d);
+    const dayOfWeek = dateObj.getDay(); // 0=日, 6=土
+    const weekdayName = WEEKDAY_NAMES[dayOfWeek];
+    const isSaturday = dayOfWeek === 6;
+    const isSunday = dayOfWeek === 0;
+    const isWeekend = isSaturday || isSunday;
+
+    const record = attMap.get(fullDate) || null;
+    const clockIn = record ? (record.clockIn || '') : '';
+    const clockOut = record ? (record.clockOut || '') : '';
+    const note = record ? (record.note || '') : '';
+
+    let workMinutes = 0;
+    let regularMinutes = 0; // 所定内（最大8時間 = 480分）
+    let overtimeMinutes = 0; // 時間外（残業）
+    let breakMinutes = 0;
+
+    if (clockIn && clockOut) {
+      totalWorkDays += 1;
+      const duration = calculateWorkDuration(clockIn, clockOut);
+      workMinutes = duration.workMinutes;
+      breakMinutes = duration.breakMinutes;
+      // 所定内（上限8時間）と時間外
+      regularMinutes = Math.min(480, workMinutes);
+      overtimeMinutes = duration.overtimeMinutes;
+
+      totalWorkMinutes += workMinutes;
+      totalRegularMinutes += regularMinutes;
+      totalOvertimeMinutes += overtimeMinutes;
+    } else if (clockIn) {
+      totalWorkDays += 1;
+    }
+
+    days.push({
+      day: d,
+      date: fullDate,
+      weekday: weekdayName,
+      isWeekend,
+      isSaturday,
+      isSunday,
+      recordId: record ? record.id : null,
+      clockIn,
+      clockOut,
+      clockInParts: splitTimeToHM(clockIn),
+      clockOutParts: splitTimeToHM(clockOut),
+      breakMinutes,
+      workMinutes,
+      regularMinutes,
+      regularParts: formatMinutesToHM(regularMinutes),
+      overtimeMinutes,
+      overtimeParts: formatMinutesToHM(overtimeMinutes),
+      note
+    });
+  }
+
+  return {
+    year: y,
+    month: m,
+    ymStr,
+    days,
+    summary: {
+      daysInMonth,
+      workDays: totalWorkDays,
+      totalWorkMinutes,
+      totalRegularMinutes,
+      totalOvertimeMinutes,
+      totalWorkHoursText: formatMinutesToHours(totalWorkMinutes),
+      totalRegularHoursText: formatMinutesToHours(totalRegularMinutes),
+      totalOvertimeHoursText: formatMinutesToHours(totalOvertimeMinutes)
+    }
+  };
+}
+

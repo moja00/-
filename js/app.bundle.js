@@ -1052,6 +1052,142 @@ function exportAttendanceToCSV(attendanceList = [], targetMonth = '') {
   return [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
 }
 
+/**
+ * 分数を「H : M」形式のオブジェクトに変換
+ */
+function formatMinutesToHM(minutes = 0) {
+  if (!minutes || minutes <= 0) return { h: '', m: '', text: '' };
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return {
+    h: String(h),
+    m: String(m).padStart(2, '0'),
+    text: `${h} : ${String(m).padStart(2, '0')}`
+  };
+}
+
+/**
+ * 時刻文字列（HH:MM）を「H : M」形式に分解
+ */
+function splitTimeToHM(timeStr = '') {
+  if (!timeStr || !timeStr.includes(':')) return { h: '', m: '', text: '' };
+  const [hStr, mStr] = timeStr.split(':');
+  const h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10);
+  return {
+    h: isNaN(h) ? '' : String(h),
+    m: isNaN(m) ? '' : String(m).padStart(2, '0'),
+    text: isNaN(h) ? '' : `${h} : ${String(m).padStart(2, '0')}`
+  };
+}
+
+const WEEKDAY_NAMES = ['日', '月', '火', '水', '木', '金', '土'];
+
+/**
+ * 指定年月の月次出勤簿カレンダー全日（1日〜末日）データを生成
+ * @param {Array} attendanceList 全打刻データ
+ * @param {number} year 西暦年（例: 2026）
+ * @param {number} month 月（1〜12）
+ * @returns {object} { year, month, days: [], summary: {} }
+ */
+function generateMonthlyCalendarSheet(attendanceList = [], year, month) {
+  const y = parseInt(year, 10) || new Date().getFullYear();
+  const m = parseInt(month, 10) || (new Date().getMonth() + 1);
+  const ymStr = `${y}-${String(m).padStart(2, '0')}`;
+
+  // 月の日数を取得（翌月の0日目 = 当月末日）
+  const daysInMonth = new Date(y, m, 0).getDate();
+
+  // 当月の打刻データを日付キーのMapに変換
+  const attMap = new Map();
+  (attendanceList || []).forEach(att => {
+    if (att && att.date && att.date.startsWith(ymStr)) {
+      attMap.set(att.date, att);
+    }
+  });
+
+  const days = [];
+  let totalWorkDays = 0;
+  let totalWorkMinutes = 0;
+  let totalRegularMinutes = 0;
+  let totalOvertimeMinutes = 0;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dayStr = String(d).padStart(2, '0');
+    const fullDate = `${ymStr}-${dayStr}`;
+    const dateObj = new Date(y, m - 1, d);
+    const dayOfWeek = dateObj.getDay(); // 0=日, 6=土
+    const weekdayName = WEEKDAY_NAMES[dayOfWeek];
+    const isSaturday = dayOfWeek === 6;
+    const isSunday = dayOfWeek === 0;
+    const isWeekend = isSaturday || isSunday;
+
+    const record = attMap.get(fullDate) || null;
+    const clockIn = record ? (record.clockIn || '') : '';
+    const clockOut = record ? (record.clockOut || '') : '';
+    const note = record ? (record.note || '') : '';
+
+    let workMinutes = 0;
+    let regularMinutes = 0; // 所定内（最大8時間 = 480分）
+    let overtimeMinutes = 0; // 時間外（残業）
+    let breakMinutes = 0;
+
+    if (clockIn && clockOut) {
+      totalWorkDays += 1;
+      const duration = calculateWorkDuration(clockIn, clockOut);
+      workMinutes = duration.workMinutes;
+      breakMinutes = duration.breakMinutes;
+      // 所定内（上限8時間）と時間外
+      regularMinutes = Math.min(480, workMinutes);
+      overtimeMinutes = duration.overtimeMinutes;
+
+      totalWorkMinutes += workMinutes;
+      totalRegularMinutes += regularMinutes;
+      totalOvertimeMinutes += overtimeMinutes;
+    } else if (clockIn) {
+      totalWorkDays += 1;
+    }
+
+    days.push({
+      day: d,
+      date: fullDate,
+      weekday: weekdayName,
+      isWeekend,
+      isSaturday,
+      isSunday,
+      recordId: record ? record.id : null,
+      clockIn,
+      clockOut,
+      clockInParts: splitTimeToHM(clockIn),
+      clockOutParts: splitTimeToHM(clockOut),
+      breakMinutes,
+      workMinutes,
+      regularMinutes,
+      regularParts: formatMinutesToHM(regularMinutes),
+      overtimeMinutes,
+      overtimeParts: formatMinutesToHM(overtimeMinutes),
+      note
+    });
+  }
+
+  return {
+    year: y,
+    month: m,
+    ymStr,
+    days,
+    summary: {
+      daysInMonth,
+      workDays: totalWorkDays,
+      totalWorkMinutes,
+      totalRegularMinutes,
+      totalOvertimeMinutes,
+      totalWorkHoursText: formatMinutesToHours(totalWorkMinutes),
+      totalRegularHoursText: formatMinutesToHours(totalRegularMinutes),
+      totalOvertimeHoursText: formatMinutesToHours(totalOvertimeMinutes)
+    }
+  };
+}
+
   // ==========================================================================
   // レシート・領収書画像解析エンジン
   // ==========================================================================
@@ -1589,7 +1725,8 @@ const KEYS = {
   DISCOUNT_REASONS: 'quickdoc_discount_reasons',
   USER_PRICE_HISTORY: 'quickdoc_user_price_history',
   EXPENSES: 'quickdoc_expenses',
-  ATTENDANCE: 'quickdoc_attendance'
+  ATTENDANCE: 'quickdoc_attendance',
+  ATTENDANCE_EMPLOYEE: 'billcraft_attendance_employee'
 };
 
 const DEFAULT_ITEMS_MASTER = [
@@ -3016,6 +3153,36 @@ function deleteAttendance(id) {
   }
 }
 
+/**
+ * 出勤簿用 社員情報（社員番号・氏名）を取得
+ */
+function getAttendanceEmployee() {
+  try {
+    const raw = localStorage.getItem(KEYS.ATTENDANCE_EMPLOYEE);
+    return raw ? JSON.parse(raw) : { empNo: '1111', empName: '山田 一郎' };
+  } catch (e) {
+    return { empNo: '1111', empName: '山田 一郎' };
+  }
+}
+
+/**
+ * 出勤簿用 社員情報（社員番号・氏名）を保存
+ */
+function saveAttendanceEmployee(info) {
+  try {
+    const current = getAttendanceEmployee();
+    const updated = {
+      empNo: info.empNo !== undefined ? String(info.empNo).trim() : current.empNo,
+      empName: info.empName !== undefined ? String(info.empName).trim() : current.empName
+    };
+    localStorage.setItem(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(updated));
+    return updated;
+  } catch (e) {
+    console.error('Failed to save attendance employee:', e);
+    return null;
+  }
+}
+
 // ==========================================================================
 // バックアップ（エクスポート / インポート）
 // ==========================================================================
@@ -3391,7 +3558,39 @@ const DOM = {
   summaryTotalWorkHours: document.getElementById('summaryTotalWorkHours'),
   summaryTotalOvertime: document.getElementById('summaryTotalOvertime'),
   btnExportAttendanceCSV: document.getElementById('btnExportAttendanceCSV'),
-  attendanceTableBody: document.getElementById('attendanceTableBody')
+  attendanceTableBody: document.getElementById('attendanceTableBody'),
+
+  // 勤怠・打刻漏れ手動入力フォーム
+  btnOpenAttendanceSheetModal: document.getElementById('btnOpenAttendanceSheetModal'),
+  attendanceManualFormCard: document.getElementById('attendanceManualFormCard'),
+  attendanceManualFormTitle: document.getElementById('attendanceManualFormTitle'),
+  btnToggleManualAttendanceForm: document.getElementById('btnToggleManualAttendanceForm'),
+  btnCloseAttendanceManualForm: document.getElementById('btnCloseAttendanceManualForm'),
+  btnCancelAttendanceManual: document.getElementById('btnCancelAttendanceManual'),
+  btnSaveAttendanceManual: document.getElementById('btnSaveAttendanceManual'),
+  inputManualAttId: document.getElementById('inputManualAttId'),
+  inputManualAttDate: document.getElementById('inputManualAttDate'),
+  inputManualAttClockIn: document.getElementById('inputManualAttClockIn'),
+  inputManualAttClockOut: document.getElementById('inputManualAttClockOut'),
+  inputManualAttNote: document.getElementById('inputManualAttNote'),
+
+  // 出勤簿A4帳票モーダル
+  attendanceSheetModal: document.getElementById('attendanceSheetModal'),
+  btnCloseAttendanceSheetModal: document.getElementById('btnCloseAttendanceSheetModal'),
+  btnCloseAttendanceSheetModal2: document.getElementById('btnCloseAttendanceSheetModal2'),
+  btnPrevSheetMonth: document.getElementById('btnPrevSheetMonth'),
+  btnNextSheetMonth: document.getElementById('btnNextSheetMonth'),
+  sheetMonthSelector: document.getElementById('sheetMonthSelector'),
+  btnPrintAttendanceSheet: document.getElementById('btnPrintAttendanceSheet'),
+  dispSheetYear: document.getElementById('dispSheetYear'),
+  dispSheetMonth: document.getElementById('dispSheetMonth'),
+  inputSheetEmpNo: document.getElementById('inputSheetEmpNo'),
+  inputSheetEmpName: document.getElementById('inputSheetEmpName'),
+  attCalendarTableBody: document.getElementById('attCalendarTableBody'),
+  dispSheetSummaryDays: document.getElementById('dispSheetSummaryDays'),
+  dispSheetSummaryRegular: document.getElementById('dispSheetSummaryRegular'),
+  dispSheetSummaryOvertime: document.getElementById('dispSheetSummaryOvertime'),
+  dispSheetSummaryTotal: document.getElementById('dispSheetSummaryTotal')
 };
 
 // ==========================================================================
@@ -4536,6 +4735,65 @@ function setupEventListeners() {
     DOM.btnExportAttendanceCSV.addEventListener('click', () => {
       exportAttendanceToCSV();
       showToast('勤怠集計CSVをダウンロードしました！', 'success');
+    });
+  }
+
+  // 打刻漏れ手動入力フォーム制御
+  if (DOM.btnToggleManualAttendanceForm) {
+    DOM.btnToggleManualAttendanceForm.addEventListener('click', () => toggleManualAttendanceForm());
+  }
+  if (DOM.btnCloseAttendanceManualForm) {
+    DOM.btnCloseAttendanceManualForm.addEventListener('click', () => toggleManualAttendanceForm(false));
+  }
+  if (DOM.btnCancelAttendanceManual) {
+    DOM.btnCancelAttendanceManual.addEventListener('click', () => toggleManualAttendanceForm(false));
+  }
+  if (DOM.btnSaveAttendanceManual) {
+    DOM.btnSaveAttendanceManual.addEventListener('click', handleSaveManualAttendance);
+  }
+
+  // 出勤簿（A4帳票）モーダル制御
+  if (DOM.btnOpenAttendanceSheetModal) {
+    DOM.btnOpenAttendanceSheetModal.addEventListener('click', () => openAttendanceSheetModal());
+  }
+  if (DOM.btnCloseAttendanceSheetModal) {
+    DOM.btnCloseAttendanceSheetModal.addEventListener('click', closeAttendanceSheetModal);
+  }
+  if (DOM.btnCloseAttendanceSheetModal2) {
+    DOM.btnCloseAttendanceSheetModal2.addEventListener('click', closeAttendanceSheetModal);
+  }
+  if (DOM.attendanceSheetModal) {
+    DOM.attendanceSheetModal.addEventListener('click', (e) => {
+      if (e.target === DOM.attendanceSheetModal) closeAttendanceSheetModal();
+    });
+  }
+  if (DOM.btnPrevSheetMonth) {
+    DOM.btnPrevSheetMonth.addEventListener('click', () => changeSheetMonth(-1));
+  }
+  if (DOM.btnNextSheetMonth) {
+    DOM.btnNextSheetMonth.addEventListener('click', () => changeSheetMonth(1));
+  }
+  if (DOM.sheetMonthSelector) {
+    DOM.sheetMonthSelector.addEventListener('change', (e) => {
+      if (e.target.value) {
+        currentSheetYM = e.target.value;
+        renderAttendanceCalendarSheet(currentSheetYM);
+      }
+    });
+  }
+  if (DOM.btnPrintAttendanceSheet) {
+    DOM.btnPrintAttendanceSheet.addEventListener('click', handlePrintAttendanceSheet);
+  }
+
+  // 社員番号・氏名の編集保存
+  if (DOM.inputSheetEmpNo) {
+    DOM.inputSheetEmpNo.addEventListener('change', () => {
+      saveAttendanceEmployee({ empNo: DOM.inputSheetEmpNo.value });
+    });
+  }
+  if (DOM.inputSheetEmpName) {
+    DOM.inputSheetEmpName.addEventListener('change', () => {
+      saveAttendanceEmployee({ empName: DOM.inputSheetEmpName.value });
     });
   }
 }
@@ -6366,8 +6624,9 @@ function renderAttendanceHistoryTable() {
         <td style="color: var(--slate-500); font-size: 12px;">1時間（自動）</td>
         <td style="font-weight: 700; color: var(--indigo-700); font-family: monospace;">${workHours}</td>
         <td style="font-weight: 600; color: ${duration.overtimeMinutes > 0 ? '#e11d48' : 'var(--slate-500)'}; font-family: monospace;">${overtimeHours}</td>
-        <td style="text-align: center;">
-          <button class="btn btn-outline btn-xs btn-danger" onclick="window.__deleteAttendanceRecord('${item.date}')">削除</button>
+        <td style="text-align: center; white-space: nowrap;">
+          <button type="button" class="btn btn-secondary btn-xs" style="margin-right: 4px; padding: 2px 6px;" onclick="window.__editAttendanceRecord('${item.date}')">修正</button>
+          <button type="button" class="btn btn-outline btn-xs btn-danger" style="padding: 2px 6px;" onclick="window.__deleteAttendanceRecord('${item.date}')">削除</button>
         </td>
       </tr>
     `;
@@ -6379,9 +6638,208 @@ window.__deleteAttendanceRecord = function(date) {
   if (confirm(`${date} の打刻データを削除しますか？`)) {
     deleteAttendance(date);
     updateAttendanceUI();
+    if (DOM.attendanceSheetModal && DOM.attendanceSheetModal.classList.contains('active')) {
+      renderAttendanceCalendarSheet(currentSheetYM);
+    }
     showToast('打刻データを削除しました');
   }
 };
+
+// ==========================================================================
+// 打刻漏れ手動入力・修正フォーム制御
+// ==========================================================================
+function toggleManualAttendanceForm(show = null, dateToEdit = '') {
+  if (!DOM.attendanceManualFormCard) return;
+  const isHidden = DOM.attendanceManualFormCard.style.display === 'none';
+  const shouldShow = show !== null ? show : isHidden;
+
+  if (shouldShow) {
+    DOM.attendanceManualFormCard.style.display = 'block';
+    if (dateToEdit) {
+      // 既存レコードの修正
+      const list = getAttendanceList();
+      const rec = list.find(a => a.date === dateToEdit);
+      if (DOM.attendanceManualFormTitle) DOM.attendanceManualFormTitle.textContent = `✏️ 打刻修正: ${dateToEdit}`;
+      if (DOM.inputManualAttDate) {
+        DOM.inputManualAttDate.value = dateToEdit;
+        DOM.inputManualAttDate.readOnly = true;
+      }
+      if (DOM.inputManualAttClockIn) DOM.inputManualAttClockIn.value = rec ? (rec.clockIn || '') : '';
+      if (DOM.inputManualAttClockOut) DOM.inputManualAttClockOut.value = rec ? (rec.clockOut || '') : '';
+      if (DOM.inputManualAttNote) DOM.inputManualAttNote.value = rec ? (rec.note || '') : '';
+      if (DOM.inputManualAttId) DOM.inputManualAttId.value = rec ? (rec.id || '') : '';
+    } else {
+      // 新規入力（打刻漏れ追加）
+      if (DOM.attendanceManualFormTitle) DOM.attendanceManualFormTitle.textContent = '✏️ 打刻漏れ修正・過去の勤怠入力';
+      if (DOM.inputManualAttDate) {
+        DOM.inputManualAttDate.value = getTodayDateString();
+        DOM.inputManualAttDate.readOnly = false;
+      }
+      if (DOM.inputManualAttClockIn) DOM.inputManualAttClockIn.value = '09:00';
+      if (DOM.inputManualAttClockOut) DOM.inputManualAttClockOut.value = '18:00';
+      if (DOM.inputManualAttNote) DOM.inputManualAttNote.value = '';
+      if (DOM.inputManualAttId) DOM.inputManualAttId.value = '';
+    }
+    if (DOM.inputManualAttClockIn) DOM.inputManualAttClockIn.focus();
+  } else {
+    DOM.attendanceManualFormCard.style.display = 'none';
+  }
+}
+
+window.__editAttendanceRecord = function(date) {
+  toggleManualAttendanceForm(true, date);
+};
+
+function handleSaveManualAttendance() {
+  const date = DOM.inputManualAttDate?.value;
+  const clockIn = DOM.inputManualAttClockIn?.value || '';
+  const clockOut = DOM.inputManualAttClockOut?.value || '';
+  const note = DOM.inputManualAttNote?.value || '';
+
+  if (!date) {
+    alert('勤務日を選択してください。');
+    return;
+  }
+  if (!clockIn) {
+    alert('出勤（始業）時刻を入力してください。');
+    return;
+  }
+
+  const savedRec = saveAttendance({
+    id: DOM.inputManualAttId?.value || ('att_' + date),
+    date,
+    clockIn,
+    clockOut,
+    note
+  });
+
+  if (savedRec) {
+    showToast(`${date} の勤怠データを保存しました！`, 'success');
+    toggleManualAttendanceForm(false);
+    updateAttendanceUI();
+    // もし出勤簿モーダルが開いていればそちらも再描画
+    if (DOM.attendanceSheetModal && DOM.attendanceSheetModal.classList.contains('active')) {
+      renderAttendanceCalendarSheet(currentSheetYM);
+    }
+  }
+}
+
+// ==========================================================================
+// 出勤簿（A4帳票）モーダル制御
+// ==========================================================================
+let currentSheetYM = getTodayDateString().substring(0, 7);
+
+function openAttendanceSheetModal(targetYM = '') {
+  currentSheetYM = targetYM || currentSheetYM || getTodayDateString().substring(0, 7);
+  if (DOM.sheetMonthSelector) {
+    DOM.sheetMonthSelector.value = currentSheetYM;
+  }
+  
+  // 社員番号・氏名の初期反映
+  const emp = getAttendanceEmployee();
+  if (DOM.inputSheetEmpNo) DOM.inputSheetEmpNo.value = emp.empNo || '1111';
+  if (DOM.inputSheetEmpName) DOM.inputSheetEmpName.value = emp.empName || '山田 一郎';
+
+  renderAttendanceCalendarSheet(currentSheetYM);
+
+  if (DOM.attendanceSheetModal) {
+    DOM.attendanceSheetModal.classList.add('active');
+  }
+  document.body.style.overflow = 'hidden';
+}
+
+function closeAttendanceSheetModal() {
+  if (DOM.attendanceSheetModal) {
+    DOM.attendanceSheetModal.classList.remove('active');
+  }
+  document.body.style.overflow = '';
+}
+
+function changeSheetMonth(diff) {
+  const [yStr, mStr] = currentSheetYM.split('-');
+  let y = parseInt(yStr, 10);
+  let m = parseInt(mStr, 10) + diff;
+  if (m < 1) {
+    m = 12;
+    y -= 1;
+  } else if (m > 12) {
+    m = 1;
+    y += 1;
+  }
+  currentSheetYM = `${y}-${String(m).padStart(2, '0')}`;
+  if (DOM.sheetMonthSelector) {
+    DOM.sheetMonthSelector.value = currentSheetYM;
+  }
+  renderAttendanceCalendarSheet(currentSheetYM);
+}
+
+function renderAttendanceCalendarSheet(ymStr) {
+  if (!ymStr) return;
+  const [yearStr, monthStr] = ymStr.split('-');
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+
+  if (DOM.dispSheetYear) DOM.dispSheetYear.textContent = String(year);
+  if (DOM.dispSheetMonth) DOM.dispSheetMonth.textContent = String(month);
+
+  const sheetData = generateMonthlyCalendarSheet(getAttendanceList(), year, month);
+  if (!DOM.attCalendarTableBody) return;
+
+  let html = '';
+  sheetData.days.forEach(day => {
+    let rowClass = '';
+    if (day.isWeekend) {
+      rowClass = day.isSaturday ? 'att-weekend-tr att-saturday-tr' : 'att-weekend-tr att-sunday-tr';
+    }
+
+    const inText = day.clockInParts.text || (day.isWeekend ? '' : ':');
+    const outText = day.clockOutParts.text || (day.isWeekend ? '' : ':');
+    const regText = day.regularParts.text || (day.isWeekend ? '' : ':');
+    const otText = day.overtimeParts.text || (day.isWeekend ? '' : ':');
+
+    html += `
+      <tr class="${rowClass}" data-date="${day.date}" title="クリックしてこの日の勤怠を修正・入力">
+        <td style="text-align: center; font-weight: 600;">${day.day}</td>
+        <td style="text-align: center; font-weight: 600;">${day.weekday}</td>
+        <td class="att-time-cell" onclick="window.__quickEditAttendanceDate('${day.date}')">${escapeHtml(inText)}</td>
+        <td class="att-time-cell" onclick="window.__quickEditAttendanceDate('${day.date}')">${escapeHtml(outText)}</td>
+        <td class="att-time-cell" onclick="window.__quickEditAttendanceDate('${day.date}')">${escapeHtml(regText)}</td>
+        <td class="att-time-cell" onclick="window.__quickEditAttendanceDate('${day.date}')">${escapeHtml(otText)}</td>
+        <td class="att-note-cell" onclick="window.__quickEditAttendanceDate('${day.date}')">${escapeHtml(day.note)}</td>
+      </tr>
+    `;
+  });
+
+  DOM.attCalendarTableBody.innerHTML = html;
+
+  // サマリー合計更新
+  if (DOM.dispSheetSummaryDays) DOM.dispSheetSummaryDays.textContent = String(sheetData.summary.workDays);
+  if (DOM.dispSheetSummaryRegular) DOM.dispSheetSummaryRegular.textContent = formatMinutesToHM(sheetData.summary.totalRegularMinutes).text || '0 : 00';
+  if (DOM.dispSheetSummaryOvertime) DOM.dispSheetSummaryOvertime.textContent = formatMinutesToHM(sheetData.summary.totalOvertimeMinutes).text || '0 : 00';
+  if (DOM.dispSheetSummaryTotal) {
+    DOM.dispSheetSummaryTotal.textContent = `総実働: ${sheetData.summary.totalWorkHoursText}`;
+  }
+}
+
+window.__quickEditAttendanceDate = function(date) {
+  // 出勤簿の行クリックで打刻漏れ修正フォームを呼出
+  toggleManualAttendanceForm(true, date);
+  // 勤怠モーダルが見えるように前面へスクロール
+  if (DOM.attendanceManualFormCard) {
+    DOM.attendanceManualFormCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+};
+
+function handlePrintAttendanceSheet() {
+  document.body.classList.add('printing-attendance-sheet');
+  window.onafterprint = function() {
+    document.body.classList.remove('printing-attendance-sheet');
+  };
+  window.print();
+  setTimeout(() => {
+    document.body.classList.remove('printing-attendance-sheet');
+  }, 1000);
+}
 
 // ==========================================================================
 // ユーティリティ

@@ -13,7 +13,8 @@ const KEYS = {
   DISCOUNT_REASONS: 'quickdoc_discount_reasons',
   USER_PRICE_HISTORY: 'quickdoc_user_price_history',
   EXPENSES: 'quickdoc_expenses',
-  ATTENDANCE: 'quickdoc_attendance'
+  ATTENDANCE: 'quickdoc_attendance',
+  ATTENDANCE_EMPLOYEE: 'billcraft_attendance_employee'
 };
 
 const DEFAULT_ITEMS_MASTER = [
@@ -1443,6 +1444,36 @@ export function deleteAttendance(id) {
   } catch (e) {
     console.error('Failed to delete attendance:', e);
     return false;
+  }
+}
+
+/**
+ * 出勤簿用 社員情報（社員番号・氏名）を取得
+ */
+export function getAttendanceEmployee() {
+  try {
+    const raw = localStorage.getItem(KEYS.ATTENDANCE_EMPLOYEE);
+    return raw ? JSON.parse(raw) : { empNo: '1111', empName: '山田 一郎' };
+  } catch (e) {
+    return { empNo: '1111', empName: '山田 一郎' };
+  }
+}
+
+/**
+ * 出勤簿用 社員情報（社員番号・氏名）を保存
+ */
+export function saveAttendanceEmployee(info) {
+  try {
+    const current = getAttendanceEmployee();
+    const updated = {
+      empNo: info.empNo !== undefined ? String(info.empNo).trim() : current.empNo,
+      empName: info.empName !== undefined ? String(info.empName).trim() : current.empName
+    };
+    localStorage.setItem(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(updated));
+    return updated;
+  } catch (e) {
+    console.error('Failed to save attendance employee:', e);
+    return null;
   }
 }
 

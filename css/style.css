@@ -1503,5 +1503,209 @@ label.form-label {
   transform: none;
 }
 
+/* ==========================================================================
+   出勤簿（A4縦・公式タイムカード帳票）スタイル
+   ========================================================================== */
+
+.attendance-sheet-paper {
+  width: 210mm;
+  min-height: 297mm;
+  background: #ffffff;
+  color: #000000;
+  padding: 14mm 12mm 10mm 12mm;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  border-radius: 2px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ヘッダー */
+.att-sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.att-sheet-title-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.att-sheet-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.att-sheet-year-box,
+.att-sheet-month-box {
+  display: inline-block;
+  min-width: 50px;
+  text-align: center;
+  border: 1.5px solid #000000;
+  padding: 2px 6px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  background: #ffffff;
+}
+
+.att-sheet-month-box {
+  min-width: 36px;
+}
+
+.att-sheet-subnote {
+  font-size: 0.72rem;
+  color: #334155;
+  margin-top: 3px;
+}
+
+/* 承認印欄（4枠） */
+.att-stamp-grid {
+  display: flex;
+  border: 1.5px solid #000000;
+}
+
+.att-stamp-col {
+  width: 48px;
+  border-right: 1px solid #000000;
+  display: flex;
+  flex-direction: column;
+}
+.att-stamp-col:last-child {
+  border-right: none;
+}
+
+.att-stamp-cell-top {
+  height: 16px;
+  border-bottom: 1px solid #000000;
+  background: #fafafa;
+}
+
+.att-stamp-cell-body {
+  height: 44px;
+  background: #ffffff;
+}
+
+/* 社員情報バー */
+.att-employee-bar {
+  display: flex;
+  align-items: center;
+  border: 1.5px solid #000000;
+  border-bottom: none;
+  background: #ffffff;
+  font-size: 0.85rem;
+}
+
+.att-emp-label {
+  width: 90px;
+  padding: 5px 8px;
+  font-weight: 700;
+  background: #fafafa;
+  border-right: 1px solid #000000;
+  text-align: center;
+  letter-spacing: 2px;
+}
+
+.att-emp-val {
+  flex: 1;
+  padding: 3px 8px;
+  border-right: 1px solid #000000;
+  display: flex;
+  align-items: center;
+}
+.att-emp-val:last-child {
+  border-right: none;
+}
+
+.att-sheet-editable-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 2px 4px;
+  outline: none;
+  font-family: inherit;
+}
+.att-sheet-editable-input:focus {
+  background: #eff6ff;
+  border-radius: 3px;
+}
+
+/* 出勤簿カレンダーテーブル */
+.att-calendar-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1.5px solid #000000;
+  font-size: 11px;
+}
+
+.att-calendar-table th,
+.att-calendar-table td {
+  border: 1px solid #000000;
+  padding: 2px 4px;
+  height: 20px;
+  box-sizing: border-box;
+}
+
+.att-calendar-table th {
+  background: #ffffff;
+  font-weight: 700;
+  text-align: center;
+  height: 22px;
+}
+
+/* 土日行はグレーアウト */
+.att-calendar-table tr.att-weekend-tr {
+  background-color: #e2e8f0 !important;
+}
+
+.att-calendar-table tr.att-saturday-tr td:nth-child(2) {
+  color: #1d4ed8; /* 青文字 */
+}
+
+.att-calendar-table tr.att-sunday-tr td:nth-child(2) {
+  color: #b91c1c; /* 赤文字 */
+}
+
+/* 時刻セル表示 */
+.att-time-cell {
+  text-align: center;
+  font-family: "Courier New", Courier, monospace;
+  font-weight: 600;
+  font-size: 11px;
+  cursor: pointer;
+  letter-spacing: 1px;
+}
+.att-time-cell:hover {
+  background: #dbeafe;
+}
+
+/* 備考セル */
+.att-note-cell {
+  font-size: 10px;
+  color: #1e293b;
+  cursor: pointer;
+}
+.att-note-cell:hover {
+  background: #dbeafe;
+}
+
+/* 合計行 */
+.att-summary-tr {
+  background: #f8fafc;
+  font-weight: 700;
+}
+.att-summary-tr td {
+  height: 24px;
+  border-top: 1.5px solid #000000;
+}
+
 
 
