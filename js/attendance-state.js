@@ -87,8 +87,18 @@ export function calculateWorkDuration(clockIn, clockOut) {
  * @returns {object}
  */
 export function calculateMonthlyAttendance(attendanceList = [], targetMonth = '') {
-  const currentYM = targetMonth || getTodayDateString().substring(0, 7);
-  const filtered = attendanceList.filter(att => att && (att.date || '').startsWith(currentYM));
+  // 第1引数が文字列（年月）の場合のフォールバック
+  let list = attendanceList;
+  let ym = targetMonth;
+  if (typeof attendanceList === 'string') {
+    ym = attendanceList;
+    list = typeof getAttendanceList === 'function' ? getAttendanceList() : [];
+  }
+  if (!Array.isArray(list)) {
+    list = [];
+  }
+  const currentYM = ym || getTodayDateString().substring(0, 7);
+  const filtered = list.filter(att => att && (att.date || '').startsWith(currentYM));
 
   let workDays = 0;
   let totalWorkMinutes = 0;
@@ -100,8 +110,8 @@ export function calculateMonthlyAttendance(attendanceList = [], targetMonth = ''
       const res = calculateWorkDuration(att.clockIn, att.clockOut);
       totalWorkMinutes += res.workMinutes;
       totalOvertimeMinutes += res.overtimeMinutes;
-    } else if (att.clockIn) {
-      workDays += 1; // 出勤中
+    } else if (att.clockIn || att.clockOut) {
+      workDays += 1; // 出勤中または退勤のみ
     }
   });
 
@@ -120,8 +130,17 @@ export function calculateMonthlyAttendance(attendanceList = [], targetMonth = ''
  * 勤怠データのCSVエクスポート
  */
 export function exportAttendanceToCSV(attendanceList = [], targetMonth = '') {
-  const currentYM = targetMonth || getTodayDateString().substring(0, 7);
-  const filtered = attendanceList
+  let list = attendanceList;
+  let ym = targetMonth;
+  if (typeof attendanceList === 'string') {
+    ym = attendanceList;
+    list = typeof getAttendanceList === 'function' ? getAttendanceList() : [];
+  }
+  if (!Array.isArray(list) || list.length === 0) {
+    list = typeof getAttendanceList === 'function' ? getAttendanceList() : [];
+  }
+  const currentYM = ym || getTodayDateString().substring(0, 7);
+  const filtered = list
     .filter(att => att && (att.date || '').startsWith(currentYM))
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 

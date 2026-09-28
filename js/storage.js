@@ -395,6 +395,71 @@ export async function saveServerIssuerProfile(issuer) {
   }
 }
 
+export async function fetchServerAttendance() {
+  try {
+    const res = await fetch('/api/attendance', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+    }
+  } catch (e) {
+    // オフラインまたは静的起動時
+  }
+  return null;
+}
+
+export async function saveServerAttendance(attendanceList) {
+  try {
+    const res = await fetch('/api/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(attendanceList)
+    });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+export async function fetchServerAttendanceEmployee() {
+  try {
+    const res = await fetch('/api/attendance/employee', { cache: 'no-store' });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    // オフラインまたは静的起動時
+  }
+  return null;
+}
+
+export async function saveServerAttendanceEmployee(empInfo) {
+  try {
+    const res = await fetch('/api/attendance/employee', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(empInfo)
+    });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+export async function deleteServerAttendanceRecord(date = '', id = '') {
+  try {
+    const params = new URLSearchParams();
+    if (date) params.set('date', date);
+    if (id) params.set('id', id);
+    const res = await fetch(`/api/attendance?${params.toString()}`, {
+      method: 'DELETE'
+    });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
 /**
  * 商品マスタ一覧を取得（デフォルトで頻度の多い順にソート）
  * @param {boolean} sortByFrequency 使用頻度の多い順にソートするかどうか
@@ -909,6 +974,44 @@ export async function syncMastersWithServer() {
       console.warn('Sync issuer profile error:', issuerErr);
     }
 
+    // 4. 勤怠打刻データ（data/attendance/attendance.json）の1対1整合性同期
+    try {
+      const serverAttendance = await fetchServerAttendance();
+      if (serverAttendance && Array.isArray(serverAttendance)) {
+        // サーバーファイルを真実のマスター（Source of Truth）として1対1同期
+        // サーバー上で削除されたレコードはローカルからも消去され、不整合や古いデータの復活を完全防止
+        serverAttendance.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        localStorage.setItem(KEYS.ATTENDANCE, JSON.stringify(serverAttendance));
+        console.log(`[勤怠同期完了] 勤怠データ: 全 ${serverAttendance.length} 件をサーバー・ローカル間で1対1完全同期しました`);
+      } else {
+        const localAttendance = getAttendanceList();
+        if (localAttendance.length > 0) {
+          await saveServerAttendance(localAttendance);
+        }
+      }
+    } catch (attErr) {
+      console.warn('Sync attendance error:', attErr);
+    }
+
+    // 5. 勤怠社員情報（data/attendance_employee.json）の双方向同期
+    try {
+      const serverEmp = await fetchServerAttendanceEmployee();
+      const localEmp = getAttendanceEmployee();
+
+      let finalEmp = { empNo: '1111', empName: '宮崎真輔' };
+      if (serverEmp && serverEmp.empName && serverEmp.empName !== '山田 一郎') {
+        finalEmp = { ...serverEmp };
+      } else if (localEmp && localEmp.empName && localEmp.empName !== '山田 一郎') {
+        finalEmp = { ...localEmp };
+      }
+
+      localStorage.setItem(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(finalEmp));
+      await saveServerAttendanceEmployee(finalEmp);
+      console.log(`[勤怠同期完了] 勤怠社員情報（氏名: ${finalEmp.empName}）をサーバー・ローカルで同期しました`);
+    } catch (empErr) {
+      console.warn('Sync attendance employee error:', empErr);
+    }
+
     return true;
   } catch (e) {
     console.warn('Sync masters with server failed (offline mode):', e);
@@ -1370,6 +1473,16 @@ export function getAttendanceList() {
 }
 
 /**
+ * ローカル基準の日付文字列 (YYYY-MM-DD) を取得
+ */
+function getLocalDateStr(d = new Date()) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * 勤怠データを保存
  */
 export function saveAttendance(attendance) {
@@ -1377,22 +1490,33 @@ export function saveAttendance(attendance) {
     const list = getAttendanceList();
     const id = attendance.id || ('att_' + attendance.date);
     const existingIndex = list.findIndex(a => a.id === id || a.date === attendance.date);
+    const existing = existingIndex >= 0 ? list[existingIndex] : null;
+
     const record = {
-      id,
+      id: (existing && existing.id) ? existing.id : id,
       date: attendance.date,
-      clockIn: attendance.clockIn || '',
-      clockOut: attendance.clockOut || '',
-      note: attendance.note || '',
+      clockIn: (attendance.clockIn !== undefined && attendance.clockIn !== null)
+        ? attendance.clockIn
+        : (existing ? (existing.clockIn || '') : ''),
+      clockOut: (attendance.clockOut !== undefined && attendance.clockOut !== null)
+        ? attendance.clockOut
+        : (existing ? (existing.clockOut || '') : ''),
+      note: (attendance.note !== undefined && attendance.note !== null)
+        ? attendance.note
+        : (existing ? (existing.note || '') : ''),
       updatedAt: new Date().toISOString()
     };
 
     if (existingIndex >= 0) {
-      list[existingIndex] = { ...list[existingIndex], ...record };
+      list[existingIndex] = record;
     } else {
       list.unshift(record);
     }
 
+    list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     localStorage.setItem(KEYS.ATTENDANCE, JSON.stringify(list));
+    // サーバー（data/attendance.json）へ即座に非同期保存
+    saveServerAttendance(list).catch(() => {});
     return record;
   } catch (e) {
     console.error('Failed to save attendance:', e);
@@ -1404,7 +1528,7 @@ export function saveAttendance(attendance) {
  * 本日の勤怠打刻を取得
  */
 export function getTodayAttendance() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDateStr();
   const list = getAttendanceList();
   return list.find(a => a.date === today) || null;
 }
@@ -1413,33 +1537,56 @@ export function getTodayAttendance() {
  * 本日の出勤打刻
  */
 export function clockInToday(timeStr = '', note = '') {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDateStr();
   const curTime = timeStr || new Date().toTimeString().substring(0, 5);
-  const current = getTodayAttendance() || { date: today };
-  current.clockIn = curTime;
-  if (note) current.note = note;
-  return saveAttendance(current);
+  const existing = getTodayAttendance();
+  const data = {
+    date: today,
+    clockIn: curTime
+  };
+  if (existing && existing.clockOut) {
+    data.clockOut = existing.clockOut;
+  }
+  if (note) {
+    data.note = note;
+  } else if (existing && existing.note) {
+    data.note = existing.note;
+  }
+  return saveAttendance(data);
 }
 
 /**
  * 本日の退勤打刻
  */
 export function clockOutToday(timeStr = '', note = '') {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDateStr();
   const curTime = timeStr || new Date().toTimeString().substring(0, 5);
-  const current = getTodayAttendance() || { date: today };
-  current.clockOut = curTime;
-  if (note) current.note = note;
-  return saveAttendance(current);
+  const existing = getTodayAttendance();
+  const data = {
+    date: today,
+    clockOut: curTime
+  };
+  if (existing && existing.clockIn) {
+    data.clockIn = existing.clockIn;
+  }
+  if (note) {
+    data.note = note;
+  } else if (existing && existing.note) {
+    data.note = existing.note;
+  }
+  return saveAttendance(data);
 }
 
 /**
- * 勤怠記録を削除
+ * 勤怠記録を削除（IDまたは日付文字列のどちらが渡されても確実に削除し、サーバーファイルも即時削除・同期）
  */
-export function deleteAttendance(id) {
+export function deleteAttendance(idOrDate) {
   try {
-    const list = getAttendanceList().filter(a => a.id !== id);
+    const list = getAttendanceList().filter(a => a.id !== idOrDate && a.date !== idOrDate);
     localStorage.setItem(KEYS.ATTENDANCE, JSON.stringify(list));
+    // サーバー（data/attendance/attendance.json）側からも即時削除して1対1整合性を維持
+    deleteServerAttendanceRecord(idOrDate, idOrDate).catch(() => {});
+    saveServerAttendance(list).catch(() => {});
     return true;
   } catch (e) {
     console.error('Failed to delete attendance:', e);
@@ -1448,14 +1595,25 @@ export function deleteAttendance(id) {
 }
 
 /**
- * 出勤簿用 社員情報（社員番号・氏名）を取得
+ * 出勤簿用 社員情報（社員番号・氏名）を取得（デフォルト: 宮崎真輔）
  */
 export function getAttendanceEmployee() {
   try {
     const raw = localStorage.getItem(KEYS.ATTENDANCE_EMPLOYEE);
-    return raw ? JSON.parse(raw) : { empNo: '1111', empName: '山田 一郎' };
+    let data = raw ? JSON.parse(raw) : null;
+    if (!data) {
+      data = { empNo: '1111', empName: '宮崎真輔' };
+      localStorage.setItem(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(data));
+      return data;
+    }
+    // 旧デフォルト「山田 一郎」または未設定の場合は「宮崎真輔」に自動更新
+    if (!data.empName || data.empName === '山田 一郎') {
+      data.empName = '宮崎真輔';
+      localStorage.setItem(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(data));
+    }
+    return data;
   } catch (e) {
-    return { empNo: '1111', empName: '山田 一郎' };
+    return { empNo: '1111', empName: '宮崎真輔' };
   }
 }
 
@@ -1470,6 +1628,8 @@ export function saveAttendanceEmployee(info) {
       empName: info.empName !== undefined ? String(info.empName).trim() : current.empName
     };
     localStorage.setItem(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(updated));
+    // サーバー（data/attendance_employee.json）へ即座に非同期保存
+    saveServerAttendanceEmployee(updated).catch(() => {});
     return updated;
   } catch (e) {
     console.error('Failed to save attendance employee:', e);

@@ -225,16 +225,50 @@ def call_gemini_vision_ocr(image_base64_data_url):
     return {"error": f"Gemini APIでの解析に失敗しました: {last_err}"}
 
 
-RECEIPTS_DIR = os.path.join(BASE_DIR, 'data', 'receipts')
-os.makedirs(RECEIPTS_DIR, exist_ok=True)
-
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 os.makedirs(DATA_DIR, exist_ok=True)
-ITEMS_MASTER_FILE = os.path.join(DATA_DIR, 'items_master.json')
-CLIENTS_MASTER_FILE = os.path.join(DATA_DIR, 'clients_master.json')
-ISSUER_FILE = os.path.join(DATA_DIR, 'issuer_profile.json')
+
+# カテゴリ別専用ディレクトリ
+MASTERS_DIR = os.path.join(DATA_DIR, 'masters')
+COMPANY_DIR = os.path.join(DATA_DIR, 'company')
+ATTENDANCE_DIR = os.path.join(DATA_DIR, 'attendance')
+RECEIPTS_DIR = os.path.join(DATA_DIR, 'receipts')
 BACKUPS_DIR = os.path.join(DATA_DIR, 'backups')
-os.makedirs(BACKUPS_DIR, exist_ok=True)
+
+for d in [MASTERS_DIR, COMPANY_DIR, ATTENDANCE_DIR, RECEIPTS_DIR, BACKUPS_DIR]:
+    os.makedirs(d, exist_ok=True)
+
+ITEMS_MASTER_FILE = os.path.join(MASTERS_DIR, 'items_master.json')
+CLIENTS_MASTER_FILE = os.path.join(MASTERS_DIR, 'clients_master.json')
+ISSUER_FILE = os.path.join(COMPANY_DIR, 'issuer_profile.json')
+ATTENDANCE_FILE = os.path.join(ATTENDANCE_DIR, 'attendance.json')
+ATTENDANCE_EMPLOYEE_FILE = os.path.join(ATTENDANCE_DIR, 'attendance_employee.json')
+
+def migrate_legacy_data_files():
+    """data/直下に残っている旧ファイルを各カテゴリ専用フォルダへ自動移動"""
+    import shutil
+    legacy_map = [
+        (os.path.join(DATA_DIR, 'items_master.json'), ITEMS_MASTER_FILE),
+        (os.path.join(DATA_DIR, 'clients_master.json'), CLIENTS_MASTER_FILE),
+        (os.path.join(DATA_DIR, 'issuer_profile.json'), ISSUER_FILE),
+        (os.path.join(DATA_DIR, 'attendance.json'), ATTENDANCE_FILE),
+        (os.path.join(DATA_DIR, 'attendance_employee.json'), ATTENDANCE_EMPLOYEE_FILE),
+    ]
+    for old_path, new_path in legacy_map:
+        if os.path.exists(old_path) and not os.path.exists(new_path):
+            try:
+                shutil.move(old_path, new_path)
+                print(f"[データ自動移行] {os.path.basename(old_path)} -> {os.path.relpath(new_path, DATA_DIR)}")
+            except Exception as e:
+                print(f"[データ移行エラー] {old_path}: {e}")
+
+migrate_legacy_data_files()
+
+DEFAULT_ATTENDANCE = []
+DEFAULT_ATTENDANCE_EMPLOYEE = {
+    "empNo": "1111",
+    "empName": "宮崎真輔"
+}
 
 DEFAULT_ISSUER = {
     "name": "株式会社サンプル商事",
@@ -496,6 +530,24 @@ class BillCraftHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(issuer_data, ensure_ascii=False).encode('utf-8'))
             return
 
+        # 勤怠打刻データ取得API
+        if self.path == '/api/attendance':
+            att_data = load_json_file(ATTENDANCE_FILE, DEFAULT_ATTENDANCE)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps(att_data, ensure_ascii=False).encode('utf-8'))
+            return
+
+        # 勤怠社員情報取得API
+        if self.path == '/api/attendance/employee':
+            emp_data = load_json_file(ATTENDANCE_EMPLOYEE_FILE, DEFAULT_ATTENDANCE_EMPLOYEE)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps(emp_data, ensure_ascii=False).encode('utf-8'))
+            return
+
         return super().do_GET()
 
     def do_POST(self):
@@ -723,6 +775,89 @@ class BillCraftHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.end_headers()
                 self.wfile.write(json.dumps({"success": True}, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+            return
+
+        # 勤怠打刻データ保存API
+        if self.path == '/api/attendance':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            try:
+                att_data = json.loads(post_data)
+                if not isinstance(att_data, list):
+                    raise ValueError("データ形式が配列ではありません")
+                success, err = save_json_file_with_backup(ATTENDANCE_FILE, att_data, "attendance")
+                if not success:
+                    raise Exception(err)
+                print(f"[勤怠データ 保存成功] 件数: {len(att_data)}件 -> {ATTENDANCE_FILE}")
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True, "count": len(att_data)}, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+            return
+
+        # 勤怠社員情報保存API
+        if self.path == '/api/attendance/employee':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            try:
+                emp_data = json.loads(post_data)
+                success, err = save_json_file_with_backup(ATTENDANCE_EMPLOYEE_FILE, emp_data, "attendance_employee")
+                if not success:
+                    raise Exception(err)
+                print(f"[勤怠社員情報 保存成功] 氏名: {emp_data.get('empName')} -> {ATTENDANCE_EMPLOYEE_FILE}")
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True}, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+            return
+
+        self.send_response(404)
+        self.end_headers()
+
+    def do_DELETE(self):
+        # 勤怠打刻データ 個別削除API
+        if self.path.startswith('/api/attendance'):
+            try:
+                import urllib.parse
+                parsed = urllib.parse.urlparse(self.path)
+                params = urllib.parse.parse_qs(parsed.query)
+                target_date = params.get('date', [None])[0]
+                target_id = params.get('id', [None])[0]
+
+                current = load_json_file(ATTENDANCE_FILE, DEFAULT_ATTENDANCE)
+                before_len = len(current)
+                filtered = [
+                    a for a in current
+                    if (not target_date or a.get('date') != target_date) and (not target_id or a.get('id') != target_id)
+                ]
+                deleted_count = before_len - len(filtered)
+                success, err = save_json_file_with_backup(ATTENDANCE_FILE, filtered, "attendance")
+                if not success:
+                    raise Exception(err)
+                print(f"[勤怠データ 削除成功] 削除件数: {deleted_count}件, 残り: {len(filtered)}件 -> {ATTENDANCE_FILE}")
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "success": True,
+                    "deletedCount": deleted_count,
+                    "remainingCount": len(filtered)
+                }, ensure_ascii=False).encode('utf-8'))
             except Exception as e:
                 self.send_response(500)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')

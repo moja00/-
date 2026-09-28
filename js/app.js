@@ -434,6 +434,7 @@ function initApp() {
   // マスタの自動救済・復元 ＆ サーバーファイル（data/）永続化同期
   initMastersPersistence().then(result => {
     updateClientMasterDatalist();
+    updateAttendanceUI(); // サーバーから同期された勤怠情報をUIに反映
     if (result && (result.rescuedItems > 0 || result.rescuedClients > 0)) {
       const msgs = [];
       if (result.rescuedItems > 0) msgs.push(`商品マスタ: ${result.rescuedItems}件`);
@@ -1528,7 +1529,7 @@ function setupEventListeners() {
   // 勤怠CSVエクスポート
   if (DOM.btnExportAttendanceCSV) {
     DOM.btnExportAttendanceCSV.addEventListener('click', () => {
-      exportAttendanceToCSV();
+      exportAttendanceToCSV(getAttendanceList(), currentSheetYM);
       showToast('勤怠集計CSVをダウンロードしました！', 'success');
     });
   }
@@ -3352,12 +3353,14 @@ function updateAttendanceUI() {
 
   // 退勤ボタン
   if (DOM.btnClockOut) {
-    if (!todayRec || !todayRec.clockIn || todayRec.clockOut) {
+    if (todayRec && todayRec.clockOut) {
       DOM.btnClockOut.disabled = true;
       DOM.btnClockOut.style.opacity = '0.6';
+      DOM.btnClockOut.title = '本日の退勤打刻は完了しています';
     } else {
       DOM.btnClockOut.disabled = false;
       DOM.btnClockOut.style.opacity = '1';
+      DOM.btnClockOut.title = '';
     }
   }
   if (DOM.displayClockOutTime) {
@@ -3366,7 +3369,7 @@ function updateAttendanceUI() {
 
   // 月間サマリー更新
   const currentMonth = getTodayDateString().substring(0, 7);
-  const summary = calculateMonthlyAttendance(currentMonth);
+  const summary = calculateMonthlyAttendance(getAttendanceList(), currentMonth);
 
   if (DOM.summaryWorkDays) {
     DOM.summaryWorkDays.textContent = `${summary.workDays}日`;
@@ -3389,6 +3392,12 @@ function handleClockIn() {
 }
 
 function handleClockOut() {
+  const todayRec = getTodayAttendance();
+  if (!todayRec || !todayRec.clockIn) {
+    if (!confirm('本日の出勤打刻がまだされていません。退勤時刻のみ打刻しますか？\n（出勤時刻は後から「打刻修正」で追加・変更できます）')) {
+      return;
+    }
+  }
   const rec = clockOutToday();
   showToast(`退勤打刻しました（${rec.clockOut}）。お疲れ様でした！`, 'success');
   updateAttendanceUI();
@@ -3421,7 +3430,7 @@ function renderAttendanceHistoryTable() {
         <td style="font-weight: 600; color: ${duration.overtimeMinutes > 0 ? '#e11d48' : 'var(--slate-500)'}; font-family: monospace;">${overtimeHours}</td>
         <td style="text-align: center; white-space: nowrap;">
           <button type="button" class="btn btn-secondary btn-xs" style="margin-right: 4px; padding: 2px 6px;" onclick="window.__editAttendanceRecord('${item.date}')">修正</button>
-          <button type="button" class="btn btn-outline btn-xs btn-danger" style="padding: 2px 6px;" onclick="window.__deleteAttendanceRecord('${item.date}')">削除</button>
+          <button type="button" class="btn btn-outline btn-xs btn-danger" style="padding: 2px 6px;" onclick="window.__deleteAttendanceRecord('${item.date}', '${item.id || ''}')">削除</button>
         </td>
       </tr>
     `;
@@ -3429,14 +3438,15 @@ function renderAttendanceHistoryTable() {
   DOM.attendanceTableBody.innerHTML = html;
 }
 
-window.__deleteAttendanceRecord = function(date) {
+window.__deleteAttendanceRecord = async function(date, id = '') {
   if (confirm(`${date} の打刻データを削除しますか？`)) {
+    if (id) deleteAttendance(id);
     deleteAttendance(date);
     updateAttendanceUI();
     if (DOM.attendanceSheetModal && DOM.attendanceSheetModal.classList.contains('active')) {
       renderAttendanceCalendarSheet(currentSheetYM);
     }
-    showToast('打刻データを削除しました');
+    showToast(`${date} の打刻データを削除しました（ファイル同期完了）`, 'success');
   }
 };
 
@@ -3533,7 +3543,7 @@ function openAttendanceSheetModal(targetYM = '') {
   // 社員番号・氏名の初期反映
   const emp = getAttendanceEmployee();
   if (DOM.inputSheetEmpNo) DOM.inputSheetEmpNo.value = emp.empNo || '1111';
-  if (DOM.inputSheetEmpName) DOM.inputSheetEmpName.value = emp.empName || '山田 一郎';
+  if (DOM.inputSheetEmpName) DOM.inputSheetEmpName.value = emp.empName || '宮崎真輔';
 
   renderAttendanceCalendarSheet(currentSheetYM);
 
