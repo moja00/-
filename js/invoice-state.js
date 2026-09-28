@@ -117,58 +117,33 @@ export function createEmptyInvoice(docType = 'invoice') {
     docNumber: generateDocNumber(docType),
     issueDate: dates.issue,
     dueDate: dates.due,
-    title: 'Webサイト制作および運用保守業務',
+    title: '', // 件名は空白
     client: {
-      name: '株式会社サンプル',
+      name: '', // 取引先名は空白
       honorific: '御中',
-      zip: '100-0001',
-      address: '東京都千代田区千代田1-1',
+      zip: '',
+      address: '',
       contactPerson: ''
     },
     issuer: {
-      name: 'スタジオ・ネクサス合同会社',
-      invoiceNumber: 'T9012345678901',
-      zip: '150-0043',
-      address: '東京都渋谷区道玄坂1丁目20-8 渋谷インフォスタワー 7F',
-      tel: '03-6800-9988',
-      fax: '',
-      email: 'billing@nexus-studio.example.com',
-      bankInfo: '',
+      name: '株式会社アルバワークス',
+      invoiceNumber: 'T2070001004966',
+      zip: '379-2144',
+      address: '群馬県前橋市下川町63-7',
+      tel: '027-289-0367',
+      fax: '027-289-0368',
+      email: '',
+      bankInfo: '高崎信用金庫\n前橋南支店\n普通　012 2182393\nカ)　アルバワークス',
       stampDataUrl: '',
       showStamp: true
     },
-    items: [
-      {
-        id: 'item_1',
-        name: 'ホームページUI/UXリニューアルデザイン一式',
-        quantity: 1,
-        unit: '式',
-        unitPrice: 280000,
-        taxRate: 10,
-        note: 'トップページ＋下層5P'
-      },
-      {
-        id: 'item_2',
-        name: 'フロントエンド実装・レスポンシブコーディング',
-        quantity: 1,
-        unit: '式',
-        unitPrice: 150000,
-        taxRate: 10,
-        note: 'HTML/CSS/JS対応'
-      },
-      {
-        id: 'item_3',
-        name: '参考技術書籍・資材費（軽減税率対象）',
-        quantity: 2,
-        unit: '冊',
-        unitPrice: 3500,
-        taxRate: 8,
-        note: 'デザイン参考資料'
-      }
-    ],
+    items: [], // 明細は空白
     taxFractionRule: 'floor', // 'floor' | 'round' | 'ceil'
     notes: 'お振込手数料は貴社にてご負担くださいますようお願い申し上げます。\nご不明な点がございましたらお気軽にお問い合わせください。',
     themeColor: 'indigo',
+    isIssued: false,
+    isCancelled: false,
+    issuedAt: null,
     updatedAt: new Date().toISOString()
   };
 }

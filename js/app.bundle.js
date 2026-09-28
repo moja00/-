@@ -416,58 +416,33 @@ function createEmptyInvoice(docType = 'invoice') {
     docNumber: generateDocNumber(docType),
     issueDate: dates.issue,
     dueDate: dates.due,
-    title: 'Webサイト制作および運用保守業務',
+    title: '', // 件名は空白
     client: {
-      name: '株式会社サンプル',
+      name: '', // 取引先名は空白
       honorific: '御中',
-      zip: '100-0001',
-      address: '東京都千代田区千代田1-1',
+      zip: '',
+      address: '',
       contactPerson: ''
     },
     issuer: {
-      name: 'スタジオ・ネクサス合同会社',
-      invoiceNumber: 'T9012345678901',
-      zip: '150-0043',
-      address: '東京都渋谷区道玄坂1丁目20-8 渋谷インフォスタワー 7F',
-      tel: '03-6800-9988',
-      fax: '',
-      email: 'billing@nexus-studio.example.com',
-      bankInfo: '',
+      name: '株式会社アルバワークス',
+      invoiceNumber: 'T2070001004966',
+      zip: '379-2144',
+      address: '群馬県前橋市下川町63-7',
+      tel: '027-289-0367',
+      fax: '027-289-0368',
+      email: '',
+      bankInfo: '高崎信用金庫\n前橋南支店\n普通　012 2182393\nカ)　アルバワークス',
       stampDataUrl: '',
       showStamp: true
     },
-    items: [
-      {
-        id: 'item_1',
-        name: 'ホームページUI/UXリニューアルデザイン一式',
-        quantity: 1,
-        unit: '式',
-        unitPrice: 280000,
-        taxRate: 10,
-        note: 'トップページ＋下層5P'
-      },
-      {
-        id: 'item_2',
-        name: 'フロントエンド実装・レスポンシブコーディング',
-        quantity: 1,
-        unit: '式',
-        unitPrice: 150000,
-        taxRate: 10,
-        note: 'HTML/CSS/JS対応'
-      },
-      {
-        id: 'item_3',
-        name: '参考技術書籍・資材費（軽減税率対象）',
-        quantity: 2,
-        unit: '冊',
-        unitPrice: 3500,
-        taxRate: 8,
-        note: 'デザイン参考資料'
-      }
-    ],
+    items: [], // 明細は空白
     taxFractionRule: 'floor', // 'floor' | 'round' | 'ceil'
     notes: 'お振込手数料は貴社にてご負担くださいますようお願い申し上げます。\nご不明な点がございましたらお気軽にお問い合わせください。',
     themeColor: 'indigo',
+    isIssued: false,
+    isCancelled: false,
+    issuedAt: null,
     updatedAt: new Date().toISOString()
   };
 }
@@ -645,8 +620,81 @@ const ACCOUNT_CATEGORIES = [
 ];
 
 /**
+ * 伝票データ（summaryItemまたはfullDoc）から正確な明細と情報を正規化抽出
+ * @param {object} raw 伝票データ
+ * @returns {object} 正規化された伝票情報
+ */
+function normalizeInvoiceDoc(raw) {
+  if (!raw) return null;
+  const doc = raw.fullDoc || raw;
+  const items = Array.isArray(doc.items) ? doc.items : (Array.isArray(raw.items) ? raw.items : []);
+  const docType = doc.docType || raw.docType || 'invoice';
+  const issueDate = doc.issueDate || raw.issueDate || '';
+  const dueDate = doc.dueDate || raw.dueDate || '';
+  const docNumber = doc.docNumber || raw.docNumber || '';
+  const clientName = (doc.client && doc.client.name) ? doc.client.name : (raw.clientName || '名称未設定');
+  const isPaid = !!(doc.isPaid || raw.isPaid || doc.paymentStatus === 'paid' || raw.paymentStatus === 'paid');
+  const paidDate = doc.paidDate || raw.paidDate || '';
+  const taxFractionRule = doc.taxFractionRule || raw.taxFractionRule || 'floor';
+  const id = doc.id || raw.id || `doc_${Date.now()}`;
+  const isCancelled = !!(doc.isCancelled || raw.isCancelled);
+  // 明示的に false または取消済の場合は false。未指定の古い履歴データは互換性維持
+  const isIssued = isCancelled ? false : (doc.isIssued !== undefined ? !!doc.isIssued : (raw.isIssued !== undefined ? !!raw.isIssued : true));
+
+  // 金額・税金の計算
+  let subtotal = 0;
+  let tax10 = 0;
+  let tax8 = 0;
+  let costTotal = 0;
+
+  items.forEach(it => {
+    const qty = Number(it.quantity) || 0;
+    const price = Number(it.unitPrice) || 0;
+    const lineTotal = qty * price;
+    const taxRate = Number(it.taxRate !== undefined ? it.taxRate : 10);
+
+    subtotal += lineTotal;
+    if (taxRate === 10) {
+      tax10 += Math.floor(lineTotal * 0.10);
+    } else if (taxRate === 8) {
+      tax8 += Math.floor(lineTotal * 0.08);
+    }
+
+    if (it.costPrice) {
+      costTotal += qty * Number(it.costPrice);
+    }
+  });
+
+  const taxTotal = tax10 + tax8;
+  const grandTotal = subtotal + taxTotal;
+
+  return {
+    id,
+    docType,
+    issueDate,
+    dueDate,
+    docNumber,
+    clientName,
+    items,
+    isPaid,
+    paymentStatus: isPaid ? 'paid' : 'unpaid',
+    paidDate,
+    taxFractionRule,
+    isIssued,
+    isCancelled,
+    subtotal,
+    tax10,
+    tax8,
+    taxTotal,
+    grandTotal,
+    costTotal,
+    rawDoc: doc
+  };
+}
+
+/**
  * 期間内の損益計算書（P/L）および経営KPIを集計
- * @param {Array} invoices 請求書リスト (fullDoc)
+ * @param {Array} invoices 請求書リスト (fullDocまたはsummaryItem)
  * @param {Array} expenses 経費リスト
  * @param {string} targetMonth 'YYYY-MM' または 'all'
  * @returns {object} P/L詳細・粗利益・純利益・未回収残高
@@ -669,50 +717,32 @@ function calculateProfitAndLoss(invoices = [], expenses = [], targetMonth = 'all
   let unpaidSalesInc = 0; // 未回収売掛金（税込）
   let paidSalesInc = 0; // 回収済み売上（税込）
 
-  // 1. 請求書からの売上集計
-  invoices.forEach(inv => {
+  // 1. 伝票（請求書・納品書・領収書）からの売上集計
+  invoices.forEach(rawInv => {
+    const inv = normalizeInvoiceDoc(rawInv);
     if (!inv) return;
+
+    // 見積書（estimate）は確定売上ではないため除外
+    if (inv.docType === 'estimate') return;
+
+    // 確定発行されていない伝票・確定取消された伝票は除外
+    if (!inv.isIssued || inv.isCancelled) return;
+
     const issueDate = inv.issueDate || '';
     if (targetMonth !== 'all' && !issueDate.startsWith(targetMonth)) {
       return;
     }
 
-    // ドキュメントタイプがinvoice（請求書）または未指定
-    const isDeliveryOnly = inv.docType === 'delivery';
-    if (isDeliveryOnly) return; // 納品書のみは売上二重計上防止のためスキップ
-
-    let docSubtotal = 0;
-    let docTax = 0;
-    let docWholesaleCost = 0;
-
-    if (Array.isArray(inv.items)) {
-      inv.items.forEach(it => {
-        const qty = Number(it.quantity) || 0;
-        const price = Number(it.unitPrice) || 0;
-        const lineTotal = qty * price;
-        const taxRate = Number(it.taxRate !== undefined ? it.taxRate : 10);
-        
-        docSubtotal += lineTotal;
-        docTax += Math.round(lineTotal * (taxRate / 100));
-
-        // 原価（もし仕入れ原価が定義されていれば加算）
-        if (it.costPrice) {
-          docWholesaleCost += qty * Number(it.costPrice);
-        }
-      });
-    }
-
-    const docTotalInc = docSubtotal + docTax;
-    totalSales += docSubtotal;
-    totalSalesTax += docTax;
-    totalSalesInc += docTotalInc;
-    totalWholesaleCost += docWholesaleCost;
+    totalSales += inv.subtotal;
+    totalSalesTax += inv.taxTotal;
+    totalSalesInc += inv.grandTotal;
+    totalWholesaleCost += inv.costTotal;
 
     // 入金ステータス（未入金／入金済）
-    if (inv.paymentStatus === 'paid') {
-      paidSalesInc += docTotalInc;
+    if (inv.isPaid) {
+      paidSalesInc += inv.grandTotal;
     } else {
-      unpaidSalesInc += docTotalInc;
+      unpaidSalesInc += inv.grandTotal;
     }
   });
 
@@ -790,30 +820,35 @@ function generateJournalEntries(invoices = [], expenses = []) {
 
   const journals = [];
 
-  // 1. 請求書発行（売上計上）
-  invoices.forEach(inv => {
-    if (!inv || inv.docType === 'delivery') return;
+  // 1. 伝票発行（売上計上）
+  invoices.forEach(rawInv => {
+    const inv = normalizeInvoiceDoc(rawInv);
+    if (!inv || inv.docType === 'estimate') return; // 見積書は除外
+    if (!inv.isIssued || inv.isCancelled) return; // 確定発行されていない伝票・確定取消された伝票は仕訳から除外
+
     const date = inv.issueDate || new Date().toISOString().split('T')[0];
-    const client = inv.client?.name || '取引先';
+    const client = inv.clientName || '取引先';
     const docNo = inv.docNumber || '';
+    const totalInc = inv.grandTotal;
+    if (totalInc <= 0) return;
 
-    let subtotal = 0;
-    let tax10 = 0;
-    let tax8 = 0;
-
-    if (Array.isArray(inv.items)) {
-      inv.items.forEach(it => {
-        const amt = (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0);
-        subtotal += amt;
-        const rate = Number(it.taxRate !== undefined ? it.taxRate : 10);
-        if (rate === 10) tax10 += Math.round(amt * 0.10);
-        else if (rate === 8) tax8 += Math.round(amt * 0.08);
+    // 領収書の場合は即時現金回収: （借）現金 / （貸）売上高
+    if (inv.docType === 'receipt') {
+      journals.push({
+        id: `jnl_rcpt_${inv.id}`,
+        date,
+        debitAccount: '現金',
+        debitAmount: totalInc,
+        creditAccount: '売上高',
+        creditAmount: totalInc,
+        description: `領収書売上（現金回収）: ${client} (${docNo})`,
+        docId: inv.id,
+        type: 'receipt'
       });
+      return;
     }
 
-    const totalInc = subtotal + tax10 + tax8;
-
-    // 売上計上の仕訳: （借）売掛金 totalInc / （貸）売上高 totalInc
+    // 請求書・納品書の売上計上仕訳: （借）売掛金 / （貸）売上高
     journals.push({
       id: `jnl_inv_${inv.id}`,
       date,
@@ -827,7 +862,7 @@ function generateJournalEntries(invoices = [], expenses = []) {
     });
 
     // 入金済みの場合の仕訳: （借）普通預金 / （貸）売掛金
-    if (inv.paymentStatus === 'paid') {
+    if (inv.isPaid) {
       journals.push({
         id: `jnl_pay_${inv.id}`,
         date: inv.paidDate || inv.dueDate || date,
@@ -835,7 +870,7 @@ function generateJournalEntries(invoices = [], expenses = []) {
         debitAmount: totalInc,
         creditAccount: '売掛金',
         creditAmount: totalInc,
-        description: `売掛金回収: ${client} (${docNo})`,
+        description: `売掛金回収（消込済）: ${client} (${docNo})`,
         docId: inv.id,
         type: 'receipt'
       });
@@ -1745,7 +1780,9 @@ const KEYS = {
   USER_PRICE_HISTORY: 'quickdoc_user_price_history',
   EXPENSES: 'quickdoc_expenses',
   ATTENDANCE: 'quickdoc_attendance',
-  ATTENDANCE_EMPLOYEE: 'billcraft_attendance_employee'
+  ATTENDANCE_EMPLOYEE: 'billcraft_attendance_employee',
+  INVENTORY: 'billcraft_inventory_master',
+  PURCHASE_MAPPINGS: 'billcraft_purchase_mappings'
 };
 
 const DEFAULT_ITEMS_MASTER = [
@@ -1891,6 +1928,47 @@ const DEFAULT_DISCOUNT_REASONS = [
   { name: 'まとめ買いボリューム値引き', count: 2 },
   { name: '端数値引き', count: 1 }
 ];
+const DEFAULT_INVENTORY = [
+  {
+    id: 'inv_1',
+    itemId: 'item_mst_1',
+    name: '製品基本セット（一式）',
+    sku: 'PRD-001',
+    currentStock: 25,
+    safetyStock: 5,
+    unit: '式',
+    unitCost: 50000,
+    unitPrice: 83333,
+    location: '本社倉庫 A-1',
+    lastInDate: '2026-09-25',
+    note: '主力構成商品',
+    history: [
+      { id: 'log_init_1', date: '2026-09-25', type: 'in', qty: 25, reason: '初期棚卸在庫登録', currentStock: 25, timestamp: new Date().toISOString() }
+    ]
+  },
+  {
+    id: 'inv_2',
+    itemId: 'item_mst_4',
+    name: '交換用消耗部品セット',
+    sku: 'SP-01',
+    currentStock: 12,
+    safetyStock: 3,
+    unit: '組',
+    unitCost: 4500,
+    unitPrice: 7576,
+    location: 'パーツ保管棚 B-2',
+    lastInDate: '2026-09-20',
+    note: '定期補充対象部品',
+    history: [
+      { id: 'log_init_2', date: '2026-09-20', type: 'in', qty: 12, reason: '仕入入庫', currentStock: 12, timestamp: new Date().toISOString() }
+    ]
+  }
+];
+const DEFAULT_PURCHASE_MAPPINGS = {
+  "消耗部品まとめ": "inv_2",
+  "交換パーツ一式": "inv_2",
+  "基本パーツセット": "inv_1"
+};
 
 /**
  * 現在編集中の帳票を保存
@@ -1937,10 +2015,33 @@ function saveIssuerProfile(issuer) {
 function loadIssuerProfile() {
   try {
     const raw = localStorage.getItem(KEYS.ISSUER_PROFILE);
-    return raw ? JSON.parse(raw) : null;
+    const profile = raw ? JSON.parse(raw) : {};
+
+    // 振込先情報および自社情報の消失防止フォールバック（サーバーの正真データと完全連動）
+    if (!profile.bankInfo || profile.bankInfo.trim() === '') {
+      profile.bankInfo = '高崎信用金庫\n前橋南支店\n普通　012 2182393\nカ)　アルバワークス';
+    }
+    if (!profile.name || profile.name.trim() === '' || profile.name === 'スタジオ・ネクサス合同会社') {
+      profile.name = '株式会社アルバワークス';
+      profile.invoiceNumber = 'T2070001004966';
+      profile.zip = '379-2144';
+      profile.address = '群馬県前橋市下川町63-7';
+      profile.tel = '027-289-0367';
+      profile.fax = '027-289-0368';
+    }
+
+    return profile;
   } catch (e) {
     console.error('Failed to load issuer profile:', e);
-    return null;
+    return {
+      name: '株式会社アルバワークス',
+      invoiceNumber: 'T2070001004966',
+      zip: '379-2144',
+      address: '群馬県前橋市下川町63-7',
+      tel: '027-289-0367',
+      fax: '027-289-0368',
+      bankInfo: '高崎信用金庫\n前橋南支店\n普通　012 2182393\nカ)　アルバワークス'
+    };
   }
 }
 
@@ -1964,14 +2065,42 @@ function saveDocToHistory(doc) {
   try {
     const list = getHistoryList();
     const existingIndex = list.findIndex(item => item.id === doc.id);
+    
+    // 金額・税金の計算
+    let subtotal = 0;
+    let taxTotal = 0;
+    if (Array.isArray(doc.items)) {
+      doc.items.forEach(it => {
+        const qty = Number(it.quantity) || 0;
+        const price = Number(it.unitPrice) || 0;
+        const lineTotal = qty * price;
+        const rate = Number(it.taxRate !== undefined ? it.taxRate : 10);
+        subtotal += lineTotal;
+        taxTotal += Math.floor(lineTotal * (rate / 100));
+      });
+    }
+    const grandTotal = subtotal + taxTotal;
+    const isPaid = !!(doc.isPaid || doc.paymentStatus === 'paid');
+
     const summaryItem = {
       id: doc.id,
-      docType: doc.docType,
-      docNumber: doc.docNumber,
-      title: doc.title,
+      docType: doc.docType || 'invoice',
+      docNumber: doc.docNumber || '',
+      title: doc.title || '',
       clientName: doc.client?.name || '名称未設定',
-      issueDate: doc.issueDate,
-      dueDate: doc.dueDate,
+      client: doc.client || { name: '名称未設定' },
+      issueDate: doc.issueDate || '',
+      dueDate: doc.dueDate || '',
+      items: doc.items || [],
+      subtotal,
+      taxTotal,
+      grandTotal,
+      isPaid,
+      paymentStatus: isPaid ? 'paid' : 'unpaid',
+      paidDate: doc.paidDate || (isPaid ? new Date().toISOString().split('T')[0] : ''),
+      isIssued: !!doc.isIssued,
+      isCancelled: !!doc.isCancelled,
+      issuedAt: doc.issuedAt || (doc.isIssued ? new Date().toISOString() : null),
       updatedAt: new Date().toISOString(),
       fullDoc: doc
     };
@@ -2667,15 +2796,16 @@ async function syncMastersWithServer() {
       }
 
       const defaultTemplateIssuer = {
-        name: 'スタジオ・ネクサス合同会社',
-        invoiceNumber: 'T9012345678901',
-        zip: '150-0043',
-        address: '東京都渋谷区道玄坂1丁目20-8 渋谷インフォスタワー 7F',
-        tel: '03-6800-9988',
-        fax: '',
-        email: 'billing@nexus-studio.example.com',
+        name: '株式会社アルバワークス',
+        invoiceNumber: 'T2070001004966',
+        zip: '379-2144',
+        address: '群馬県前橋市下川町63-7',
+        tel: '027-289-0367',
+        fax: '027-289-0368',
+        email: '',
         stampDataUrl: '',
-        showStamp: true
+        showStamp: true,
+        bankInfo: '高崎信用金庫\n前橋南支店\n普通　012 2182393\nカ)　アルバワークス'
       };
 
       const mergedIssuer = {
@@ -3074,17 +3204,59 @@ function updateDocPaymentStatus(docId, status = 'paid', paidDate = '', note = ''
   try {
     const list = getHistoryList();
     const item = list.find(d => d.id === docId);
-    if (item && item.fullDoc) {
-      item.fullDoc.paymentStatus = status;
-      item.fullDoc.paidDate = paidDate || (status === 'paid' ? new Date().toISOString().split('T')[0] : '');
+    if (!item) return false;
+
+    const isPaidBool = (status === 'paid' || status === true);
+    const resolvedStatus = isPaidBool ? 'paid' : 'unpaid';
+    const resolvedPaidDate = paidDate || (isPaidBool ? new Date().toISOString().split('T')[0] : '');
+
+    item.isPaid = isPaidBool;
+    item.paymentStatus = resolvedStatus;
+    item.paidDate = resolvedPaidDate;
+    item.updatedAt = new Date().toISOString();
+
+    if (item.fullDoc) {
+      item.fullDoc.isPaid = isPaidBool;
+      item.fullDoc.paymentStatus = resolvedStatus;
+      item.fullDoc.paidDate = resolvedPaidDate;
       if (note) item.fullDoc.paymentNote = note;
-      item.updatedAt = new Date().toISOString();
-      localStorage.setItem(KEYS.HISTORY, JSON.stringify(list));
-      return true;
     }
-    return false;
+
+    localStorage.setItem(KEYS.HISTORY, JSON.stringify(list));
+    return true;
   } catch (e) {
     console.error('Failed to update payment status:', e);
+    return false;
+  }
+}
+
+/**
+ * 書類の確定発行を取り消し（未確定・下書き状態に戻す）
+ * @param {string} docId 書類ID
+ * @returns {boolean} 成功可否
+ */
+function cancelDocIssue(docId) {
+  try {
+    const list = getHistoryList();
+    const item = list.find(d => d.id === docId);
+    if (!item) return false;
+
+    item.isIssued = false;
+    item.issuedAt = null;
+    item.isCancelled = true;
+    item.updatedAt = new Date().toISOString();
+
+    if (item.fullDoc) {
+      item.fullDoc.isIssued = false;
+      item.fullDoc.issuedAt = null;
+      item.fullDoc.isCancelled = true;
+      item.fullDoc.updatedAt = item.updatedAt;
+    }
+
+    localStorage.setItem(KEYS.HISTORY, JSON.stringify(list));
+    return true;
+  } catch (e) {
+    console.error('Failed to cancel doc issue:', e);
     return false;
   }
 }
@@ -3376,7 +3548,9 @@ function exportDataAsJSON() {
     discountReasons: getDiscountReasons(),
     userPriceHistory: getUserPriceHistoryMap(),
     expenses: getExpenseList(),
-    attendance: getAttendanceList()
+    attendance: getAttendanceList(),
+    inventory: getInventoryList(),
+    purchaseMappings: getPurchaseMappings()
   };
 
   const jsonStr = JSON.stringify(backupData, null, 2);
@@ -3429,11 +3603,509 @@ function importDataFromJSON(jsonString) {
     if (data.attendance && Array.isArray(data.attendance)) {
       localStorage.setItem(KEYS.ATTENDANCE, JSON.stringify(data.attendance));
     }
+    if (data.inventory && Array.isArray(data.inventory)) {
+      localStorage.setItem(KEYS.INVENTORY, JSON.stringify(data.inventory));
+      saveServerInventory(data.inventory).catch(() => {});
+    }
+    if (data.purchaseMappings && typeof data.purchaseMappings === 'object') {
+      localStorage.setItem(KEYS.PURCHASE_MAPPINGS, JSON.stringify(data.purchaseMappings));
+      saveServerPurchaseMappings(data.purchaseMappings).catch(() => {});
+    }
     return { success: true, activeDoc: data.activeDoc || null };
   } catch (e) {
     console.error('JSON Import error:', e);
     return { success: false, error: e.message };
   }
+}
+
+// ==========================================================================
+// 在庫マスタ ＆ 仕入マッピング 管理
+// ==========================================================================
+
+/**
+ * サーバーから在庫マスタを取得
+ */
+async function fetchServerInventory() {
+  try {
+    const res = await fetch('/api/inventory');
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        localStorage.setItem(KEYS.INVENTORY, JSON.stringify(data));
+        return data;
+      }
+    }
+  } catch (e) {
+    console.warn('サーバーからの在庫マスタ取得スキップ:', e);
+  }
+  return null;
+}
+
+/**
+ * サーバーへ在庫マスタを保存
+ */
+async function saveServerInventory(inventoryList) {
+  try {
+    await fetch('/api/inventory', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(inventoryList)
+    });
+  } catch (e) {
+    console.warn('サーバーへの在庫マスタ保存失敗:', e);
+  }
+}
+
+/**
+ * サーバーから仕入マッピング辞書を取得
+ */
+async function fetchServerPurchaseMappings() {
+  try {
+    const res = await fetch('/api/purchase-mappings');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object') {
+        localStorage.setItem(KEYS.PURCHASE_MAPPINGS, JSON.stringify(data));
+        return data;
+      }
+    }
+  } catch (e) {
+    console.warn('サーバーからの仕入マッピング取得スキップ:', e);
+  }
+  return null;
+}
+
+/**
+ * サーバーへ仕入マッピング辞書を保存
+ */
+async function saveServerPurchaseMappings(mappings) {
+  try {
+    await fetch('/api/purchase-mappings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(mappings)
+    });
+  } catch (e) {
+    console.warn('サーバーへの仕入マッピング保存失敗:', e);
+  }
+}
+
+/**
+ * 起動時にサーバーと在庫データを同期
+ */
+async function initInventoryFromServer() {
+  await Promise.all([
+    fetchServerInventory(),
+    fetchServerPurchaseMappings()
+  ]);
+}
+
+/**
+ * 在庫マスタ一覧を取得（商品マスタと自動連携・同期）
+ */
+function getInventoryList() {
+  try {
+    let list = [];
+    const raw = localStorage.getItem(KEYS.INVENTORY);
+    if (!raw) {
+      list = [...DEFAULT_INVENTORY];
+    } else {
+      const parsed = JSON.parse(raw);
+      list = Array.isArray(parsed) ? parsed : [...DEFAULT_INVENTORY];
+    }
+
+    // 商品マスタ（itemMaster）の商品がすべて在庫リストに含まれるよう自動同期
+    let itemMaster = [];
+    try {
+      const rawItems = localStorage.getItem(KEYS.ITEM_MASTER);
+      itemMaster = rawItems ? JSON.parse(rawItems) : [];
+    } catch (e) {}
+
+    let modified = false;
+    itemMaster.forEach(prod => {
+      // itemId または name でマッチング
+      const existing = list.find(inv => inv.itemId === prod.id || (inv.name && inv.name.trim() === prod.name.trim()));
+      if (existing) {
+        if (!existing.itemId) {
+          existing.itemId = prod.id;
+          modified = true;
+        }
+        if (!existing.unitPrice && prod.unitPrice) {
+          existing.unitPrice = prod.unitPrice;
+          modified = true;
+        }
+      } else {
+        // 商品マスタにあるが在庫リストにない商品を自動追加（初期在庫0）
+        list.push({
+          id: `inv_${prod.id}`,
+          itemId: prod.id,
+          name: prod.name,
+          sku: prod.sku || '',
+          currentStock: 0,
+          safetyStock: 5,
+          unit: prod.unit || '個',
+          unitCost: prod.unitPrice ? Math.round(prod.unitPrice * 0.6) : 0,
+          unitPrice: prod.unitPrice || 0,
+          location: '本社倉庫',
+          lastInDate: '',
+          note: prod.note || '',
+          history: [{
+            id: `log_init_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            date: new Date().toISOString().split('T')[0],
+            type: 'in',
+            qty: 0,
+            reason: '商品マスタ連携により初期登録',
+            currentStock: 0,
+            timestamp: new Date().toISOString()
+          }]
+        });
+        modified = true;
+      }
+    });
+
+    if (modified) {
+      localStorage.setItem(KEYS.INVENTORY, JSON.stringify(list));
+      saveServerInventory(list).catch(() => {});
+    }
+
+    return list;
+  } catch (e) {
+    return DEFAULT_INVENTORY;
+  }
+}
+
+/**
+ * 新規品目を商品マスタと在庫マスタの両方に一括自動登録
+ * @param {object} data - { name, sku, unit, unitCost, unitPrice, initialStock, safetyStock, note }
+ * @returns {{ product: object, inventory: object }}
+ */
+function saveNewProductAndInventory(data) {
+  const name = (data.name || '').trim();
+  if (!name) return null;
+
+  // 1. 商品マスタ（itemMaster）へ保存
+  const product = saveItemToMaster({
+    name: name,
+    sku: data.sku || '',
+    unitPrice: Number(data.unitCost) > 0 ? Number(data.unitCost) : (Number(data.unitPrice) || 0),
+    userPrice: Number(data.unitPrice) > 0 ? Number(data.unitPrice) : Math.round(Number(data.unitCost || 0) * 1.3),
+    unit: data.unit || '個',
+    taxRate: Number(data.taxRate) || 10,
+    note: data.note || '仕入画面から新規登録'
+  });
+
+  // 2. 在庫マスタ（inventory）へ保存（初期在庫数を反映）
+  const initialStock = Number(data.initialStock) >= 0 ? Number(data.initialStock) : 0;
+  const inventory = saveInventoryItem({
+    id: `inv_${product.id}`,
+    itemId: product.id,
+    name: product.name,
+    sku: product.sku || data.sku || '',
+    currentStock: initialStock,
+    safetyStock: Number(data.safetyStock) >= 0 ? Number(data.safetyStock) : 5,
+    unit: product.unit || '個',
+    unitCost: Number(data.unitCost) || 0,
+    unitPrice: Number(data.unitPrice) || product.unitPrice || 0,
+    location: data.location || '本社倉庫',
+    note: product.note || '',
+    history: initialStock > 0 ? [{
+      id: `log_init_${Date.now()}`,
+      date: new Date().toISOString().split('T')[0],
+      type: 'in',
+      qty: initialStock,
+      reason: '新規品目登録時入庫',
+      currentStock: initialStock,
+      timestamp: new Date().toISOString()
+    }] : []
+  });
+
+  return { product, inventory };
+}
+
+/**
+ * 在庫品目を保存（追加または更新）
+ */
+function saveInventoryItem(item) {
+  try {
+    const list = getInventoryList();
+    const id = item.id || `inv_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+    const nowStr = new Date().toISOString().split('T')[0];
+    
+    const existingIndex = list.findIndex(i => i.id === id || (item.itemId && i.itemId === item.itemId));
+    const updatedItem = {
+      id,
+      itemId: item.itemId || (existingIndex >= 0 ? list[existingIndex].itemId : ''),
+      name: (item.name || '').trim(),
+      sku: (item.sku || '').trim(),
+      currentStock: Number(item.currentStock) || 0,
+      safetyStock: Number(item.safetyStock) >= 0 ? Number(item.safetyStock) : 0,
+      unit: (item.unit || '個').trim(),
+      unitCost: Number(item.unitCost) || 0,
+      unitPrice: Number(item.unitPrice) || 0,
+      location: (item.location || '').trim(),
+      lastInDate: item.lastInDate || (existingIndex >= 0 ? list[existingIndex].lastInDate : nowStr),
+      note: (item.note || '').trim(),
+      history: Array.isArray(item.history) ? item.history : (existingIndex >= 0 ? (list[existingIndex].history || []) : [])
+    };
+
+    if (existingIndex >= 0) {
+      list[existingIndex] = updatedItem;
+    } else {
+      if (!updatedItem.history.length) {
+        updatedItem.history.push({
+          id: `log_${Date.now()}`,
+          date: nowStr,
+          type: 'in',
+          qty: updatedItem.currentStock,
+          reason: '初期登録',
+          currentStock: updatedItem.currentStock,
+          timestamp: new Date().toISOString()
+        });
+      }
+      list.push(updatedItem);
+    }
+
+    localStorage.setItem(KEYS.INVENTORY, JSON.stringify(list));
+    saveServerInventory(list).catch(() => {});
+    return updatedItem;
+  } catch (e) {
+    console.error('Failed to save inventory item:', e);
+    return null;
+  }
+}
+
+/**
+ * 在庫品目を削除
+ */
+function deleteInventoryItem(id) {
+  try {
+    const list = getInventoryList();
+    const filtered = list.filter(i => i.id !== id);
+    localStorage.setItem(KEYS.INVENTORY, JSON.stringify(filtered));
+    saveServerInventory(filtered).catch(() => {});
+    return true;
+  } catch (e) {
+    console.error('Failed to delete inventory item:', e);
+    return false;
+  }
+}
+
+/**
+ * 在庫の数量調整・入出庫を記録
+ * @param {string} id - 在庫品目ID
+ * @param {number} deltaQty - 変動数量（入庫は正、出庫は負。isDirectSetなら設定後の在庫数）
+ * @param {string} reason - 理由（仕入入庫、納品出庫、棚卸調整など）
+ * @param {object} [metadata] - 伝票ID、取引先、単価などの付加情報
+ * @param {boolean} [isDirectSet] - trueの場合、deltaQtyを新しい在庫実数として直接設定
+ */
+function adjustStock(id, deltaQty, reason = '', metadata = {}, isDirectSet = false) {
+  try {
+    const list = getInventoryList();
+    const item = list.find(i => i.id === id || i.itemId === id || (i.name && i.name.trim() === String(id).trim()));
+    if (!item) {
+      console.warn(`在庫品目が見つかりません: ${id}`);
+      return null;
+    }
+
+    const prevStock = Number(item.currentStock) || 0;
+    let newStock = prevStock;
+    let actualDelta = Number(deltaQty) || 0;
+
+    if (isDirectSet) {
+      newStock = Math.max(0, actualDelta);
+      actualDelta = newStock - prevStock;
+    } else {
+      newStock = Math.max(0, prevStock + actualDelta);
+    }
+
+    const nowStr = new Date().toISOString().split('T')[0];
+    const logType = actualDelta >= 0 ? 'in' : 'out';
+
+    if (!Array.isArray(item.history)) {
+      item.history = [];
+    }
+
+    const logEntry = {
+      id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      date: metadata.date || nowStr,
+      type: isDirectSet ? 'adjust' : logType,
+      qty: Math.abs(actualDelta),
+      delta: actualDelta,
+      reason: reason || (actualDelta >= 0 ? '入庫' : '出庫'),
+      currentStock: newStock,
+      sourceRef: metadata.sourceRef || '',
+      payee: metadata.payee || '',
+      unitCost: metadata.unitCost !== undefined ? Number(metadata.unitCost) : item.unitCost,
+      timestamp: new Date().toISOString()
+    };
+
+    item.history.unshift(logEntry); // 最新順
+    item.currentStock = newStock;
+    if (actualDelta > 0) {
+      item.lastInDate = metadata.date || nowStr;
+      if (metadata.unitCost && Number(metadata.unitCost) > 0) {
+        item.unitCost = Number(metadata.unitCost);
+      }
+    }
+
+    localStorage.setItem(KEYS.INVENTORY, JSON.stringify(list));
+    saveServerInventory(list).catch(() => {});
+    return { item, logEntry };
+  } catch (e) {
+    console.error('Failed to adjust stock:', e);
+    return null;
+  }
+}
+
+/**
+ * 商品マスタ（ItemMaster）から未登録の商品を在庫マスタにインポート
+ */
+function syncInventoryWithItemsMaster() {
+  const invList = getInventoryList();
+  const rawItemMaster = localStorage.getItem(KEYS.ITEM_MASTER);
+  let itemMaster = [];
+  try {
+    itemMaster = rawItemMaster ? JSON.parse(rawItemMaster) : [];
+  } catch (e) {}
+
+  let addedCount = 0;
+  itemMaster.forEach(item => {
+    // 既存の在庫品目に同名または同itemIdがあるかチェック
+    const exists = invList.some(inv => inv.itemId === item.id || inv.name === item.name);
+    if (!exists) {
+      invList.push({
+        id: `inv_sync_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        itemId: item.id,
+        name: item.name,
+        sku: item.sku || `SKU-${item.id.replace('item_mst_', '')}`,
+        currentStock: 0,
+        safetyStock: 5,
+        unit: item.unit || '個',
+        unitCost: item.unitPrice ? Math.round(item.unitPrice * 0.6) : 0,
+        unitPrice: item.unitPrice || 0,
+        location: '倉庫未割当',
+        lastInDate: '',
+        note: `商品マスタ連携品目: ${item.note || ''}`,
+        history: [{
+          id: `log_init_${Date.now()}`,
+          date: new Date().toISOString().split('T')[0],
+          type: 'adjust',
+          qty: 0,
+          reason: '商品マスタ連携により初期登録',
+          currentStock: 0,
+          timestamp: new Date().toISOString()
+        }]
+      });
+      addedCount++;
+    }
+  });
+
+  if (addedCount > 0) {
+    localStorage.setItem(KEYS.INVENTORY, JSON.stringify(invList));
+    saveServerInventory(invList).catch(() => {});
+  }
+  return { addedCount, total: invList.length };
+}
+
+/**
+ * 仕入名目マッピング辞書を取得
+ */
+function getPurchaseMappings() {
+  try {
+    const raw = localStorage.getItem(KEYS.PURCHASE_MAPPINGS);
+    if (!raw) {
+      localStorage.setItem(KEYS.PURCHASE_MAPPINGS, JSON.stringify(DEFAULT_PURCHASE_MAPPINGS));
+      saveServerPurchaseMappings(DEFAULT_PURCHASE_MAPPINGS).catch(() => {});
+      return { ...DEFAULT_PURCHASE_MAPPINGS };
+    }
+    const parsed = JSON.parse(raw);
+    return (parsed && typeof parsed === 'object') ? parsed : { ...DEFAULT_PURCHASE_MAPPINGS };
+  } catch (e) {
+    return { ...DEFAULT_PURCHASE_MAPPINGS };
+  }
+}
+
+/**
+ * 仕入名目と在庫商品IDのマッピングを保存・学習
+ * @param {string} rawName - レシート・伝票上の名目または仕入先名
+ * @param {string} inventoryId - 対応する在庫品目ID
+ */
+function savePurchaseMapping(rawName, inventoryId) {
+  if (!rawName || !inventoryId) return;
+  const key = String(rawName).trim();
+  if (!key) return;
+  
+  try {
+    const mappings = getPurchaseMappings();
+    mappings[key] = inventoryId;
+    localStorage.setItem(KEYS.PURCHASE_MAPPINGS, JSON.stringify(mappings));
+    saveServerPurchaseMappings(mappings).catch(() => {});
+  } catch (e) {
+    console.error('Failed to save purchase mapping:', e);
+  }
+}
+
+/**
+ * 仕入名目（品名や仕入先）から在庫品目を推測・検索
+ * @param {string} rawName - レシート上の記載名目
+ * @returns {{ inventoryId: string, item: object, matchType: 'exact' | 'fuzzy' | 'none' } | null}
+ */
+function findInventoryMatchForPurchase(rawName) {
+  if (!rawName) return null;
+  const query = String(rawName).trim();
+  if (!query) return null;
+
+  const mappings = getPurchaseMappings();
+  const invList = getInventoryList();
+
+  // 1. マッピング辞書の完全一致
+  if (mappings[query]) {
+    const matched = invList.find(i => i.id === mappings[query]);
+    if (matched) {
+      return { inventoryId: matched.id, item: matched, matchType: 'exact' };
+    }
+  }
+
+  // 2. マッピング辞書の部分一致
+  const cleanStr = (s) => (s || '').toLowerCase()
+    .replace(/[（(【\[].*?[）)】\]]/g, '') // 括弧とその中身を削除
+    .replace(/[\s\-_・、。/]/g, '');      // 記号や空白を除去
+
+  const queryLower = query.toLowerCase();
+  const queryClean = cleanStr(query);
+
+  for (const [mapKey, invId] of Object.entries(mappings)) {
+    const mapKeyLower = mapKey.toLowerCase();
+    const mapKeyClean = cleanStr(mapKey);
+    if (
+      queryLower.includes(mapKeyLower) || mapKeyLower.includes(queryLower) ||
+      (queryClean.length >= 2 && (queryClean.includes(mapKeyClean) || mapKeyClean.includes(queryClean)))
+    ) {
+      const matched = invList.find(i => i.id === invId);
+      if (matched) {
+        return { inventoryId: matched.id, item: matched, matchType: 'fuzzy' };
+      }
+    }
+  }
+
+  // 3. 在庫マスタ品名・SKUとの直接部分一致（カッコ除去クリーン名も含む）
+  for (const inv of invList) {
+    const invNameLower = (inv.name || '').toLowerCase();
+    const invNameClean = cleanStr(inv.name);
+    const invSkuLower = (inv.sku || '').toLowerCase();
+
+    if (invNameLower && (queryLower.includes(invNameLower) || invNameLower.includes(queryLower))) {
+      return { inventoryId: inv.id, item: inv, matchType: 'fuzzy' };
+    }
+    if (invNameClean && invNameClean.length >= 2 && (queryClean.includes(invNameClean) || invNameClean.includes(queryClean))) {
+      return { inventoryId: inv.id, item: inv, matchType: 'fuzzy' };
+    }
+    if (invSkuLower && (queryLower.includes(invSkuLower) || invSkuLower.includes(queryLower))) {
+      return { inventoryId: inv.id, item: inv, matchType: 'fuzzy' };
+    }
+  }
+
+  return { inventoryId: '', item: null, matchType: 'none' };
 }
 
   // ==========================================================================
@@ -3563,6 +4235,11 @@ const DOM = {
   sheetSubtotal0: document.getElementById('sheetSubtotal0'),
 
   // アクションバー
+  btnIssueDoc: document.getElementById('btnIssueDoc'),
+  btnCancelIssueDoc: document.getElementById('btnCancelIssueDoc'),
+  sidebarIssuedBanner: document.getElementById('sidebarIssuedBanner'),
+  btnSidebarCancelIssue: document.getElementById('btnSidebarCancelIssue'),
+  badgeAccountingSyncStatus: document.getElementById('badgeAccountingSyncStatus'),
   btnPrint: document.getElementById('btnPrint'),
   btnSaveHistory: document.getElementById('btnSaveHistory'),
   colorDotBtns: document.querySelectorAll('.color-dot-btn'),
@@ -3639,9 +4316,73 @@ const DOM = {
   clientMasterInputClosingDay: document.getElementById('clientMasterInputClosingDay'),
   clientMasterInputPaymentTerms: document.getElementById('clientMasterInputPaymentTerms'),
   clientMasterInputNote: document.getElementById('clientMasterInputNote'),
-  btnCancelClientMasterForm: document.getElementById('btnCancelClientMasterForm'),
-  btnSaveClientMasterForm: document.getElementById('btnSaveClientMasterForm'),
   clientMasterListContainer: document.getElementById('clientMasterListContainer'),
+
+  // 在庫マスタ
+  inventoryMasterModal: document.getElementById('inventoryMasterModal'),
+  btnOpenInventoryMaster: document.getElementById('btnOpenInventoryMaster'),
+  btnPortalOpenInventoryMaster: document.getElementById('btnPortalOpenInventoryMaster'),
+  btnCloseInventoryMasterModal: document.getElementById('btnCloseInventoryMasterModal'),
+  btnCloseInventoryMasterModal2: document.getElementById('btnCloseInventoryMasterModal2'),
+  inputSearchInventory: document.getElementById('inputSearchInventory'),
+  selectInventoryFilter: document.getElementById('selectInventoryFilter'),
+  btnSyncInventoryWithItems: document.getElementById('btnSyncInventoryWithItems'),
+  btnToggleNewInventoryForm: document.getElementById('btnToggleNewInventoryForm'),
+  inventoryFormContainer: document.getElementById('inventoryFormContainer'),
+  inventoryFormTitle: document.getElementById('inventoryFormTitle'),
+  inventoryEditId: document.getElementById('inventoryEditId'),
+  inventoryItemId: document.getElementById('inventoryItemId'),
+  invInputName: document.getElementById('invInputName'),
+  invInputSku: document.getElementById('invInputSku'),
+  invInputCurrentStock: document.getElementById('invInputCurrentStock'),
+  invInputSafetyStock: document.getElementById('invInputSafetyStock'),
+  invInputUnit: document.getElementById('invInputUnit'),
+  invInputUnitCost: document.getElementById('invInputUnitCost'),
+  invInputUnitPrice: document.getElementById('invInputUnitPrice'),
+  invInputLocation: document.getElementById('invInputLocation'),
+  invInputNote: document.getElementById('invInputNote'),
+  btnCancelInventoryForm: document.getElementById('btnCancelInventoryForm'),
+  btnSaveInventoryItem: document.getElementById('btnSaveInventoryItem'),
+  inventoryTableContainer: document.getElementById('inventoryTableContainer'),
+  inventorySummaryStatus: document.getElementById('inventorySummaryStatus'),
+
+  // 在庫入出庫調整モーダル
+  inventoryAdjustModal: document.getElementById('inventoryAdjustModal'),
+  adjustModalItemName: document.getElementById('adjustModalItemName'),
+  btnCloseAdjustModal: document.getElementById('btnCloseAdjustModal'),
+  adjustInventoryId: document.getElementById('adjustInventoryId'),
+  adjustCurrentStockVal: document.getElementById('adjustCurrentStockVal'),
+  adjustCurrentStockUnit: document.getElementById('adjustCurrentStockUnit'),
+  labelAdjustTypeIn: document.getElementById('labelAdjustTypeIn'),
+  labelAdjustTypeOut: document.getElementById('labelAdjustTypeOut'),
+  labelAdjustTypeSet: document.getElementById('labelAdjustTypeSet'),
+  adjustInputQty: document.getElementById('adjustInputQty'),
+  adjustInputReason: document.getElementById('adjustInputReason'),
+  adjustSimulationBox: document.getElementById('adjustSimulationBox'),
+  adjustSimulatedStockVal: document.getElementById('adjustSimulatedStockVal'),
+  btnCancelAdjust: document.getElementById('btnCancelAdjust'),
+  btnConfirmAdjust: document.getElementById('btnConfirmAdjust'),
+
+  // 在庫履歴モーダル
+  inventoryHistoryModal: document.getElementById('inventoryHistoryModal'),
+  historyModalItemName: document.getElementById('historyModalItemName'),
+  historyModalItemSku: document.getElementById('historyModalItemSku'),
+  btnCloseInventoryHistoryModal: document.getElementById('btnCloseInventoryHistoryModal'),
+  btnCloseInventoryHistoryModal2: document.getElementById('btnCloseInventoryHistoryModal2'),
+  inventoryHistoryTableContainer: document.getElementById('inventoryHistoryTableContainer'),
+
+  // クイック新規品目追加モーダル（商品マスタ＆在庫マスタ同時登録）
+  quickNewItemModal: document.getElementById('quickNewItemModal'),
+  btnCloseQuickNewItemModal: document.getElementById('btnCloseQuickNewItemModal'),
+  quickInputItemName: document.getElementById('quickInputItemName'),
+  quickInputItemSku: document.getElementById('quickInputItemSku'),
+  quickInputItemUnit: document.getElementById('quickInputItemUnit'),
+  quickInputItemUnitCost: document.getElementById('quickInputItemUnitCost'),
+  quickInputItemUnitPrice: document.getElementById('quickInputItemUnitPrice'),
+  quickInputItemSafetyStock: document.getElementById('quickInputItemSafetyStock'),
+  quickInputItemNote: document.getElementById('quickInputItemNote'),
+  btnCancelQuickNewItem: document.getElementById('btnCancelQuickNewItem'),
+  btnConfirmQuickNewItem: document.getElementById('btnConfirmQuickNewItem'),
 
   // 値引き関連
   btnOpenDiscountModal: document.getElementById('btnOpenDiscountModal'),
@@ -3658,11 +4399,38 @@ const DOM = {
   displayWholesaleDiscountUnitPrice: document.getElementById('displayWholesaleDiscountUnitPrice'),
   btnAddDiscountToItems: document.getElementById('btnAddDiscountToItems'),
 
+  // 請求書詳細・直接編集モーダル（財務会計連携）
+  invoiceQuickEditModal: document.getElementById('invoiceQuickEditModal'),
+  btnCloseIqeModal: document.getElementById('btnCloseIqeModal'),
+  btnCancelIqeModal: document.getElementById('btnCancelIqeModal'),
+  btnSaveIqeModal: document.getElementById('btnSaveIqeModal'),
+  btnIqeCancelIssue: document.getElementById('btnIqeCancelIssue'),
+  btnIqeOpenInEditor: document.getElementById('btnIqeOpenInEditor'),
+  btnIqeAddItem: document.getElementById('btnIqeAddItem'),
+  iqeModalTitle: document.getElementById('iqeModalTitle'),
+  iqeDocNumberSub: document.getElementById('iqeDocNumberSub'),
+  iqeStatusBadge: document.getElementById('iqeStatusBadge'),
+  iqeDocId: document.getElementById('iqeDocId'),
+  iqeDocType: document.getElementById('iqeDocType'),
+  iqeIssueDate: document.getElementById('iqeIssueDate'),
+  iqeDueDate: document.getElementById('iqeDueDate'),
+  iqePaymentStatus: document.getElementById('iqePaymentStatus'),
+  iqeClientName: document.getElementById('iqeClientName'),
+  iqeTitle: document.getElementById('iqeTitle'),
+  iqeItemsTableBody: document.getElementById('iqeItemsTableBody'),
+  iqeNotes: document.getElementById('iqeNotes'),
+  iqeSubtotal: document.getElementById('iqeSubtotal'),
+  iqeTaxTotal: document.getElementById('iqeTaxTotal'),
+  iqeGrandTotal: document.getElementById('iqeGrandTotal'),
+
   // 会計・収支ダッシュボード
   btnOpenAccounting: document.getElementById('btnOpenAccounting'),
-  accountingModal: document.getElementById('accountingModal'),
+  accountingViewScreen: document.getElementById('accountingViewScreen'),
+  accountingModal: document.getElementById('accountingViewScreen') || document.getElementById('accountingModal'),
   btnCloseAccountingModal: document.getElementById('btnCloseAccountingModal'),
   btnCloseAccountingModal2: document.getElementById('btnCloseAccountingModal2'),
+  expensesViewScreen: document.getElementById('expensesViewScreen'),
+  btnCloseExpensesScreen: document.getElementById('btnCloseExpensesScreen'),
   accTabBtns: document.querySelectorAll('.acc-tab-btn'),
   accPanes: document.querySelectorAll('.acc-pane'),
   accSelectMonth: document.getElementById('accSelectMonth'),
@@ -3711,6 +4479,22 @@ const DOM = {
   expenseInputNote: document.getElementById('expenseInputNote'),
   btnResetExpenseForm: document.getElementById('btnResetExpenseForm'),
   btnSaveExpense: document.getElementById('btnSaveExpense'),
+  radioExpenseTypeExpense: document.getElementById('radioExpenseTypeExpense'),
+  radioExpenseTypePurchase: document.getElementById('radioExpenseTypePurchase'),
+  labelExpenseTypeExpense: document.getElementById('labelExpenseTypeExpense'),
+  labelExpenseTypePurchase: document.getElementById('labelExpenseTypePurchase'),
+  expenseInventoryPanel: document.getElementById('expenseInventoryPanel'),
+  expensePurchaseMatchBadge: document.getElementById('expensePurchaseMatchBadge'),
+  expenseSelectInventoryItem: document.getElementById('expenseSelectInventoryItem'),
+  btnQuickCreateInventory: document.getElementById('btnQuickCreateInventory'),
+  expenseInputInQty: document.getElementById('expenseInputInQty'),
+  expenseInventoryUnitDisp: document.getElementById('expenseInventoryUnitDisp'),
+  expenseStockPreviewBox: document.getElementById('expenseStockPreviewBox'),
+  expenseCurrentStockDisp: document.getElementById('expenseCurrentStockDisp'),
+  expenseAfterStockDisp: document.getElementById('expenseAfterStockDisp'),
+  expenseStockDeltaDisp: document.getElementById('expenseStockDeltaDisp'),
+  expenseCheckSaveMapping: document.getElementById('expenseCheckSaveMapping'),
+  expenseDispRawPayee: document.getElementById('expenseDispRawPayee'),
   expenseListTotalAmount: document.getElementById('expenseListTotalAmount'),
   expenseTableBody: document.getElementById('expenseTableBody'),
   btnExportJournalCSV: document.getElementById('btnExportJournalCSV'),
@@ -3718,7 +4502,8 @@ const DOM = {
 
   // 勤怠打刻（タイムカード）
   btnOpenAttendance: document.getElementById('btnOpenAttendance'),
-  attendanceModal: document.getElementById('attendanceModal'),
+  attendanceViewScreen: document.getElementById('attendanceViewScreen'),
+  attendanceModal: document.getElementById('attendanceViewScreen') || document.getElementById('attendanceModal'),
   btnCloseAttendanceModal: document.getElementById('btnCloseAttendanceModal'),
   btnCloseAttendanceModal2: document.getElementById('btnCloseAttendanceModal2'),
   attendanceLiveDate: document.getElementById('attendanceLiveDate'),
@@ -3764,7 +4549,15 @@ const DOM = {
   dispSheetSummaryDays: document.getElementById('dispSheetSummaryDays'),
   dispSheetSummaryRegular: document.getElementById('dispSheetSummaryRegular'),
   dispSheetSummaryOvertime: document.getElementById('dispSheetSummaryOvertime'),
-  dispSheetSummaryTotal: document.getElementById('dispSheetSummaryTotal')
+  dispSheetSummaryTotal: document.getElementById('dispSheetSummaryTotal'),
+
+  // 統合業務ポータルMENU ＆ アプリスイッチャー
+  portalMenuScreen: document.getElementById('portalMenuScreen'),
+  portalLiveDate: document.getElementById('portalLiveDate'),
+  portalLiveTime: document.getElementById('portalLiveTime'),
+  dispPortalCompanyName: document.getElementById('dispPortalCompanyName'),
+  appSwitcherNav: document.getElementById('appSwitcherNav'),
+  appLayoutInvoice: document.getElementById('appLayoutInvoice')
 };
 
 // ==========================================================================
@@ -3781,8 +4574,8 @@ function initApp() {
       currentDoc.issuer = { ...currentDoc.issuer, ...profile };
     }
   } else {
-    // なければ初期サンプルデータを設定
-    currentDoc = JSON.parse(JSON.stringify(SAMPLE_DOCUMENTS.invoice));
+    // 保存データがなければ白紙の新規書類を設定（件名・取引先・明細は空白）
+    currentDoc = createEmptyInvoice('invoice');
     if (profile && profile.name) {
       currentDoc.issuer = { ...currentDoc.issuer, ...profile };
     }
@@ -3814,6 +4607,20 @@ function initApp() {
   initMastersPersistence().then(result => {
     updateClientMasterDatalist();
     updateAttendanceUI(); // サーバーから同期された勤怠情報をUIに反映
+
+    // サーバーファイル（data/company/issuer_profile.json）から最新の振込先情報を確実に復元・反映
+    const syncedProfile = loadIssuerProfile();
+    if (syncedProfile && syncedProfile.bankInfo) {
+      if (!currentDoc.issuer) currentDoc.issuer = {};
+      if (!currentDoc.issuer.bankInfo || currentDoc.issuer.bankInfo.trim() === '') {
+        currentDoc.issuer.bankInfo = syncedProfile.bankInfo;
+      }
+      if (DOM.inputBankInfo && !DOM.inputBankInfo.value) {
+        DOM.inputBankInfo.value = currentDoc.issuer.bankInfo;
+      }
+      renderAll();
+    }
+
     if (result && (result.rescuedItems > 0 || result.rescuedClients > 0)) {
       const msgs = [];
       if (result.rescuedItems > 0) msgs.push(`商品マスタ: ${result.rescuedItems}件`);
@@ -3824,8 +4631,134 @@ function initApp() {
     console.warn('Init masters persistence warning:', e);
   });
 
-  showToast('BillCraft へようこそ！帳票の作成・印刷が可能です。', 'info');
+  // 在庫マスタ ＆ 仕入マッピングのサーバー同期
+  initInventoryFromServer().then(() => {
+    populateExpenseInventoryDropdown();
+  }).catch(e => {
+    console.warn('Init inventory persistence warning:', e);
+  });
+
+  // 起動時はポータルMENUを表示（初回起動時）
+  switchAppView('portal');
+  updatePortalInfo();
 }
+
+// ==========================================================================
+// 統合業務ポータル・各専用画面切替ロジック (AlbaCraft ERP)
+// ポップアップ（モーダル）ではなく独立した広大な専用ワークスペースとして切替
+// ==========================================================================
+let currentAppView = 'portal';
+
+function switchAppView(viewName) {
+  currentAppView = viewName || 'portal';
+
+  // 1. スイッチャーボタンのactive状態を更新
+  const switchBtns = document.querySelectorAll('.app-switch-btn');
+  switchBtns.forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.app === currentAppView);
+  });
+
+  // 2. 全ての専用フル画面から active を除去（ポップアップの重ね合わせを完全排除）
+  const allScreens = document.querySelectorAll('.app-view-screen');
+  allScreens.forEach(screen => {
+    screen.classList.remove('active');
+  });
+
+  // 3. 補助モーダル（出勤簿A4帳票、履歴、マスタなど）も画面切り替え時は閉じる
+  if (DOM.attendanceSheetModal) DOM.attendanceSheetModal.classList.remove('active');
+  if (DOM.historyModal) DOM.historyModal.classList.remove('active');
+  if (DOM.itemMasterModal) DOM.itemMasterModal.classList.remove('active');
+  if (DOM.clientMasterModal) DOM.clientMasterModal.classList.remove('active');
+  if (DOM.inventoryMasterModal) DOM.inventoryMasterModal.style.display = 'none';
+  if (DOM.inventoryAdjustModal) DOM.inventoryAdjustModal.style.display = 'none';
+  if (DOM.inventoryHistoryModal) DOM.inventoryHistoryModal.style.display = 'none';
+  if (DOM.backupModal) DOM.backupModal.classList.remove('active');
+  if (DOM.receiptZoomModal) DOM.receiptZoomModal.classList.remove('active');
+  document.body.style.overflow = '';
+
+  // 4. 対象の専用画面をアクティブ化し、必要なデータ描画・初期化を行う
+  switch (currentAppView) {
+    case 'portal':
+      if (DOM.portalMenuScreen) {
+        DOM.portalMenuScreen.classList.add('active');
+        updatePortalInfo();
+      }
+      break;
+
+    case 'invoice':
+      // 納品・請求書専用画面（エディタ＋A4プレビューの左右分割レイアウト）
+      if (DOM.appLayoutInvoice) {
+        DOM.appLayoutInvoice.classList.add('active');
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      break;
+
+    case 'accounting':
+      // 財務会計専用画面（収支・P/L・入金消込・仕訳帳）
+      if (DOM.accountingViewScreen) {
+        DOM.accountingViewScreen.classList.add('active');
+      } else if (DOM.accountingModal) {
+        DOM.accountingModal.classList.add('active');
+      }
+      initAccountingMonthSelector();
+      switchAccountingTab('acc-tab-dashboard');
+      break;
+
+    case 'expenses':
+      // 経費読み込み専用画面（AI OCRレシート解析 ＆ 経費登録・明細管理）
+      if (DOM.expensesViewScreen) {
+        DOM.expensesViewScreen.classList.add('active');
+      }
+      populateExpenseInventoryDropdown();
+      renderAccountingExpenses();
+      break;
+
+    case 'attendance':
+      // 勤怠管理・退勤打刻専用画面（打刻パネル ＆ タイムカード履歴）
+      if (DOM.attendanceViewScreen) {
+        DOM.attendanceViewScreen.classList.add('active');
+      } else if (DOM.attendanceModal) {
+        DOM.attendanceModal.classList.add('active');
+      }
+      openAttendanceModal();
+      break;
+  }
+}
+
+window.switchAppView = switchAppView;
+
+function updatePortalInfo() {
+  // 会社名の反映
+  const profile = loadIssuerProfile();
+  if (DOM.dispPortalCompanyName) {
+    DOM.dispPortalCompanyName.textContent = (profile && profile.name) ? profile.name : '株式会社アルバワークス';
+  }
+
+  // リアルタイム時計の更新
+  const now = new Date();
+  const days = ['日', '月', '火', '水', '木', '金', '土'];
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const dayStr = days[now.getDay()];
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+
+  if (DOM.portalLiveDate) {
+    DOM.portalLiveDate.textContent = `${y}年${m}月${d}日 (${dayStr})`;
+  }
+  if (DOM.portalLiveTime) {
+    DOM.portalLiveTime.textContent = `${hh}:${mm}:${ss}`;
+  }
+}
+
+// 毎秒ポータル時計を更新
+setInterval(() => {
+  if (currentAppView === 'portal') {
+    updatePortalInfo();
+  }
+}, 1000);
 
 // ==========================================================================
 // フォームへのデータ設定
@@ -3995,12 +4928,171 @@ function renderAll() {
     DOM.sheetNotesCard.style.display = 'none';
   }
 
-  // 明細数バッジ
-  DOM.itemCountBadge.textContent = currentDoc.items.length;
+  // 確定発行状態とツールバーボタン・財務会計連携バッジの更新
+  const isDocIssued = !!(currentDoc.isIssued && !currentDoc.isCancelled);
+
+  if (DOM.btnCancelIssueDoc) {
+    DOM.btnCancelIssueDoc.style.display = isDocIssued ? 'inline-flex' : 'none';
+  }
+  if (DOM.sidebarIssuedBanner) {
+    DOM.sidebarIssuedBanner.style.display = isDocIssued ? 'flex' : 'none';
+  }
+
+  if (DOM.btnIssueDoc) {
+    if (isDocIssued) {
+      DOM.btnIssueDoc.innerHTML = `
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        確定更新（財務反映中）
+      `;
+      DOM.btnIssueDoc.title = '現在の内容で確定発行を更新し、財務会計へ再反映します';
+    } else {
+      DOM.btnIssueDoc.innerHTML = `
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        確定発行（財務会計反映）
+      `;
+      DOM.btnIssueDoc.title = '書類を確定発行し、財務会計（売上高・売掛金消込・仕訳帳）へ即座に反映します';
+    }
+  }
+
+  if (DOM.badgeAccountingSyncStatus) {
+    if (isDocIssued) {
+      DOM.badgeAccountingSyncStatus.style.background = 'rgba(16, 185, 129, 0.2)';
+      DOM.badgeAccountingSyncStatus.style.color = '#34d399';
+      DOM.badgeAccountingSyncStatus.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+      DOM.badgeAccountingSyncStatus.innerHTML = `<span style="font-size: 8px;">●</span> 財務会計連動済（確定発行）`;
+    } else {
+      DOM.badgeAccountingSyncStatus.style.background = 'rgba(148, 163, 184, 0.15)';
+      DOM.badgeAccountingSyncStatus.style.color = '#94a3b8';
+      DOM.badgeAccountingSyncStatus.style.borderColor = 'rgba(148, 163, 184, 0.3)';
+      DOM.badgeAccountingSyncStatus.innerHTML = `<span style="font-size: 8px;">●</span> 財務会計連動（編集中・下書き）`;
+    }
+  }
 
   // LocalStorageに常時保存
   saveActiveDoc(currentDoc);
 }
+
+/**
+ * 納品書・請求書・領収書の確定発行 ＆ 財務会計への即時同期
+ * @param {object} options { isPrint: boolean, isExplicitIssue: boolean }
+ */
+function issueAndSyncAccountingDocument(options = {}) {
+  const { isPrint = false, isExplicitIssue = true } = options;
+
+  // 1. 発行フラグ・日時の設定
+  currentDoc.isIssued = true;
+  currentDoc.isCancelled = false;
+  currentDoc.issuedAt = currentDoc.issuedAt || new Date().toISOString();
+  if (!currentDoc.paymentStatus) {
+    currentDoc.paymentStatus = (currentDoc.docType === 'receipt') ? 'paid' : 'unpaid';
+  }
+  if (currentDoc.isPaid === undefined) {
+    currentDoc.isPaid = (currentDoc.docType === 'receipt');
+  }
+
+  // 2. 明細内の全商品のユーザー価格およびマスタ使用頻度を記録
+  if (currentDoc && Array.isArray(currentDoc.items)) {
+    currentDoc.items.forEach(it => {
+      if (it.name) {
+        if (it.userPrice && Number(it.userPrice) > 0) {
+          recordUserPrice(it.name, Number(it.userPrice));
+        }
+        recordItemMasterUsage(null, it.name);
+      }
+    });
+  }
+
+  // 3. 取引先マスタへの自動登録・利用実績記録
+  if (currentDoc.client && currentDoc.client.name && currentDoc.client.name.trim()) {
+    saveClientToMaster({
+      name: currentDoc.client.name,
+      honorific: currentDoc.client.honorific,
+      zip: currentDoc.client.zip,
+      address: currentDoc.client.address,
+      contactPerson: currentDoc.client.contactPerson,
+      paymentTerms: currentDoc.paymentTerms || '',
+      category: 'customer'
+    });
+    recordClientMasterUsage(null, currentDoc.client.name);
+    updateClientMasterDatalist();
+  }
+
+  // 4. 書類履歴へ保存（財務会計への即時データ投入）
+  const success = saveDocToHistory(currentDoc);
+  if (!success) {
+    showToast('書類の保存に失敗しました', 'danger');
+    return false;
+  }
+
+  // 5. 財務会計ダッシュボード・売上消込・仕訳帳を即時再計算・同期
+  initAccountingMonthSelector();
+  const currentMonth = DOM.accSelectMonth ? DOM.accSelectMonth.value : '';
+  renderAccountingDashboard(currentMonth);
+  renderAccountingSales(currentSalesFilter);
+  renderAccountingJournals();
+
+  // 6. UI表示の更新
+  renderAll();
+
+  const typeLabel = (DOC_TYPES[currentDoc.docType] || DOC_TYPES.invoice).label;
+  if (isExplicitIssue) {
+    showToast(`「${typeLabel}」を確定発行し、財務会計（売上・売掛金消込・仕訳帳）へ即時反映しました！`, 'success');
+  } else {
+    showToast(`作成履歴に保存し、財務会計（売上高・仕訳帳）へ反映しました！`, 'success');
+  }
+
+  // 7. 印刷が指定されている場合は印刷ダイアログを起動
+  if (isPrint) {
+    setTimeout(() => {
+      window.print();
+    }, 200);
+  }
+
+  return true;
+}
+
+window.issueAndSyncAccountingDocument = issueAndSyncAccountingDocument;
+
+/**
+ * 編集中書類の確定発行を取り消し（未確定・下書きに戻す）
+ */
+function cancelCurrentDocIssue() {
+  const typeLabel = (DOC_TYPES[currentDoc.docType] || DOC_TYPES.invoice).label;
+  const docNo = currentDoc.docNumber || 'この書類';
+
+  const confirmMsg = `「${typeLabel} (${docNo})」の確定発行を取り消しますか？\n\n【取り消しの効果】\n・財務会計（売上高・売掛金消込・仕訳帳）から即座に除外されます。\n・書類データは削除されず、修正可能な「下書き」状態に戻ります。`;
+  
+  if (!confirm(confirmMsg)) {
+    return false;
+  }
+
+  currentDoc.isIssued = false;
+  currentDoc.isCancelled = true;
+  currentDoc.issuedAt = null;
+
+  // 書類履歴内の該当書類も取消状態に更新
+  if (currentDoc.id) {
+    cancelDocIssue(currentDoc.id);
+  }
+
+  // LocalStorageに保存
+  saveActiveDoc(currentDoc);
+
+  // 財務会計ダッシュボード・売上消込・仕訳帳を即時再計算・同期
+  initAccountingMonthSelector();
+  const currentMonth = DOM.accSelectMonth ? DOM.accSelectMonth.value : '';
+  renderAccountingDashboard(currentMonth);
+  renderAccountingSales(currentSalesFilter);
+  renderAccountingJournals();
+
+  // UI表示の更新
+  renderAll();
+
+  showToast(`「${typeLabel}」の確定発行を取り消しました。財務会計から自動除外され、下書きに戻りました。`, 'warning');
+  return true;
+}
+
+window.cancelCurrentDocIssue = cancelCurrentDocIssue;
 
 // ==========================================================================
 // プレビュー用明細テーブルのレンダリング
@@ -4460,15 +5552,18 @@ function setupEventListeners() {
   });
 
   // 書類番号の再採番
-  DOM.btnRegenDocNumber.addEventListener('click', () => {
-    currentDoc.docNumber = generateDocNumber(currentDoc.docType);
-    DOM.inputDocNumber.value = currentDoc.docNumber;
-    renderAll();
-    showToast('新しい書類番号を採番しました');
-  });
+  if (DOM.btnRegenDocNumber) {
+    DOM.btnRegenDocNumber.addEventListener('click', () => {
+      currentDoc.docNumber = generateDocNumber(currentDoc.docType);
+      if (DOM.inputDocNumber) DOM.inputDocNumber.value = currentDoc.docNumber;
+      renderAll();
+      showToast('新しい書類番号を採番しました');
+    });
+  }
 
   // 入力フォームの同期
   const bindInput = (el, setter) => {
+    if (!el) return;
     el.addEventListener('input', (e) => {
       setter(e.target.value);
       renderAll();
@@ -4481,10 +5576,12 @@ function setupEventListeners() {
   bindInput(DOM.inputTitle, val => currentDoc.title = val);
 
   bindInput(DOM.inputClientName, val => currentDoc.client.name = val);
-  DOM.inputClientHonorific.addEventListener('change', e => {
-    currentDoc.client.honorific = e.target.value;
-    renderAll();
-  });
+  if (DOM.inputClientHonorific) {
+    DOM.inputClientHonorific.addEventListener('change', e => {
+      currentDoc.client.honorific = e.target.value;
+      renderAll();
+    });
+  }
   bindInput(DOM.inputClientZip, val => currentDoc.client.zip = val);
   bindInput(DOM.inputClientAddress, val => currentDoc.client.address = val);
   bindInput(DOM.inputClientContact, val => currentDoc.client.contactPerson = val);
@@ -4496,232 +5593,297 @@ function setupEventListeners() {
   bindInput(DOM.inputIssuerFax, val => currentDoc.issuer.fax = val);
   bindInput(DOM.inputIssuerAddress, val => currentDoc.issuer.address = val);
   bindInput(DOM.inputIssuerEmail, val => currentDoc.issuer.email = val);
-  bindInput(DOM.inputBankInfo, val => currentDoc.issuer.bankInfo = val);
+  bindInput(DOM.inputBankInfo, val => {
+    if (!currentDoc.issuer) currentDoc.issuer = {};
+    currentDoc.issuer.bankInfo = val;
+    saveIssuerProfile({
+      ...loadIssuerProfile(),
+      ...currentDoc.issuer,
+      bankInfo: val
+    });
+  });
   bindInput(DOM.inputNotes, val => currentDoc.notes = val);
 
   // 端数処理設定
-  DOM.selectFractionRule.addEventListener('change', e => {
-    currentDoc.taxFractionRule = e.target.value;
-    renderAll();
-  });
+  if (DOM.selectFractionRule) {
+    DOM.selectFractionRule.addEventListener('change', e => {
+      currentDoc.taxFractionRule = e.target.value;
+      renderAll();
+    });
+  }
 
   // 明細追加ボタン
-  DOM.btnAddItem.addEventListener('click', () => {
-    currentDoc.items.push({
-      id: 'item_' + Date.now(),
-      name: '',
-      quantity: 1,
-      unit: '式',
-      unitPrice: 0,
-      taxRate: 10,
-      note: ''
+  if (DOM.btnAddItem) {
+    DOM.btnAddItem.addEventListener('click', () => {
+      currentDoc.items.push({
+        id: 'item_' + Date.now(),
+        name: '',
+        quantity: 1,
+        unit: '式',
+        unitPrice: 0,
+        taxRate: 10,
+        note: ''
+      });
+      renderItemInputCards();
+      renderAll();
     });
-    renderItemInputCards();
-    renderAll();
-  });
+  }
 
   // 定型文挿入ボタン
-  DOM.btnInsertTemplateNote.addEventListener('click', () => {
-    const defaultNotes = 'お振込手数料は貴社にてご負担くださいますようお願い申し上げます。\nご不明な点がございましたらお気軽にお問い合わせください。';
-    DOM.inputNotes.value = defaultNotes;
-    currentDoc.notes = defaultNotes;
-    renderAll();
-    showToast('備考欄に定型文を挿入しました');
-  });
+  if (DOM.btnInsertTemplateNote) {
+    DOM.btnInsertTemplateNote.addEventListener('click', () => {
+      const defaultNotes = 'お振込手数料は貴社にてご負担くださいますようお願い申し上げます。\nご不明な点がございましたらお気軽にお問い合わせください。';
+      if (DOM.inputNotes) DOM.inputNotes.value = defaultNotes;
+      currentDoc.notes = defaultNotes;
+      renderAll();
+      showToast('備考欄に定型文を挿入しました');
+    });
+  }
 
   // 印鑑の表示トグル
-  DOM.checkShowStamp.addEventListener('change', e => {
-    currentDoc.issuer.showStamp = e.target.checked;
-    renderAll();
-  });
-
-  // 印鑑自動生成
-  DOM.btnAutoGenerateStamp.addEventListener('click', () => {
-    const name = currentDoc.issuer?.name?.trim() || '社印';
-    const stampUrl = generateCompanyStamp(name);
-    currentDoc.issuer.stampDataUrl = stampUrl;
-    currentDoc.issuer.showStamp = true;
-    DOM.checkShowStamp.checked = true;
-    updateStampThumbnail(stampUrl);
-    renderAll();
-    showToast(`「${name}」の角印スタンプを生成しました！`, 'success');
-  });
-
-  // 印鑑画像アップロード
-  DOM.fileStampUpload.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target.result;
-      currentDoc.issuer.stampDataUrl = dataUrl;
-      currentDoc.issuer.showStamp = true;
-      DOM.checkShowStamp.checked = true;
-      updateStampThumbnail(dataUrl);
-      renderAll();
-      showToast('印鑑画像をアップロードしました', 'success');
-    };
-    reader.readAsDataURL(file);
-  });
-
-  // テーマカラー変更
-  DOM.colorDotBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const color = btn.dataset.color;
-      updateThemeColor(color);
-      currentDoc.themeColor = color;
+  if (DOM.checkShowStamp) {
+    DOM.checkShowStamp.addEventListener('change', e => {
+      currentDoc.issuer.showStamp = e.target.checked;
       renderAll();
     });
-  });
+  }
 
-  // 印刷・PDF保存
-  DOM.btnPrint.addEventListener('click', () => {
-    window.print();
-  });
+  // 印鑑自動生成
+  if (DOM.btnAutoGenerateStamp) {
+    DOM.btnAutoGenerateStamp.addEventListener('click', () => {
+      const name = currentDoc.issuer?.name?.trim() || '社印';
+      const stampUrl = generateCompanyStamp(name);
+      currentDoc.issuer.stampDataUrl = stampUrl;
+      currentDoc.issuer.showStamp = true;
+      if (DOM.checkShowStamp) DOM.checkShowStamp.checked = true;
+      updateStampThumbnail(stampUrl);
+      renderAll();
+      showToast(`「${name}」の角印スタンプを生成しました！`, 'success');
+    });
+  }
 
-  // 履歴に保存
-  DOM.btnSaveHistory.addEventListener('click', () => {
-    // 明細内の全商品のユーザー価格およびマスタ使用頻度を記録
-    if (currentDoc && Array.isArray(currentDoc.items)) {
-      currentDoc.items.forEach(it => {
-        if (it.name) {
-          if (it.userPrice && Number(it.userPrice) > 0) {
-            recordUserPrice(it.name, Number(it.userPrice));
-          }
-          recordItemMasterUsage(null, it.name);
-        }
+  // 印鑑画像アップロード
+  if (DOM.fileStampUpload) {
+    DOM.fileStampUpload.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target.result;
+        currentDoc.issuer.stampDataUrl = dataUrl;
+        currentDoc.issuer.showStamp = true;
+        if (DOM.checkShowStamp) DOM.checkShowStamp.checked = true;
+        updateStampThumbnail(dataUrl);
+        renderAll();
+        showToast('印鑑画像をアップロードしました', 'success');
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // テーマカラー変更
+  if (DOM.colorDotBtns) {
+    DOM.colorDotBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const color = btn.dataset.color;
+        updateThemeColor(color);
+        currentDoc.themeColor = color;
+        renderAll();
       });
-    }
+    });
+  }
 
-    // 取引先マスタへの自動登録・利用実績記録
-    if (currentDoc.client && currentDoc.client.name && currentDoc.client.name.trim()) {
-      saveClientToMaster({
-        name: currentDoc.client.name,
-        honorific: currentDoc.client.honorific,
-        zip: currentDoc.client.zip,
-        address: currentDoc.client.address,
-        contactPerson: currentDoc.client.contactPerson,
-        paymentTerms: currentDoc.paymentTerms || '',
-        category: 'customer'
-      });
-      recordClientMasterUsage(null, currentDoc.client.name);
-      updateClientMasterDatalist();
-    }
+  // 確定発行（財務会計へ反映）
+  if (DOM.btnIssueDoc) {
+    DOM.btnIssueDoc.addEventListener('click', () => {
+      issueAndSyncAccountingDocument({ isPrint: false, isExplicitIssue: true });
+    });
+  }
 
-    const success = saveDocToHistory(currentDoc);
-    if (success) {
-      showToast('作成履歴に保存しました！', 'success');
-    }
-  });
+  // 確定取消（下書きに戻す・財務会計から除外）
+  if (DOM.btnCancelIssueDoc) {
+    DOM.btnCancelIssueDoc.addEventListener('click', () => {
+      cancelCurrentDocIssue();
+    });
+  }
+  if (DOM.btnSidebarCancelIssue) {
+    DOM.btnSidebarCancelIssue.addEventListener('click', () => {
+      cancelCurrentDocIssue();
+    });
+  }
+
+  // 印刷・PDF保存（同時に財務会計にも即時反映）
+  if (DOM.btnPrint) {
+    DOM.btnPrint.addEventListener('click', () => {
+      issueAndSyncAccountingDocument({ isPrint: true, isExplicitIssue: true });
+    });
+  }
+
+  // 履歴に保存（財務会計にも即時反映）
+  if (DOM.btnSaveHistory) {
+    DOM.btnSaveHistory.addEventListener('click', () => {
+      issueAndSyncAccountingDocument({ isPrint: false, isExplicitIssue: false });
+    });
+  }
 
   // 新規作成
-  DOM.btnNewDoc.addEventListener('click', () => {
-    if (confirm('新しく白紙の書類を作成しますか？（現在の内容は履歴からいつでも呼び出せます）')) {
-      const profile = currentDoc.issuer; // 自社情報は引き継ぐ
-      currentDoc = createEmptyInvoice('invoice');
-      if (profile) {
-        currentDoc.issuer = profile;
+  if (DOM.btnNewDoc) {
+    DOM.btnNewDoc.addEventListener('click', () => {
+      if (confirm('新しく白紙の書類を作成しますか？\n（件名・取引先・明細がクリアされます）')) {
+        const profile = loadIssuerProfile() || currentDoc.issuer; // 自社情報はプロファイルから確実に引き継ぐ
+        const targetType = currentDoc?.docType || 'invoice';
+        currentDoc = createEmptyInvoice(targetType);
+        if (profile) {
+          currentDoc.issuer = { ...profile };
+        }
+        saveActiveDoc(currentDoc);
+        populateFormFromDoc();
+        renderAll();
+        showToast('白紙の新規書類を作成しました（件名・取引先・明細は空白です）');
       }
-      populateFormFromDoc();
-      renderAll();
-      showToast('新しい書類を作成しました');
-    }
-  });
+    });
+  }
 
-  // サンプル読込
-  DOM.btnLoadSample.addEventListener('click', () => {
-    const targetType = currentDoc.docType === 'delivery' ? 'delivery' : 'invoice';
-    const sample = SAMPLE_DOCUMENTS[targetType] || SAMPLE_DOCUMENTS.invoice;
-    currentDoc = JSON.parse(JSON.stringify(sample));
-    currentDoc.issuer.stampDataUrl = generateCompanyStamp(currentDoc.issuer.name);
-    populateFormFromDoc();
-    updateThemeColor(currentDoc.themeColor || 'indigo');
-    renderAll();
-    showToast('サンプルデータを読み込みました');
-  });
+  // サンプル読込（存在する場合のみ登録）
+  if (DOM.btnLoadSample) {
+    DOM.btnLoadSample.addEventListener('click', () => {
+      const targetType = currentDoc.docType === 'delivery' ? 'delivery' : 'invoice';
+      const sample = SAMPLE_DOCUMENTS[targetType] || SAMPLE_DOCUMENTS.invoice;
+      currentDoc = JSON.parse(JSON.stringify(sample));
+      currentDoc.issuer.stampDataUrl = generateCompanyStamp(currentDoc.issuer.name);
+      populateFormFromDoc();
+      updateThemeColor(currentDoc.themeColor || 'indigo');
+      renderAll();
+      showToast('サンプルデータを読み込みました');
+    });
+  }
 
   // 履歴モーダル制御
-  DOM.btnOpenHistory.addEventListener('click', openHistoryModal);
-  DOM.btnCloseHistoryModal.addEventListener('click', closeHistoryModal);
-  DOM.btnCloseHistoryModal2.addEventListener('click', closeHistoryModal);
-  DOM.historyModal.addEventListener('click', (e) => {
-    if (e.target === DOM.historyModal) closeHistoryModal();
-  });
+  if (DOM.btnOpenHistory) {
+    DOM.btnOpenHistory.addEventListener('click', openHistoryModal);
+  }
+  if (DOM.btnCloseHistoryModal) {
+    DOM.btnCloseHistoryModal.addEventListener('click', closeHistoryModal);
+  }
+  if (DOM.btnCloseHistoryModal2) {
+    DOM.btnCloseHistoryModal2.addEventListener('click', closeHistoryModal);
+  }
+  if (DOM.historyModal) {
+    DOM.historyModal.addEventListener('click', (e) => {
+      if (e.target === DOM.historyModal) closeHistoryModal();
+    });
+  }
 
   // バックアップモーダル制御
-  DOM.btnOpenBackup.addEventListener('click', openBackupModal);
-  DOM.btnCloseBackupModal.addEventListener('click', closeBackupModal);
-  DOM.btnCloseBackupModal2.addEventListener('click', closeBackupModal);
-  DOM.backupModal.addEventListener('click', (e) => {
-    if (e.target === DOM.backupModal) closeBackupModal();
-  });
+  if (DOM.btnOpenBackup) {
+    DOM.btnOpenBackup.addEventListener('click', openBackupModal);
+  }
+  if (DOM.btnCloseBackupModal) {
+    DOM.btnCloseBackupModal.addEventListener('click', closeBackupModal);
+  }
+  if (DOM.btnCloseBackupModal2) {
+    DOM.btnCloseBackupModal2.addEventListener('click', closeBackupModal);
+  }
+  if (DOM.backupModal) {
+    DOM.backupModal.addEventListener('click', (e) => {
+      if (e.target === DOM.backupModal) closeBackupModal();
+    });
+  }
 
   // JSONエクスポート
-  DOM.btnExportJSON.addEventListener('click', () => {
-    exportDataAsJSON();
-    showToast('バックアップJSONをダウンロードしました', 'success');
-  });
+  if (DOM.btnExportJSON) {
+    DOM.btnExportJSON.addEventListener('click', () => {
+      exportDataAsJSON();
+      showToast('バックアップJSONをダウンロードしました', 'success');
+    });
+  }
 
   // JSONインポート
-  DOM.fileImportJSON.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = importDataFromJSON(event.target.result);
-      if (result.success) {
-        if (result.activeDoc) {
-          currentDoc = result.activeDoc;
-          populateFormFromDoc();
-          renderAll();
+  if (DOM.fileImportJSON) {
+    DOM.fileImportJSON.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = importDataFromJSON(event.target.result);
+        if (result.success) {
+          if (result.activeDoc) {
+            currentDoc = result.activeDoc;
+            populateFormFromDoc();
+            renderAll();
+          }
+          closeBackupModal();
+          showToast('データを正常に復元しました！', 'success');
+        } else {
+          alert('読み込みに失敗しました: ' + result.error);
         }
-        closeBackupModal();
-        showToast('データを正常に復元しました！', 'success');
-      } else {
-        alert('読み込みに失敗しました: ' + result.error);
-      }
-    };
-    reader.readAsText(file);
-  });
+      };
+      reader.readAsText(file);
+    });
+  }
 
   // 商品マスタモーダル制御
-  DOM.btnOpenItemMaster.addEventListener('click', openItemMasterModal);
-  DOM.btnOpenItemSelectModal.addEventListener('click', openItemMasterModal);
-  DOM.btnCloseItemMasterModal.addEventListener('click', closeItemMasterModal);
-  DOM.btnCloseItemMasterModal2.addEventListener('click', closeItemMasterModal);
-  DOM.itemMasterModal.addEventListener('click', (e) => {
-    if (e.target === DOM.itemMasterModal) closeItemMasterModal();
-  });
+  if (DOM.btnOpenItemMaster) {
+    DOM.btnOpenItemMaster.addEventListener('click', openItemMasterModal);
+  }
+  if (DOM.btnOpenItemSelectModal) {
+    DOM.btnOpenItemSelectModal.addEventListener('click', openItemMasterModal);
+  }
+  if (DOM.btnCloseItemMasterModal) {
+    DOM.btnCloseItemMasterModal.addEventListener('click', closeItemMasterModal);
+  }
+  if (DOM.btnCloseItemMasterModal2) {
+    DOM.btnCloseItemMasterModal2.addEventListener('click', closeItemMasterModal);
+  }
+  if (DOM.itemMasterModal) {
+    DOM.itemMasterModal.addEventListener('click', (e) => {
+      if (e.target === DOM.itemMasterModal) closeItemMasterModal();
+    });
+  }
 
-  DOM.inputSearchItemMaster.addEventListener('input', () => {
-    renderItemMasterList(DOM.inputSearchItemMaster.value);
-  });
+  if (DOM.inputSearchItemMaster) {
+    DOM.inputSearchItemMaster.addEventListener('input', () => {
+      renderItemMasterList(DOM.inputSearchItemMaster.value);
+    });
+  }
 
-  DOM.btnToggleNewItemForm.addEventListener('click', () => {
-    toggleItemMasterForm();
-  });
+  if (DOM.btnToggleNewItemForm) {
+    DOM.btnToggleNewItemForm.addEventListener('click', () => {
+      toggleItemMasterForm();
+    });
+  }
 
-  DOM.btnCancelItemMasterForm.addEventListener('click', () => {
-    resetItemMasterForm();
-  });
+  if (DOM.btnCancelItemMasterForm) {
+    DOM.btnCancelItemMasterForm.addEventListener('click', () => {
+      resetItemMasterForm();
+    });
+  }
 
   // 商品マスタ内の仕切り価格・税抜単価自動計算アシスト
-  DOM.calcInputUserPriceInc.addEventListener('input', () => updateMasterCalculator(true));
-  DOM.itemMasterSelectTax.addEventListener('change', () => {
-    if (DOM.calcInputUserPriceInc.value.trim() !== '') {
-      updateMasterCalculator(true);
-    }
-  });
+  if (DOM.calcInputUserPriceInc) {
+    DOM.calcInputUserPriceInc.addEventListener('input', () => updateMasterCalculator(true));
+  }
+  if (DOM.itemMasterSelectTax) {
+    DOM.itemMasterSelectTax.addEventListener('change', () => {
+      if (DOM.calcInputUserPriceInc && DOM.calcInputUserPriceInc.value.trim() !== '') {
+        updateMasterCalculator(true);
+      }
+    });
+  }
   if (DOM.calcModeWholesale) {
     DOM.calcModeWholesale.addEventListener('change', () => updateMasterCalculator(true));
   }
   if (DOM.calcModeStandard) {
     DOM.calcModeStandard.addEventListener('change', () => updateMasterCalculator(true));
   }
-  DOM.btnApplyCalcPrice.addEventListener('click', applyMasterCalculatedPrice);
+  if (DOM.btnApplyCalcPrice) {
+    DOM.btnApplyCalcPrice.addEventListener('click', applyMasterCalculatedPrice);
+  }
 
   // 商品マスタ保存
-  DOM.btnSaveItemMasterForm.addEventListener('click', handleSaveItemMaster);
+  if (DOM.btnSaveItemMasterForm) {
+    DOM.btnSaveItemMasterForm.addEventListener('click', handleSaveItemMaster);
+  }
 
   // 取引先マスタ制御
   if (DOM.btnOpenClientMaster) {
@@ -4780,50 +5942,152 @@ function setupEventListeners() {
     });
   }
 
-  // 値引きモーダル制御
-  DOM.btnOpenDiscountModal.addEventListener('click', openDiscountModal);
-  DOM.btnCloseDiscountModal.addEventListener('click', closeDiscountModal);
-  DOM.btnCloseDiscountModal2.addEventListener('click', closeDiscountModal);
-  DOM.discountModal.addEventListener('click', (e) => {
-    if (e.target === DOM.discountModal) closeDiscountModal();
+  // 在庫マスタモーダル制御
+  if (DOM.btnOpenInventoryMaster) {
+    DOM.btnOpenInventoryMaster.addEventListener('click', openInventoryMasterModal);
+  }
+  if (DOM.btnPortalOpenInventoryMaster) {
+    DOM.btnPortalOpenInventoryMaster.addEventListener('click', openInventoryMasterModal);
+  }
+  if (DOM.btnCloseInventoryMasterModal) {
+    DOM.btnCloseInventoryMasterModal.addEventListener('click', closeInventoryMasterModal);
+  }
+  if (DOM.btnCloseInventoryMasterModal2) {
+    DOM.btnCloseInventoryMasterModal2.addEventListener('click', closeInventoryMasterModal);
+  }
+  if (DOM.inventoryMasterModal) {
+    DOM.inventoryMasterModal.addEventListener('click', (e) => {
+      if (e.target === DOM.inventoryMasterModal) closeInventoryMasterModal();
+    });
+  }
+  if (DOM.inputSearchInventory) {
+    DOM.inputSearchInventory.addEventListener('input', () => {
+      renderInventoryTable();
+    });
+  }
+  if (DOM.selectInventoryFilter) {
+    DOM.selectInventoryFilter.addEventListener('change', () => {
+      renderInventoryTable();
+    });
+  }
+  if (DOM.btnToggleNewInventoryForm) {
+    DOM.btnToggleNewInventoryForm.addEventListener('click', () => {
+      toggleInventoryForm(false);
+    });
+  }
+  if (DOM.btnCancelInventoryForm) {
+    DOM.btnCancelInventoryForm.addEventListener('click', resetInventoryForm);
+  }
+  if (DOM.btnSaveInventoryItem) {
+    DOM.btnSaveInventoryItem.addEventListener('click', saveInventoryItemHandler);
+  }
+  if (DOM.btnSyncInventoryWithItems) {
+    DOM.btnSyncInventoryWithItems.addEventListener('click', () => {
+      const res = syncInventoryWithItemsMaster();
+      renderInventoryTable();
+      populateExpenseInventoryDropdown();
+      if (res.addedCount > 0) {
+        showToast(`商品マスタから ${res.addedCount}件 の商品を在庫品目として取り込みました！`, 'success');
+      } else {
+        showToast('商品マスタの商品はすべて在庫マスタに連携済みです。', 'info');
+      }
+    });
+  }
+
+  // クイック入出庫調整モーダル制御
+  if (DOM.btnCloseAdjustModal) {
+    DOM.btnCloseAdjustModal.addEventListener('click', closeInventoryAdjustModal);
+  }
+  if (DOM.btnCancelAdjust) {
+    DOM.btnCancelAdjust.addEventListener('click', closeInventoryAdjustModal);
+  }
+  if (DOM.btnConfirmAdjust) {
+    DOM.btnConfirmAdjust.addEventListener('click', confirmAdjustHandler);
+  }
+  if (DOM.adjustInputQty) {
+    DOM.adjustInputQty.addEventListener('input', updateAdjustSimulation);
+  }
+  const adjustRadios = document.getElementsByName('adjustActionType');
+  adjustRadios.forEach(r => {
+    r.addEventListener('change', updateAdjustSimulation);
   });
+
+  // 在庫履歴モーダル制御
+  if (DOM.btnCloseInventoryHistoryModal) {
+    DOM.btnCloseInventoryHistoryModal.addEventListener('click', closeInventoryHistoryModal);
+  }
+  if (DOM.btnCloseInventoryHistoryModal2) {
+    DOM.btnCloseInventoryHistoryModal2.addEventListener('click', closeInventoryHistoryModal);
+  }
+
+  // 経費・仕入切り替えトグル＆在庫連動の初期化
+  initExpensePurchaseToggle();
+
+  // 値引きモーダル制御
+  if (DOM.btnOpenDiscountModal) {
+    DOM.btnOpenDiscountModal.addEventListener('click', openDiscountModal);
+  }
+  if (DOM.btnCloseDiscountModal) {
+    DOM.btnCloseDiscountModal.addEventListener('click', closeDiscountModal);
+  }
+  if (DOM.btnCloseDiscountModal2) {
+    DOM.btnCloseDiscountModal2.addEventListener('click', closeDiscountModal);
+  }
+  if (DOM.discountModal) {
+    DOM.discountModal.addEventListener('click', (e) => {
+      if (e.target === DOM.discountModal) closeDiscountModal();
+    });
+  }
 
   // 値引き計算アシスト
-  DOM.discountBaseUserPriceInc.addEventListener('input', updateDiscountCalculator);
-  DOM.discountSelectType.addEventListener('change', () => {
-    const type = DOM.discountSelectType.value;
-    if (type === 'percent') {
-      DOM.discountInputValue.placeholder = '例: 10 (%)';
-    } else if (type === 'amount') {
-      DOM.discountInputValue.placeholder = '例: 5000 (円)';
-    } else {
-      DOM.discountInputValue.placeholder = '例: 3000 (税抜仕切り直接指定)';
-    }
-    updateDiscountCalculator();
-  });
-  DOM.discountInputValue.addEventListener('input', updateDiscountCalculator);
-  DOM.discountSelectTaxRate.addEventListener('change', updateDiscountCalculator);
+  if (DOM.discountBaseUserPriceInc) {
+    DOM.discountBaseUserPriceInc.addEventListener('input', updateDiscountCalculator);
+  }
+  if (DOM.discountSelectType) {
+    DOM.discountSelectType.addEventListener('change', () => {
+      const type = DOM.discountSelectType.value;
+      if (type === 'percent') {
+        DOM.discountInputValue.placeholder = '例: 10 (%)';
+      } else if (type === 'amount') {
+        DOM.discountInputValue.placeholder = '例: 5000 (円)';
+      } else {
+        DOM.discountInputValue.placeholder = '例: 3000 (税抜仕切り直接指定)';
+      }
+      updateDiscountCalculator();
+    });
+  }
+  if (DOM.discountInputValue) {
+    DOM.discountInputValue.addEventListener('input', updateDiscountCalculator);
+  }
+  if (DOM.discountSelectTaxRate) {
+    DOM.discountSelectTaxRate.addEventListener('change', updateDiscountCalculator);
+  }
 
   // 値引き行の明細追加
-  DOM.btnAddDiscountToItems.addEventListener('click', handleAddDiscountToItems);
+  if (DOM.btnAddDiscountToItems) {
+    DOM.btnAddDiscountToItems.addEventListener('click', handleAddDiscountToItems);
+  }
 
-  // 会計・収支ダッシュボードモーダル制御
-  DOM.btnOpenAccounting.addEventListener('click', openAccountingModal);
-  DOM.btnCloseAccountingModal.addEventListener('click', closeAccountingModal);
+  // 会計・収支ダッシュボード画面制御
+  if (DOM.btnOpenAccounting) {
+    DOM.btnOpenAccounting.addEventListener('click', openAccountingModal);
+  }
+  if (DOM.btnCloseAccountingModal) {
+    DOM.btnCloseAccountingModal.addEventListener('click', closeAccountingModal);
+  }
   if (DOM.btnCloseAccountingModal2) {
     DOM.btnCloseAccountingModal2.addEventListener('click', closeAccountingModal);
   }
-  DOM.accountingModal.addEventListener('click', (e) => {
-    if (e.target === DOM.accountingModal) closeAccountingModal();
-  });
 
   // 会計タブ切り替え
-  DOM.accTabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tab = btn.dataset.tab;
-      switchAccountingTab(tab);
+  if (DOM.accTabBtns) {
+    DOM.accTabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        switchAccountingTab(tab);
+      });
     });
-  });
+  }
 
   // 会計期間（月）切り替え
   if (DOM.accSelectMonth) {
@@ -4836,8 +6100,81 @@ function setupEventListeners() {
   // 売上消込フィルター
   if (DOM.btnFilterAllInvoices) {
     DOM.btnFilterAllInvoices.addEventListener('click', () => filterSalesTable('all'));
+  }
+  if (DOM.btnFilterUnpaidInvoices) {
     DOM.btnFilterUnpaidInvoices.addEventListener('click', () => filterSalesTable('unpaid'));
+  }
+  if (DOM.btnFilterPaidInvoices) {
     DOM.btnFilterPaidInvoices.addEventListener('click', () => filterSalesTable('paid'));
+  }
+
+  // 請求書詳細・直接編集モーダル制御
+  if (DOM.btnCloseIqeModal) {
+    DOM.btnCloseIqeModal.addEventListener('click', closeInvoiceQuickEditModal);
+  }
+  if (DOM.btnCancelIqeModal) {
+    DOM.btnCancelIqeModal.addEventListener('click', closeInvoiceQuickEditModal);
+  }
+  if (DOM.btnSaveIqeModal) {
+    DOM.btnSaveIqeModal.addEventListener('click', saveInvoiceQuickEditHandler);
+  }
+  if (DOM.btnIqeAddItem) {
+    DOM.btnIqeAddItem.addEventListener('click', () => {
+      currentIqeItems.push({
+        id: 'item_' + Date.now(),
+        name: '',
+        quantity: 1,
+        unit: '個',
+        unitPrice: 0,
+        taxRate: 10,
+        note: ''
+      });
+      renderIqeItemsTable();
+    });
+  }
+  if (DOM.btnIqeCancelIssue) {
+    DOM.btnIqeCancelIssue.addEventListener('click', () => {
+      if (!currentIqeDoc) return;
+      const docId = DOM.iqeDocId ? DOM.iqeDocId.value : currentIqeDoc.id;
+      const docNo = currentIqeDoc.docNumber || 'この書類';
+      if (!confirm(`伝票「${docNo}」の確定発行を取り消しますか？\n\n【取り消しの効果】\n・売上消込台帳・P/Lダッシュボード・仕訳帳から即座に除外されます。\n・書類データは削除されず、下書き状態に戻ります。`)) {
+        return;
+      }
+      cancelDocIssue(docId);
+      if (currentDoc && currentDoc.id === docId) {
+        currentDoc.isIssued = false;
+        currentDoc.isCancelled = true;
+        currentDoc.issuedAt = null;
+        saveActiveDoc(currentDoc);
+        renderAll();
+      }
+      initAccountingMonthSelector();
+      renderAccountingSales(currentSalesFilter);
+      renderAccountingDashboard(DOM.accSelectMonth ? DOM.accSelectMonth.value : '');
+      renderAccountingJournals();
+      closeInvoiceQuickEditModal();
+      showToast(`伝票「${docNo}」の確定発行を取り消しました（財務会計から除外されました）`, 'warning');
+    });
+  }
+  if (DOM.btnIqeOpenInEditor) {
+    DOM.btnIqeOpenInEditor.addEventListener('click', () => {
+      if (!currentIqeDoc) return;
+      const docId = DOM.iqeDocId ? DOM.iqeDocId.value : currentIqeDoc.id;
+      const full = getDocFromHistory(docId) || currentIqeDoc;
+      currentDoc = JSON.parse(JSON.stringify(full));
+      saveActiveDoc(currentDoc);
+      populateFormFromDoc();
+      updateThemeColor(currentDoc.themeColor || 'indigo');
+      renderAll();
+      closeInvoiceQuickEditModal();
+      switchAppView('invoice');
+      showToast(`伝票「${currentDoc.docNumber || ''}」を納品請求書エディタで開きました`, 'success');
+    });
+  }
+  if (DOM.invoiceQuickEditModal) {
+    DOM.invoiceQuickEditModal.addEventListener('click', (e) => {
+      if (e.target === DOM.invoiceQuickEditModal) closeInvoiceQuickEditModal();
+    });
   }
 
   // レシート画像アップロード・ドラッグ＆ドロップ
@@ -4889,13 +6226,16 @@ function setupEventListeners() {
     DOM.btnExportJournalCSV.addEventListener('click', handleExportJournalCSV);
   }
 
-  // 勤怠打刻（タイムカード）モーダル制御
-  DOM.btnOpenAttendance.addEventListener('click', openAttendanceModal);
-  DOM.btnCloseAttendanceModal.addEventListener('click', closeAttendanceModal);
-  DOM.btnCloseAttendanceModal2.addEventListener('click', closeAttendanceModal);
-  DOM.attendanceModal.addEventListener('click', (e) => {
-    if (e.target === DOM.attendanceModal) closeAttendanceModal();
-  });
+  // 勤怠打刻（タイムカード）画面制御
+  if (DOM.btnOpenAttendance) {
+    DOM.btnOpenAttendance.addEventListener('click', openAttendanceModal);
+  }
+  if (DOM.btnCloseAttendanceModal) {
+    DOM.btnCloseAttendanceModal.addEventListener('click', closeAttendanceModal);
+  }
+  if (DOM.btnCloseAttendanceModal2) {
+    DOM.btnCloseAttendanceModal2.addEventListener('click', closeAttendanceModal);
+  }
 
   // 出勤・退勤打刻ボタン
   if (DOM.btnClockIn) {
@@ -4930,6 +6270,10 @@ function setupEventListeners() {
   // 出勤簿（A4帳票）モーダル制御
   if (DOM.btnOpenAttendanceSheetModal) {
     DOM.btnOpenAttendanceSheetModal.addEventListener('click', () => openAttendanceSheetModal());
+  }
+  const btnOpenAttendanceSheetScreen = document.getElementById('btnOpenAttendanceSheetScreen');
+  if (btnOpenAttendanceSheetScreen) {
+    btnOpenAttendanceSheetScreen.addEventListener('click', () => openAttendanceSheetModal());
   }
   if (DOM.btnCloseAttendanceSheetModal) {
     DOM.btnCloseAttendanceSheetModal.addEventListener('click', closeAttendanceSheetModal);
@@ -5018,6 +6362,7 @@ function openHistoryModal() {
   } else {
     list.forEach(item => {
       const typeMeta = DOC_TYPES[item.docType] || DOC_TYPES.invoice;
+      const isIssued = !!(item.isIssued && !item.isCancelled);
       const card = document.createElement('div');
       card.style.cssText = `
         border: 1px solid var(--border-color);
@@ -5030,24 +6375,66 @@ function openHistoryModal() {
         background: #ffffff;
         transition: background 0.15s;
       `;
+
+      const statusBadge = isIssued
+        ? `<span style="background: #dcfce7; color: #166534; font-weight: 700; font-size: 0.725rem; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;" title="財務会計（売上・売掛金消込・仕訳帳）に反映中"><span style="font-size: 7px;">●</span> 確定発行済</span>`
+        : `<span style="background: #f1f5f9; color: #64748b; font-weight: 600; font-size: 0.725rem; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;" title="未確定（下書き）のため財務会計には未反映です"><span style="font-size: 7px;">●</span> 下書き</span>`;
+
+      const cancelIssueBtnHtml = isIssued
+        ? `<button type="button" class="btn btn-outline-danger btn-sm btn-cancel-issue" style="color: #ef4444; border-color: #fca5a5; font-size: 0.775rem; padding: 4px 9px;" title="確定発行を取り消し、財務会計から除外して下書きに戻します">確定取消</button>`
+        : '';
+
       card.innerHTML = `
         <div>
-          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
             <span style="background: var(--theme-primary-light); color: var(--theme-primary-dark); font-weight: 700; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px;">
               ${typeMeta.label}
             </span>
+            ${statusBadge}
             <span style="font-weight: 700; font-size: 0.9rem;">${escapeHtml(item.clientName)}</span>
-            <span style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(item.docNumber)}</span>
+            <span style="font-size: 0.8rem; color: var(--text-muted); font-family: monospace;">${escapeHtml(item.docNumber)}</span>
           </div>
           <div style="font-size: 0.8rem; color: var(--text-secondary);">
-            件名: ${escapeHtml(item.title || '無題')} / 発行日: ${item.issueDate || '-'}
+            件名: ${escapeHtml(item.title || '無題')} / 発行日: ${item.issueDate || '-'} / 金額: <strong>${formatCurrency(item.grandTotal || 0)}</strong>
           </div>
         </div>
-        <div style="display: flex; gap: 8px;">
+        <div style="display: flex; gap: 8px; align-items: center;">
+          ${cancelIssueBtnHtml}
           <button type="button" class="btn btn-outline-primary btn-sm btn-load-doc">読み込む</button>
           <button type="button" class="btn-icon-danger btn-delete-doc" title="削除">✕</button>
         </div>
       `;
+
+      // 確定取消ボタンのイベント
+      const cancelBtn = card.querySelector('.btn-cancel-issue');
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const docNo = item.docNumber || 'この書類';
+          if (confirm(`「${typeMeta.label} (${docNo})」の確定発行を取り消しますか？\n\n【取り消しの効果】\n・財務会計（売上高・売掛金消込・仕訳帳）から即座に除外されます。\n・書類データは削除されず、下書き状態に戻ります。`)) {
+            cancelDocIssue(item.id);
+
+            // もし現在編集中書類が同一なら currentDoc も同期
+            if (currentDoc && currentDoc.id === item.id) {
+              currentDoc.isIssued = false;
+              currentDoc.isCancelled = true;
+              currentDoc.issuedAt = null;
+              saveActiveDoc(currentDoc);
+              renderAll();
+            }
+
+            // 財務会計を再同期
+            initAccountingMonthSelector();
+            const currentMonth = DOM.accSelectMonth ? DOM.accSelectMonth.value : '';
+            renderAccountingDashboard(currentMonth);
+            renderAccountingSales(currentSalesFilter);
+            renderAccountingJournals();
+
+            openHistoryModal(); // 履歴一覧を再描画
+            showToast(`「${typeMeta.label}」の確定発行を取り消しました（財務会計から除外されました）`, 'warning');
+          }
+        });
+      }
 
       card.querySelector('.btn-load-doc').addEventListener('click', () => {
         const full = getDocFromHistory(item.id);
@@ -5064,6 +6451,12 @@ function openHistoryModal() {
       card.querySelector('.btn-delete-doc').addEventListener('click', () => {
         if (confirm(`「${item.docNumber}」の履歴を削除しますか？`)) {
           deleteDocFromHistory(item.id);
+          // 財務会計も再同期
+          initAccountingMonthSelector();
+          const currentMonth = DOM.accSelectMonth ? DOM.accSelectMonth.value : '';
+          renderAccountingDashboard(currentMonth);
+          renderAccountingSales(currentSalesFilter);
+          renderAccountingJournals();
           openHistoryModal(); // 再描画
           showToast('履歴から削除しました');
         }
@@ -5570,7 +6963,7 @@ function applyClientToDocument(client) {
   recordClientMasterUsage(client.id, client.name);
 
   // プレビューと帳票状態を更新
-  updatePreview();
+  renderAll();
   saveActiveDoc(currentDoc);
 
   closeClientMasterModal();
@@ -5647,10 +7040,718 @@ function handleClientNameAutocomplete() {
       currentDoc.client.contactPerson = matched.contactPerson;
     }
     recordClientMasterUsage(matched.id, matched.name);
-    updatePreview();
+    renderAll();
     saveActiveDoc(currentDoc);
     showToast(`取引先マスタから「${matched.name}」の情報を自動反映しました`, 'info');
   }
+}
+
+// ==========================================================================
+// 在庫マスタ ＆ 入出庫台帳 コントローラー
+// ==========================================================================
+
+let currentInventoryFilter = 'all';
+
+function openInventoryMasterModal() {
+  if (!DOM.inventoryMasterModal) return;
+  DOM.inventoryMasterModal.classList.add('active');
+  DOM.inventoryMasterModal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  resetInventoryForm();
+  renderInventoryTable();
+}
+
+function closeInventoryMasterModal() {
+  if (!DOM.inventoryMasterModal) return;
+  DOM.inventoryMasterModal.classList.remove('active');
+  DOM.inventoryMasterModal.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function resetInventoryForm() {
+  if (!DOM.inventoryFormContainer) return;
+  DOM.inventoryFormContainer.style.display = 'none';
+  if (DOM.inventoryEditId) DOM.inventoryEditId.value = '';
+  if (DOM.inventoryItemId) DOM.inventoryItemId.value = '';
+  if (DOM.invInputName) DOM.invInputName.value = '';
+  if (DOM.invInputSku) DOM.invInputSku.value = '';
+  if (DOM.invInputCurrentStock) DOM.invInputCurrentStock.value = '0';
+  if (DOM.invInputSafetyStock) DOM.invInputSafetyStock.value = '5';
+  if (DOM.invInputUnit) DOM.invInputUnit.value = '個';
+  if (DOM.invInputUnitCost) DOM.invInputUnitCost.value = '';
+  if (DOM.invInputUnitPrice) DOM.invInputUnitPrice.value = '';
+  if (DOM.invInputLocation) DOM.invInputLocation.value = '';
+  if (DOM.invInputNote) DOM.invInputNote.value = '';
+  if (DOM.inventoryFormTitle) DOM.inventoryFormTitle.textContent = '新規在庫品目の登録';
+  if (DOM.btnSaveInventoryItem) DOM.btnSaveInventoryItem.textContent = '在庫品目を保存';
+}
+
+function toggleInventoryForm(isEdit = false, item = null) {
+  if (!DOM.inventoryFormContainer) return;
+  const isHidden = DOM.inventoryFormContainer.style.display === 'none';
+  if (!isEdit && !isHidden) {
+    resetInventoryForm();
+    return;
+  }
+
+  DOM.inventoryFormContainer.style.display = 'block';
+
+  if (isEdit && item) {
+    if (DOM.inventoryFormTitle) DOM.inventoryFormTitle.textContent = `在庫品目の編集: ${item.name}`;
+    if (DOM.inventoryEditId) DOM.inventoryEditId.value = item.id;
+    if (DOM.inventoryItemId) DOM.inventoryItemId.value = item.itemId || '';
+    if (DOM.invInputName) DOM.invInputName.value = item.name || '';
+    if (DOM.invInputSku) DOM.invInputSku.value = item.sku || '';
+    if (DOM.invInputCurrentStock) DOM.invInputCurrentStock.value = item.currentStock !== undefined ? item.currentStock : 0;
+    if (DOM.invInputSafetyStock) DOM.invInputSafetyStock.value = item.safetyStock !== undefined ? item.safetyStock : 5;
+    if (DOM.invInputUnit) DOM.invInputUnit.value = item.unit || '個';
+    if (DOM.invInputUnitCost) DOM.invInputUnitCost.value = item.unitCost || '';
+    if (DOM.invInputUnitPrice) DOM.invInputUnitPrice.value = item.unitPrice || '';
+    if (DOM.invInputLocation) DOM.invInputLocation.value = item.location || '';
+    if (DOM.invInputNote) DOM.invInputNote.value = item.note || '';
+    if (DOM.btnSaveInventoryItem) DOM.btnSaveInventoryItem.textContent = '変更内容を更新';
+  } else {
+    resetInventoryForm();
+    DOM.inventoryFormContainer.style.display = 'block';
+  }
+}
+
+function saveInventoryItemHandler() {
+  const name = DOM.invInputName ? DOM.invInputName.value.trim() : '';
+  if (!name) {
+    alert('品名を入力してください。');
+    if (DOM.invInputName) DOM.invInputName.focus();
+    return;
+  }
+
+  const currentStock = DOM.invInputCurrentStock ? Math.max(0, parseInt(DOM.invInputCurrentStock.value, 10) || 0) : 0;
+  const safetyStock = DOM.invInputSafetyStock ? Math.max(0, parseInt(DOM.invInputSafetyStock.value, 10) || 0) : 0;
+  const unit = DOM.invInputUnit ? DOM.invInputUnit.value.trim() || '個' : '個';
+  const unitCost = DOM.invInputUnitCost ? Math.max(0, parseInt(DOM.invInputUnitCost.value, 10) || 0) : 0;
+  const unitPrice = DOM.invInputUnitPrice ? Math.max(0, parseInt(DOM.invInputUnitPrice.value, 10) || 0) : 0;
+  const sku = DOM.invInputSku ? DOM.invInputSku.value.trim() : '';
+  const location = DOM.invInputLocation ? DOM.invInputLocation.value.trim() : '';
+  const note = DOM.invInputNote ? DOM.invInputNote.value.trim() : '';
+  const editId = DOM.inventoryEditId ? DOM.inventoryEditId.value : '';
+  const itemId = DOM.inventoryItemId ? DOM.inventoryItemId.value : '';
+
+  // 新規登録時は商品マスタにも自動保存して連動
+  if (!editId) {
+    const allProducts = getItemMasterList(false);
+    const existingProd = allProducts.find(p => p.name.trim() === name);
+    if (!existingProd) {
+      const newProd = saveItemToMaster({
+        name,
+        sku,
+        unit,
+        unitPrice: unitCost > 0 ? unitCost : unitPrice,
+        userPrice: unitPrice > 0 ? unitPrice : Math.round(unitCost * 1.3),
+        note: note || '在庫マスタから登録'
+      });
+      renderItemMasterList();
+    }
+  }
+
+  const itemData = {
+    id: editId || undefined,
+    itemId: itemId || undefined,
+    name,
+    sku,
+    currentStock,
+    safetyStock,
+    unit,
+    unitCost,
+    unitPrice,
+    location,
+    note
+  };
+
+  const saved = saveInventoryItem(itemData);
+  if (saved) {
+    showToast(`品目「${name}」を商品マスタおよび在庫台帳に保存しました！`, 'success');
+    resetInventoryForm();
+    renderInventoryTable();
+    populateExpenseInventoryDropdown();
+  }
+}
+
+function renderInventoryTable() {
+  if (!DOM.inventoryTableContainer) return;
+  const list = getInventoryList();
+  const q = DOM.inputSearchInventory ? DOM.inputSearchInventory.value.trim().toLowerCase() : '';
+  const filter = DOM.selectInventoryFilter ? DOM.selectInventoryFilter.value : currentInventoryFilter;
+
+  let filtered = list;
+  if (q) {
+    filtered = filtered.filter(item => 
+      (item.name && item.name.toLowerCase().includes(q)) ||
+      (item.sku && item.sku.toLowerCase().includes(q)) ||
+      (item.location && item.location.toLowerCase().includes(q)) ||
+      (item.note && item.note.toLowerCase().includes(q))
+    );
+  }
+
+  let lowCount = 0;
+  list.forEach(i => {
+    if (i.currentStock <= i.safetyStock) lowCount++;
+  });
+
+  if (filter === 'low') {
+    filtered = filtered.filter(i => i.currentStock <= i.safetyStock);
+  } else if (filter === 'zero') {
+    filtered = filtered.filter(i => i.currentStock <= 0);
+  }
+
+  if (DOM.inventorySummaryStatus) {
+    DOM.inventorySummaryStatus.textContent = `在庫品目総数: ${list.length}件 (⚠️ 安全在庫割れアラート: ${lowCount}件)`;
+  }
+
+  if (filtered.length === 0) {
+    DOM.inventoryTableContainer.innerHTML = `
+      <div style="text-align: center; padding: 40px 20px; color: #64748b; font-size: 0.85rem;">
+        ${q ? '該当する在庫品目が見つかりませんでした。' : '在庫品目が登録されていません。「＋ 新規在庫品目を追加」から登録してください。'}
+      </div>
+    `;
+    return;
+  }
+
+  let html = `
+    <table class="inv-table">
+      <thead>
+        <tr>
+          <th style="min-width: 180px;">品名 / SKU</th>
+          <th style="text-align: right; min-width: 90px;">現在庫</th>
+          <th style="min-width: 80px; text-align: center;">状態</th>
+          <th style="min-width: 50px;">単位</th>
+          <th style="text-align: right; min-width: 90px;">仕入原価</th>
+          <th style="min-width: 100px;">保管場所</th>
+          <th style="min-width: 90px;">最終入庫</th>
+          <th style="text-align: center; min-width: 190px;">入出庫・操作</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  filtered.forEach(item => {
+    const isZero = item.currentStock <= 0;
+    const isLow = !isZero && item.currentStock <= item.safetyStock;
+
+    let statusBadge = '<span class="stock-val-pill stock-safe">正常</span>';
+    if (isZero) {
+      statusBadge = '<span class="stock-val-pill stock-danger">❌ 在庫切</span>';
+    } else if (isLow) {
+      statusBadge = '<span class="stock-val-pill stock-warn">⚠️ 僅少</span>';
+    }
+
+    const formattedCost = item.unitCost ? `¥${Number(item.unitCost).toLocaleString()}` : '-';
+    const skuDisp = item.sku ? `<span style="font-size: 0.725rem; color: #64748b; font-family: monospace; display: block;">SKU: ${escapeHtml(item.sku)}</span>` : '';
+
+    html += `
+      <tr data-id="${item.id}">
+        <td>
+          <div style="font-weight: 600; color: #0f172a;">${escapeHtml(item.name)}</div>
+          ${skuDisp}
+        </td>
+        <td style="text-align: right;">
+          <span style="font-size: 1.05rem; font-weight: 700; color: ${isZero ? '#dc2626' : (isLow ? '#d97706' : '#059669')};">
+            ${Number(item.currentStock).toLocaleString()}
+          </span>
+          <span style="font-size: 0.725rem; color: #64748b; display: block;">適正: ${Number(item.safetyStock).toLocaleString()}</span>
+        </td>
+        <td style="text-align: center;">${statusBadge}</td>
+        <td>${escapeHtml(item.unit || '個')}</td>
+        <td style="text-align: right; font-family: monospace;">${formattedCost}</td>
+        <td><span style="font-size: 0.8rem; color: #475569;">${escapeHtml(item.location || '-')}</span></td>
+        <td style="font-size: 0.75rem; color: #64748b;">${escapeHtml(item.lastInDate || '-')}</td>
+        <td style="text-align: center;">
+          <div class="inv-action-btn-group" style="justify-content: center;">
+            <button type="button" class="btn-inv-action btn-inv-in" onclick="window.invOpenAdjust('${item.id}', 'in')" title="仕入・受入 入庫">
+              ➕入庫
+            </button>
+            <button type="button" class="btn-inv-action btn-inv-out" onclick="window.invOpenAdjust('${item.id}', 'out')" title="納品・使用 出庫">
+              ➖出庫
+            </button>
+            <button type="button" class="btn-inv-action" onclick="window.invOpenAdjust('${item.id}', 'set')" title="実地棚卸による実数設定">
+              📝棚卸
+            </button>
+            <button type="button" class="btn-inv-action" onclick="window.invOpenHistory('${item.id}')" title="入出庫履歴ログの閲覧">
+              📜履歴
+            </button>
+            <button type="button" class="btn-inv-action" onclick="window.invEditItem('${item.id}')" title="品目情報の編集">
+              ✏️
+            </button>
+            <button type="button" class="btn-inv-action" style="color: #dc2626;" onclick="window.invDeleteItem('${item.id}', '${escapeHtml(item.name)}')" title="品目の削除">
+              🗑️
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  });
+
+  html += `</tbody></table>`;
+  DOM.inventoryTableContainer.innerHTML = html;
+}
+
+window.invOpenAdjust = function(id, defaultType = 'in') {
+  const list = getInventoryList();
+  const item = list.find(i => i.id === id || i.itemId === id);
+  if (!item) return;
+  openInventoryAdjustModal(item, defaultType);
+};
+
+window.invOpenHistory = function(id) {
+  const list = getInventoryList();
+  const item = list.find(i => i.id === id || i.itemId === id);
+  if (!item) return;
+  openInventoryHistoryModal(item);
+};
+
+window.invEditItem = function(id) {
+  const list = getInventoryList();
+  const item = list.find(i => i.id === id || i.itemId === id);
+  if (!item) return;
+  toggleInventoryForm(true, item);
+  if (DOM.inventoryFormContainer) {
+    DOM.inventoryFormContainer.scrollIntoView({ behavior: 'smooth' });
+  }
+};
+
+window.invDeleteItem = function(id, name) {
+  if (confirm(`在庫品目「${name}」を削除しますか？\n（過去の伝票や経費データには影響しません）`)) {
+    deleteInventoryItem(id);
+    renderInventoryTable();
+    populateExpenseInventoryDropdown();
+    showToast(`在庫品目「${name}」を削除しました。`);
+  }
+};
+
+let currentAdjustItem = null;
+
+function openInventoryAdjustModal(item, actionType = 'in') {
+  if (!DOM.inventoryAdjustModal) return;
+  currentAdjustItem = item;
+  DOM.adjustInventoryId.value = item.id;
+  DOM.adjustModalItemName.textContent = `入出庫調整: ${item.name}`;
+  DOM.adjustCurrentStockVal.textContent = Number(item.currentStock).toLocaleString();
+  DOM.adjustCurrentStockUnit.textContent = item.unit || '個';
+  DOM.adjustInputQty.value = '1';
+  DOM.adjustInputReason.value = actionType === 'in' ? '仕入受入' : (actionType === 'out' ? '出荷納品' : '実地棚卸差異調整');
+
+  const radios = document.getElementsByName('adjustActionType');
+  radios.forEach(r => {
+    r.checked = (r.value === actionType);
+  });
+
+  updateAdjustSimulation();
+  DOM.inventoryAdjustModal.classList.add('active');
+  DOM.inventoryAdjustModal.style.display = 'flex';
+}
+
+function closeInventoryAdjustModal() {
+  if (!DOM.inventoryAdjustModal) return;
+  DOM.inventoryAdjustModal.classList.remove('active');
+  DOM.inventoryAdjustModal.style.display = 'none';
+  currentAdjustItem = null;
+}
+
+function updateAdjustSimulation() {
+  if (!currentAdjustItem) return;
+  const current = Number(currentAdjustItem.currentStock) || 0;
+  const qty = parseInt(DOM.adjustInputQty.value, 10) || 0;
+  const radios = document.getElementsByName('adjustActionType');
+  let type = 'in';
+  radios.forEach(r => { if (r.checked) type = r.value; });
+
+  let simulated = current;
+  if (type === 'in') {
+    simulated = current + qty;
+    if (DOM.labelAdjustQtyTitle) DOM.labelAdjustQtyTitle.textContent = '入庫数量 *';
+  } else if (type === 'out') {
+    simulated = Math.max(0, current - qty);
+    if (DOM.labelAdjustQtyTitle) DOM.labelAdjustQtyTitle.textContent = '出庫数量 *';
+  } else {
+    simulated = Math.max(0, qty);
+    if (DOM.labelAdjustQtyTitle) DOM.labelAdjustQtyTitle.textContent = '実地棚卸実数 *';
+  }
+
+  if (DOM.adjustSimulatedStockVal) {
+    const diff = simulated - current;
+    const diffText = diff >= 0 ? `+${diff}` : `${diff}`;
+    DOM.adjustSimulatedStockVal.textContent = `${simulated.toLocaleString()} ${currentAdjustItem.unit || '個'} (${diffText})`;
+  }
+}
+
+function confirmAdjustHandler() {
+  if (!currentAdjustItem) return;
+  const id = DOM.adjustInventoryId.value;
+  const qty = parseInt(DOM.adjustInputQty.value, 10) || 0;
+  if (qty <= 0) {
+    alert('有効な数量（1以上）を入力してください。');
+    return;
+  }
+
+  const radios = document.getElementsByName('adjustActionType');
+  let type = 'in';
+  radios.forEach(r => { if (r.checked) type = r.value; });
+
+  const reason = (DOM.adjustInputReason ? DOM.adjustInputReason.value.trim() : '') || (type === 'in' ? '入庫' : (type === 'out' ? '出庫' : '棚卸調整'));
+
+  let delta = qty;
+  let isDirectSet = false;
+  if (type === 'out') {
+    delta = -qty;
+  } else if (type === 'set') {
+    delta = qty;
+    isDirectSet = true;
+  }
+
+  const result = adjustStock(id, delta, reason, {}, isDirectSet);
+  if (result) {
+    showToast(`在庫を更新しました（現在庫: ${result.item.currentStock} ${result.item.unit || '個'}）`, 'success');
+    closeInventoryAdjustModal();
+    renderInventoryTable();
+    populateExpenseInventoryDropdown();
+  }
+}
+
+function openInventoryHistoryModal(item) {
+  if (!DOM.inventoryHistoryModal) return;
+  DOM.historyModalItemName.textContent = `入出庫履歴: ${item.name}`;
+  DOM.historyModalItemSku.textContent = item.sku ? `SKU: ${item.sku} | 保管場所: ${item.location || '未設定'}` : '';
+
+  const logs = Array.isArray(item.history) ? item.history : [];
+  if (logs.length === 0) {
+    DOM.inventoryHistoryTableContainer.innerHTML = `
+      <div style="text-align: center; padding: 30px; color: #64748b;">入出庫の記録はありません。</div>
+    `;
+  } else {
+    let html = `
+      <table class="inv-table" style="font-size: 0.8rem;">
+        <thead>
+          <tr>
+            <th>処理日</th>
+            <th>種別</th>
+            <th style="text-align: right;">変動数量</th>
+            <th style="text-align: right;">処理後在庫</th>
+            <th>理由 / 摘要</th>
+            <th>取引先 / 相手先</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    logs.forEach(log => {
+      let typeBadge = '';
+      if (log.type === 'in') {
+        typeBadge = '<span style="color: #059669; font-weight: 700; background: #ecfdf5; padding: 2px 6px; border-radius: 4px;">➕ 入庫</span>';
+      } else if (log.type === 'out') {
+        typeBadge = '<span style="color: #ea580c; font-weight: 700; background: #fff7ed; padding: 2px 6px; border-radius: 4px;">➖ 出庫</span>';
+      } else {
+        typeBadge = '<span style="color: #475569; font-weight: 700; background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">📝 調整</span>';
+      }
+
+      const deltaDisp = log.delta !== undefined ? (log.delta >= 0 ? `+${log.delta}` : `${log.delta}`) : (log.type === 'out' ? `-${log.qty}` : `+${log.qty}`);
+
+      html += `
+        <tr>
+          <td style="white-space: nowrap;">${escapeHtml(log.date || '-')}</td>
+          <td>${typeBadge}</td>
+          <td style="text-align: right; font-weight: 700;">${deltaDisp}</td>
+          <td style="text-align: right; font-weight: 700; color: #0f172a;">${Number(log.currentStock).toLocaleString()}</td>
+          <td>${escapeHtml(log.reason || '-')}</td>
+          <td>${escapeHtml(log.payee || log.sourceRef || '-')}</td>
+        </tr>
+      `;
+    });
+
+    html += `</tbody></table>`;
+    DOM.inventoryHistoryTableContainer.innerHTML = html;
+  }
+
+  DOM.inventoryHistoryModal.classList.add('active');
+  DOM.inventoryHistoryModal.style.display = 'flex';
+}
+
+function closeInventoryHistoryModal() {
+  if (!DOM.inventoryHistoryModal) return;
+  DOM.inventoryHistoryModal.classList.remove('active');
+  DOM.inventoryHistoryModal.style.display = 'none';
+}
+
+// ==========================================================================
+// クイック新規品目モーダル（商品マスタ＆在庫マスタ同時自動登録）
+// ==========================================================================
+function openQuickNewItemModal(suggestName = '', suggestCost = 0) {
+  if (!DOM.quickNewItemModal) return;
+  if (DOM.quickInputItemName) DOM.quickInputItemName.value = suggestName;
+  if (DOM.quickInputItemSku) DOM.quickInputItemSku.value = '';
+  if (DOM.quickInputItemUnit) DOM.quickInputItemUnit.value = '個';
+  if (DOM.quickInputItemUnitCost) DOM.quickInputItemUnitCost.value = suggestCost ? String(suggestCost) : '';
+  if (DOM.quickInputItemUnitPrice) DOM.quickInputItemUnitPrice.value = suggestCost ? String(Math.round(suggestCost * 1.3)) : '';
+  if (DOM.quickInputItemSafetyStock) DOM.quickInputItemSafetyStock.value = '5';
+  if (DOM.quickInputItemNote) DOM.quickInputItemNote.value = '';
+  
+  DOM.quickNewItemModal.classList.add('active');
+  DOM.quickNewItemModal.style.display = 'flex';
+  if (DOM.quickInputItemName) {
+    setTimeout(() => DOM.quickInputItemName.focus(), 50);
+  }
+}
+
+function closeQuickNewItemModal() {
+  if (!DOM.quickNewItemModal) return;
+  DOM.quickNewItemModal.classList.remove('active');
+  DOM.quickNewItemModal.style.display = 'none';
+}
+
+function confirmQuickNewItemHandler() {
+  const name = DOM.quickInputItemName ? DOM.quickInputItemName.value.trim() : '';
+  if (!name) {
+    alert('品名を入力してください。');
+    if (DOM.quickInputItemName) DOM.quickInputItemName.focus();
+    return;
+  }
+
+  const sku = DOM.quickInputItemSku ? DOM.quickInputItemSku.value.trim() : '';
+  const unit = DOM.quickInputItemUnit ? DOM.quickInputItemUnit.value.trim() || '個' : '個';
+  const unitCost = DOM.quickInputItemUnitCost ? Math.max(0, parseInt(DOM.quickInputItemUnitCost.value, 10) || 0) : 0;
+  const unitPrice = DOM.quickInputItemUnitPrice ? Math.max(0, parseInt(DOM.quickInputItemUnitPrice.value, 10) || 0) : 0;
+  const safetyStock = DOM.quickInputItemSafetyStock ? Math.max(0, parseInt(DOM.quickInputItemSafetyStock.value, 10) || 0) : 5;
+  const note = DOM.quickInputItemNote ? DOM.quickInputItemNote.value.trim() : '';
+
+  const result = saveNewProductAndInventory({
+    name,
+    sku,
+    unit,
+    unitCost,
+    unitPrice,
+    initialStock: 0,
+    safetyStock,
+    note
+  });
+
+  if (result) {
+    closeQuickNewItemModal();
+    renderItemMasterList();
+    renderInventoryTable();
+    populateExpenseInventoryDropdown(result.product.id);
+    showToast(`品目「${name}」を商品マスタおよび在庫台帳に登録しました！`, 'success');
+  }
+}
+
+// ==========================================================================
+// 経費・仕入切り替え ＆ 在庫連動 コントローラー
+// ==========================================================================
+
+function initExpensePurchaseToggle() {
+  if (!DOM.radioExpenseTypeExpense || !DOM.radioExpenseTypePurchase) return;
+
+  DOM.radioExpenseTypeExpense.addEventListener('change', () => {
+    switchExpenseEntryType('expense');
+  });
+
+  DOM.radioExpenseTypePurchase.addEventListener('change', () => {
+    switchExpenseEntryType('purchase');
+  });
+
+  if (DOM.labelExpenseTypeExpense) {
+    DOM.labelExpenseTypeExpense.addEventListener('click', () => {
+      DOM.radioExpenseTypeExpense.checked = true;
+      switchExpenseEntryType('expense');
+    });
+  }
+
+  if (DOM.labelExpenseTypePurchase) {
+    DOM.labelExpenseTypePurchase.addEventListener('click', () => {
+      DOM.radioExpenseTypePurchase.checked = true;
+      switchExpenseEntryType('purchase');
+    });
+  }
+
+  if (DOM.expenseSelectInventoryItem) {
+    DOM.expenseSelectInventoryItem.addEventListener('change', () => {
+      updateExpenseStockPreview();
+    });
+  }
+
+  if (DOM.expenseInputInQty) {
+    DOM.expenseInputInQty.addEventListener('input', () => {
+      updateExpenseStockPreview();
+    });
+  }
+
+  if (DOM.expenseInputPayee) {
+    DOM.expenseInputPayee.addEventListener('input', () => {
+      checkAndSuggestInventoryMatch();
+    });
+  }
+  if (DOM.expenseInputNote) {
+    DOM.expenseInputNote.addEventListener('input', () => {
+      checkAndSuggestInventoryMatch();
+    });
+  }
+
+  // 「＋新規品目」ボタン（仕入画面から直接商品マスタ＆在庫へ同時登録）
+  if (DOM.btnQuickCreateInventory) {
+    DOM.btnQuickCreateInventory.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const suggestName = (DOM.expenseInputNote?.value || DOM.expenseInputPayee?.value || '').trim();
+      let suggestCost = 0;
+      if (DOM.expenseInputAmount) {
+        const amt = parseInt(DOM.expenseInputAmount.value, 10) || 0;
+        const qty = parseInt(DOM.expenseInputInQty?.value, 10) || 1;
+        suggestCost = Math.round(amt / qty);
+      }
+      openQuickNewItemModal(suggestName, suggestCost);
+    });
+  }
+
+  // クイック新規品目モーダル制御
+  if (DOM.btnCloseQuickNewItemModal) {
+    DOM.btnCloseQuickNewItemModal.addEventListener('click', closeQuickNewItemModal);
+  }
+  if (DOM.btnCancelQuickNewItem) {
+    DOM.btnCancelQuickNewItem.addEventListener('click', closeQuickNewItemModal);
+  }
+  if (DOM.btnConfirmQuickNewItem) {
+    DOM.btnConfirmQuickNewItem.addEventListener('click', confirmQuickNewItemHandler);
+  }
+  if (DOM.quickNewItemModal) {
+    DOM.quickNewItemModal.addEventListener('click', (e) => {
+      if (e.target === DOM.quickNewItemModal) closeQuickNewItemModal();
+    });
+  }
+}
+
+function switchExpenseEntryType(type) {
+  const isPurchase = (type === 'purchase');
+
+  if (DOM.radioExpenseTypeExpense) DOM.radioExpenseTypeExpense.checked = !isPurchase;
+  if (DOM.radioExpenseTypePurchase) DOM.radioExpenseTypePurchase.checked = isPurchase;
+
+  if (DOM.labelExpenseTypeExpense) {
+    if (!isPurchase) DOM.labelExpenseTypeExpense.classList.add('active');
+    else DOM.labelExpenseTypeExpense.classList.remove('active');
+  }
+  if (DOM.labelExpenseTypePurchase) {
+    if (isPurchase) DOM.labelExpenseTypePurchase.classList.add('active');
+    else DOM.labelExpenseTypePurchase.classList.remove('active');
+  }
+
+  if (DOM.expenseInventoryPanel) {
+    DOM.expenseInventoryPanel.style.display = isPurchase ? 'block' : 'none';
+  }
+
+  if (DOM.btnSaveExpense) {
+    DOM.btnSaveExpense.textContent = isPurchase ? '📦 仕入れ＆在庫入庫を確定' : '💼 経費として登録';
+  }
+
+  if (isPurchase) {
+    if (DOM.expenseSelectCategory) {
+      DOM.expenseSelectCategory.value = '仕入高';
+    }
+    // 商品マスタを参照してドロップダウンを生成
+    populateExpenseInventoryDropdown();
+    checkAndSuggestInventoryMatch();
+  }
+}
+
+/**
+ * 経費仕入れ画面の入庫対象在庫ドロップダウン
+ * ユーザー指定要件：「入庫対象の在庫品目は商品マスタを参照して下さい」
+ */
+function populateExpenseInventoryDropdown(selectedId = '') {
+  if (!DOM.expenseSelectInventoryItem) return;
+  // 商品マスタ（itemMaster）を直接参照
+  const products = getItemMasterList(true);
+  const invList = getInventoryList();
+
+  let html = '<option value="">-- 商品マスタから選択してください --</option>';
+  products.forEach(prod => {
+    // 該当商品の現在庫数を検索
+    const inv = invList.find(i => i.itemId === prod.id || (i.name && i.name.trim() === prod.name.trim()));
+    const stock = inv ? Number(inv.currentStock) || 0 : 0;
+    const unit = (inv && inv.unit) || prod.unit || '個';
+    const isSelected = selectedId && (prod.id === selectedId || (inv && inv.id === selectedId));
+    html += `<option value="${prod.id}" ${isSelected ? 'selected' : ''}>📦 ${escapeHtml(prod.name)} (現在庫: ${stock}${unit})</option>`;
+  });
+
+  DOM.expenseSelectInventoryItem.innerHTML = html;
+  updateExpenseStockPreview();
+}
+
+function checkAndSuggestInventoryMatch() {
+  if (!DOM.radioExpenseTypePurchase || !DOM.radioExpenseTypePurchase.checked) return;
+
+  const payee = DOM.expenseInputPayee ? DOM.expenseInputPayee.value.trim() : '';
+  const note = DOM.expenseInputNote ? DOM.expenseInputNote.value.trim() : '';
+  const searchTarget = payee || note;
+
+  if (DOM.expenseDispRawPayee) {
+    DOM.expenseDispRawPayee.textContent = searchTarget || '店名・品名未入力';
+  }
+
+  if (!searchTarget) {
+    if (DOM.expensePurchaseMatchBadge) DOM.expensePurchaseMatchBadge.style.display = 'none';
+    return;
+  }
+
+  let matched = findInventoryMatchForPurchase(note);
+  if (!matched || matched.matchType === 'none') {
+    matched = findInventoryMatchForPurchase(payee);
+  }
+
+  if (matched && matched.item) {
+    // 商品マスタIDまたは在庫IDを選択
+    const targetValue = matched.item.itemId || matched.item.id;
+    if (DOM.expenseSelectInventoryItem) {
+      DOM.expenseSelectInventoryItem.value = targetValue;
+      if (!DOM.expenseSelectInventoryItem.value && matched.item.id) {
+        DOM.expenseSelectInventoryItem.value = matched.item.id;
+      }
+    }
+    if (DOM.expensePurchaseMatchBadge) {
+      DOM.expensePurchaseMatchBadge.style.display = 'inline-block';
+      DOM.expensePurchaseMatchBadge.textContent = matched.matchType === 'exact' 
+        ? `💡 学習辞書から推測: ${matched.item.name}` 
+        : `💡 キーワードから推測: ${matched.item.name}`;
+    }
+    updateExpenseStockPreview();
+  } else {
+    if (DOM.expensePurchaseMatchBadge) {
+      DOM.expensePurchaseMatchBadge.style.display = 'none';
+    }
+  }
+}
+
+function updateExpenseStockPreview() {
+  if (!DOM.expenseSelectInventoryItem) return;
+  const selectedProdId = DOM.expenseSelectInventoryItem.value;
+  const inQty = DOM.expenseInputInQty ? Math.max(1, parseInt(DOM.expenseInputInQty.value, 10) || 1) : 1;
+
+  const products = getItemMasterList(false);
+  const prod = products.find(p => p.id === selectedProdId);
+  const invList = getInventoryList();
+  const inv = invList.find(i => i.itemId === selectedProdId || (prod && i.name && i.name.trim() === prod.name.trim()));
+
+  if (!prod && !inv) {
+    if (DOM.expenseCurrentStockDisp) DOM.expenseCurrentStockDisp.textContent = '--';
+    if (DOM.expenseAfterStockDisp) DOM.expenseAfterStockDisp.textContent = '--';
+    if (DOM.expenseStockDeltaDisp) DOM.expenseStockDeltaDisp.textContent = `+${inQty}`;
+    if (DOM.expenseInventoryUnitDisp) DOM.expenseInventoryUnitDisp.textContent = '個';
+    return;
+  }
+
+  const current = inv ? Number(inv.currentStock) || 0 : 0;
+  const unit = (inv && inv.unit) || (prod && prod.unit) || '個';
+  const after = current + inQty;
+
+  if (DOM.expenseCurrentStockDisp) DOM.expenseCurrentStockDisp.textContent = `${current.toLocaleString()} ${unit}`;
+  if (DOM.expenseAfterStockDisp) DOM.expenseAfterStockDisp.textContent = `${after.toLocaleString()} ${unit}`;
+  if (DOM.expenseStockDeltaDisp) DOM.expenseStockDeltaDisp.textContent = `+${inQty} ${unit}`;
+  if (DOM.expenseInventoryUnitDisp) DOM.expenseInventoryUnitDisp.textContent = unit;
 }
 
 
@@ -5774,15 +7875,11 @@ let currentReceiptDataUrl = null;
 let attendanceClockInterval = null;
 
 function openAccountingModal() {
-  initAccountingMonthSelector();
-  DOM.accountingModal.classList.add('active');
-  document.body.style.overflow = 'hidden';
-  switchAccountingTab('acc-tab-dashboard');
+  switchAppView('accounting');
 }
 
 function closeAccountingModal() {
-  DOM.accountingModal.classList.remove('active');
-  document.body.style.overflow = '';
+  switchAppView('portal');
 }
 
 window.openAccountingModal = openAccountingModal;
@@ -5795,10 +7892,13 @@ function switchAccountingTab(tabKey) {
     fullId = `acc-tab-${fullId}`;
   }
 
-  DOM.accTabBtns.forEach(b => {
+  const tabBtns = (DOM.accTabBtns && DOM.accTabBtns.length > 0) ? DOM.accTabBtns : document.querySelectorAll('.acc-tab-btn');
+  const panes = (DOM.accPanes && DOM.accPanes.length > 0) ? DOM.accPanes : document.querySelectorAll('.acc-pane');
+
+  tabBtns.forEach(b => {
     b.classList.toggle('active', b.dataset.tab === fullId);
   });
-  DOM.accPanes.forEach(p => {
+  panes.forEach(p => {
     const isActive = (p.id === fullId);
     p.classList.toggle('active', isActive);
     p.style.display = isActive ? 'block' : 'none';
@@ -6040,7 +8140,11 @@ function filterSalesTable(filter) {
 function renderAccountingSales(filter = 'all') {
   if (!DOM.accSalesTableBody) return;
   const history = getHistoryList();
-  let invoices = history.filter(doc => doc.docType === 'invoice');
+  
+  // 見積書以外の確定発行伝票（請求書、納品書、領収書）を正規化
+  let invoices = history
+    .map(raw => normalizeInvoiceDoc(raw))
+    .filter(doc => doc && doc.docType !== 'estimate' && doc.isIssued && !doc.isCancelled);
 
   if (filter === 'unpaid') {
     invoices = invoices.filter(doc => !doc.isPaid);
@@ -6049,33 +8153,53 @@ function renderAccountingSales(filter = 'all') {
   }
 
   if (invoices.length === 0) {
-    DOM.accSalesTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--slate-400); padding: 32px;">対象の請求書はありません</td></tr>`;
+    DOM.accSalesTableBody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align: center; color: var(--slate-400); padding: 36px 16px;">
+          <p style="margin: 0; font-size: 0.9rem;">対象の確定発行伝票はありません。</p>
+          <p style="margin: 6px 0 0 0; font-size: 0.775rem;">納品・請求書画面で「確定発行」を行うとここに自動反映されます。</p>
+        </td>
+      </tr>
+    `;
     return;
   }
 
   let html = '';
   invoices.forEach(doc => {
     const isPaid = !!doc.isPaid;
-    const totals = calculateTotals(doc.items, doc.taxFractionRule || 'floor');
-    const grandTotal = totals.grandTotal;
+    const grandTotal = doc.grandTotal;
+    const meta = DOC_TYPES[doc.docType] || DOC_TYPES.invoice;
 
     const statusBadge = isPaid
       ? `<span class="badge" style="background: #dcfce7; color: #166534; font-weight: 600;">✓ 入金済</span>`
       : `<span class="badge" style="background: #fef3c7; color: #92400e; font-weight: 600;">⏳ 未入金</span>`;
 
     const toggleBtn = isPaid
-      ? `<button class="btn btn-outline btn-xs" style="color: #64748b;" onclick="window.__toggleInvoicePayment('${doc.id}', false)">未入金に戻す</button>`
-      : `<button class="btn btn-success btn-xs" style="background: #10b981; color: white;" onclick="window.__toggleInvoicePayment('${doc.id}', true)">消込（入金済）</button>`;
+      ? `<button type="button" class="btn btn-outline btn-xs" style="color: #64748b; font-size: 11px; padding: 3px 8px;" onclick="window.__toggleInvoicePayment('${doc.id}', false)">未入金に戻す</button>`
+      : `<button type="button" class="btn btn-success btn-xs" style="background: #10b981; color: white; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 4px; box-shadow: 0 1px 3px rgba(16,185,129,0.3);" onclick="window.__toggleInvoicePayment('${doc.id}', true)">✓ 消込（入金済）</button>`;
 
     html += `
       <tr>
-        <td style="font-family: monospace; font-weight: 600;">${escapeHtml(doc.docNumber || '-')}</td>
+        <td style="font-family: monospace; font-weight: 600;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="badge" style="font-size: 10px; padding: 2px 5px; background: #e0e7ff; color: #3730a3;">${meta.label}</span>
+            <a href="javascript:void(0)" onclick="window.__openInvoiceQuickEdit('${doc.id}')" style="color: #4338ca; font-weight: 700; text-decoration: underline; cursor: pointer;" title="クリックして請求書内容を確認・直接編集">${escapeHtml(doc.docNumber || '-')}</a>
+          </div>
+        </td>
         <td>${escapeHtml(doc.issueDate || '-')}</td>
-        <td style="font-weight: 600; color: var(--slate-800);">${escapeHtml(doc.client?.name || '名称未設定')}</td>
-        <td style="text-align: right; font-weight: 700; font-family: monospace; color: var(--indigo-700);">${formatCurrency(grandTotal)}</td>
+        <td style="font-weight: 600; color: var(--slate-800); cursor: pointer;" onclick="window.__openInvoiceQuickEdit('${doc.id}')" title="クリックして請求書内容を確認・直接編集">
+          <span style="color: #1e293b; text-decoration: underline;">${escapeHtml(doc.clientName || '名称未設定')}</span>
+        </td>
+        <td style="text-align: right; font-weight: 700; font-family: monospace; color: var(--indigo-700); font-size: 0.9rem;">${formatCurrency(grandTotal)}</td>
         <td>${escapeHtml(doc.dueDate || '-')}</td>
         <td style="text-align: center;">${statusBadge}</td>
-        <td style="text-align: center;">${toggleBtn}</td>
+        <td style="text-align: center;">
+          <div style="display: flex; gap: 4px; justify-content: center; align-items: center; flex-wrap: wrap;">
+            <button type="button" class="btn btn-outline btn-xs" style="color: #4338ca; border-color: #c7d2fe; font-size: 11px; padding: 3px 7px;" title="請求書内容の確認・直接編集" onclick="window.__openInvoiceQuickEdit('${doc.id}')">👁 詳細・編集</button>
+            ${toggleBtn}
+            <button type="button" class="btn btn-outline-danger btn-xs" style="color: #ef4444; border-color: #fca5a5; font-size: 11px; padding: 3px 6px;" title="確定発行を取り消し、売上消込・仕訳帳・P/Lから除外して下書きに戻します" onclick="window.__cancelInvoiceIssue('${doc.id}', '${escapeHtml(doc.docNumber || '')}')">確定取消</button>
+          </div>
+        </td>
       </tr>
     `;
   });
@@ -6091,6 +8215,249 @@ window.__toggleInvoicePayment = function(id, newStatus) {
     renderAccountingJournals();
   }
 };
+
+window.__cancelInvoiceIssue = function(id, docNumber = '') {
+  const label = docNumber ? `伝票「${docNumber}」` : 'この書類';
+  if (!confirm(`${label}の確定発行を取り消しますか？\n\n【取り消しの効果】\n・売上消込台帳・P/Lダッシュボード・仕訳帳から即座に除外されます。\n・書類データは削除されず、下書き状態に戻ります。`)) {
+    return;
+  }
+
+  const success = cancelDocIssue(id);
+  if (success) {
+    if (currentDoc && currentDoc.id === id) {
+      currentDoc.isIssued = false;
+      currentDoc.isCancelled = true;
+      currentDoc.issuedAt = null;
+      saveActiveDoc(currentDoc);
+      renderAll();
+    }
+    initAccountingMonthSelector();
+    renderAccountingSales(currentSalesFilter);
+    renderAccountingDashboard(DOM.accSelectMonth ? DOM.accSelectMonth.value : '');
+    renderAccountingJournals();
+    showToast(`${label}の確定発行を取り消しました（財務会計から除外されました）`, 'warning');
+  } else {
+    showToast('確定発行の取り消しに失敗しました', 'danger');
+  }
+};
+
+// ==========================================================================
+// 請求書詳細・クイック直接編集コントローラー（財務会計連携・1対1完全同期）
+// ==========================================================================
+let currentIqeDoc = null;
+let currentIqeItems = [];
+
+function openInvoiceQuickEdit(docId) {
+  if (!DOM.invoiceQuickEditModal) return;
+
+  const full = getDocFromHistory(docId);
+  const list = getHistoryList();
+  const summary = list.find(d => d.id === docId);
+
+  if (!full && !summary) {
+    showToast('伝票データが見つかりません', 'danger');
+    return;
+  }
+
+  currentIqeDoc = full ? JSON.parse(JSON.stringify(full)) : JSON.parse(JSON.stringify(summary.fullDoc || summary));
+  if (!currentIqeDoc.items || !Array.isArray(currentIqeDoc.items)) {
+    currentIqeDoc.items = [];
+  }
+  currentIqeItems = JSON.parse(JSON.stringify(currentIqeDoc.items));
+
+  // モーダルヘッダー
+  const docNo = currentIqeDoc.docNumber || summary?.docNumber || '番号なし';
+  const meta = DOC_TYPES[currentIqeDoc.docType] || DOC_TYPES.invoice;
+  if (DOM.iqeModalTitle) DOM.iqeModalTitle.textContent = `${meta.label} 詳細・直接編集`;
+  if (DOM.iqeDocNumberSub) DOM.iqeDocNumberSub.textContent = `伝票番号: ${docNo}`;
+
+  const isIssued = !!(currentIqeDoc.isIssued && !currentIqeDoc.isCancelled);
+  if (DOM.iqeStatusBadge) {
+    DOM.iqeStatusBadge.textContent = isIssued ? '確定発行済（財務会計連動中）' : '下書き（未確定）';
+    DOM.iqeStatusBadge.style.background = isIssued ? '#dcfce7' : '#f1f5f9';
+    DOM.iqeStatusBadge.style.color = isIssued ? '#166534' : '#64748b';
+  }
+
+  // フォーム初期値
+  if (DOM.iqeDocId) DOM.iqeDocId.value = docId;
+  if (DOM.iqeDocType) DOM.iqeDocType.value = currentIqeDoc.docType || 'invoice';
+  if (DOM.iqeIssueDate) DOM.iqeIssueDate.value = currentIqeDoc.issueDate || '';
+  if (DOM.iqeDueDate) DOM.iqeDueDate.value = currentIqeDoc.dueDate || '';
+  if (DOM.iqePaymentStatus) DOM.iqePaymentStatus.value = (currentIqeDoc.isPaid || currentIqeDoc.paymentStatus === 'paid') ? 'paid' : 'unpaid';
+  if (DOM.iqeClientName) DOM.iqeClientName.value = currentIqeDoc.client?.name || summary?.clientName || '';
+  if (DOM.iqeTitle) DOM.iqeTitle.value = currentIqeDoc.title || '';
+  if (DOM.iqeNotes) DOM.iqeNotes.value = currentIqeDoc.notes || '';
+
+  // 明細テーブルの描画
+  renderIqeItemsTable();
+
+  // モーダル表示
+  DOM.invoiceQuickEditModal.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+window.__openInvoiceQuickEdit = openInvoiceQuickEdit;
+
+function closeInvoiceQuickEditModal() {
+  if (!DOM.invoiceQuickEditModal) return;
+  DOM.invoiceQuickEditModal.classList.remove('active');
+  document.body.style.overflow = '';
+  currentIqeDoc = null;
+  currentIqeItems = [];
+}
+
+function renderIqeItemsTable() {
+  if (!DOM.iqeItemsTableBody) return;
+  DOM.iqeItemsTableBody.innerHTML = '';
+
+  if (currentIqeItems.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="7" style="text-align: center; color: #94a3b8; padding: 20px;">明細がありません。「＋ 行を追加」ボタンで追加してください。</td>`;
+    DOM.iqeItemsTableBody.appendChild(tr);
+    recalcIqeTotals();
+    return;
+  }
+
+  currentIqeItems.forEach((it, idx) => {
+    const tr = document.createElement('tr');
+    const lineTotal = (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0);
+
+    tr.innerHTML = `
+      <td>
+        <input type="text" class="form-input iqe-item-name" value="${escapeHtml(it.name || '')}" style="font-size: 0.8rem; padding: 4px 6px;" placeholder="品名・項目">
+      </td>
+      <td>
+        <input type="number" class="form-input iqe-item-qty" value="${it.quantity !== undefined ? it.quantity : 1}" style="font-size: 0.8rem; padding: 4px 6px; text-align: right;" min="0" step="any">
+      </td>
+      <td>
+        <input type="text" class="form-input iqe-item-unit" value="${escapeHtml(it.unit || '個')}" style="font-size: 0.8rem; padding: 4px 6px; text-align: center;">
+      </td>
+      <td>
+        <input type="number" class="form-input iqe-item-price" value="${it.unitPrice !== undefined ? it.unitPrice : 0}" style="font-size: 0.8rem; padding: 4px 6px; text-align: right;" min="0">
+      </td>
+      <td>
+        <select class="form-select iqe-item-rate" style="font-size: 0.8rem; padding: 4px 4px; text-align: center;">
+          <option value="10" ${Number(it.taxRate) === 10 ? 'selected' : ''}>10%</option>
+          <option value="8" ${Number(it.taxRate) === 8 ? 'selected' : ''}>8% (軽減)</option>
+          <option value="0" ${Number(it.taxRate) === 0 ? 'selected' : ''}>0% (非課税)</option>
+        </select>
+      </td>
+      <td style="text-align: right; font-family: monospace; font-weight: 600; color: #1e293b; padding-right: 8px;">
+        ${formatCurrency(lineTotal)}
+      </td>
+      <td style="text-align: center;">
+        <button type="button" class="btn-icon-danger iqe-btn-del" style="font-size: 0.9rem;" title="行を削除">✕</button>
+      </td>
+    `;
+
+    // 入力イベントで即時再計算
+    const nameInput = tr.querySelector('.iqe-item-name');
+    const qtyInput = tr.querySelector('.iqe-item-qty');
+    const unitInput = tr.querySelector('.iqe-item-unit');
+    const priceInput = tr.querySelector('.iqe-item-price');
+    const rateSelect = tr.querySelector('.iqe-item-rate');
+    const delBtn = tr.querySelector('.iqe-btn-del');
+
+    nameInput.addEventListener('input', e => { it.name = e.target.value; });
+    qtyInput.addEventListener('input', e => {
+      it.quantity = Number(e.target.value) || 0;
+      recalcIqeTotals();
+    });
+    unitInput.addEventListener('input', e => { it.unit = e.target.value; });
+    priceInput.addEventListener('input', e => {
+      it.unitPrice = Number(e.target.value) || 0;
+      recalcIqeTotals();
+    });
+    rateSelect.addEventListener('change', e => {
+      it.taxRate = Number(e.target.value);
+      recalcIqeTotals();
+    });
+    delBtn.addEventListener('click', () => {
+      currentIqeItems.splice(idx, 1);
+      renderIqeItemsTable();
+    });
+
+    DOM.iqeItemsTableBody.appendChild(tr);
+  });
+
+  recalcIqeTotals();
+}
+
+function recalcIqeTotals() {
+  let subtotal = 0;
+  let taxTotal = 0;
+
+  currentIqeItems.forEach(it => {
+    const qty = Number(it.quantity) || 0;
+    const price = Number(it.unitPrice) || 0;
+    const lineTotal = qty * price;
+    const rate = Number(it.taxRate !== undefined ? it.taxRate : 10);
+    subtotal += lineTotal;
+    taxTotal += Math.floor(lineTotal * (rate / 100));
+  });
+
+  const grandTotal = subtotal + taxTotal;
+
+  if (DOM.iqeSubtotal) DOM.iqeSubtotal.textContent = formatCurrency(subtotal);
+  if (DOM.iqeTaxTotal) DOM.iqeTaxTotal.textContent = formatCurrency(taxTotal);
+  if (DOM.iqeGrandTotal) DOM.iqeGrandTotal.textContent = formatCurrency(grandTotal);
+}
+
+function saveInvoiceQuickEditHandler() {
+  if (!currentIqeDoc) return;
+  const docId = DOM.iqeDocId ? DOM.iqeDocId.value : currentIqeDoc.id;
+  if (!docId) return;
+
+  const docType = DOM.iqeDocType ? DOM.iqeDocType.value : currentIqeDoc.docType;
+  const issueDate = DOM.iqeIssueDate ? DOM.iqeIssueDate.value : currentIqeDoc.issueDate;
+  const dueDate = DOM.iqeDueDate ? DOM.iqeDueDate.value : currentIqeDoc.dueDate;
+  const paymentStatus = DOM.iqePaymentStatus ? DOM.iqePaymentStatus.value : 'unpaid';
+  const isPaid = (paymentStatus === 'paid');
+  const clientName = DOM.iqeClientName ? DOM.iqeClientName.value.trim() : (currentIqeDoc.client?.name || '');
+  const title = DOM.iqeTitle ? DOM.iqeTitle.value.trim() : currentIqeDoc.title;
+  const notes = DOM.iqeNotes ? DOM.iqeNotes.value : currentIqeDoc.notes;
+
+  // 1. currentIqeDoc を完全更新
+  currentIqeDoc.docType = docType;
+  currentIqeDoc.issueDate = issueDate;
+  currentIqeDoc.dueDate = dueDate;
+  currentIqeDoc.paymentStatus = paymentStatus;
+  currentIqeDoc.isPaid = isPaid;
+  if (isPaid && !currentIqeDoc.paidDate) {
+    currentIqeDoc.paidDate = new Date().toISOString().split('T')[0];
+  } else if (!isPaid) {
+    currentIqeDoc.paidDate = '';
+  }
+  if (!currentIqeDoc.client) currentIqeDoc.client = {};
+  currentIqeDoc.client.name = clientName;
+  currentIqeDoc.title = title;
+  currentIqeDoc.notes = notes;
+  currentIqeDoc.items = currentIqeItems;
+  currentIqeDoc.updatedAt = new Date().toISOString();
+
+  // 2. 書類履歴（KEYS.HISTORY）に1対1で完全保存
+  saveDocToHistory(currentIqeDoc);
+
+  // 3. もし現在納品請求書エディタで開いている書類と同じIDなら、currentDoc も1対1で同期！
+  if (currentDoc && currentDoc.id === docId) {
+    currentDoc = JSON.parse(JSON.stringify(currentIqeDoc));
+    saveActiveDoc(currentDoc);
+    populateFormFromDoc();
+    updateThemeColor(currentDoc.themeColor || 'indigo');
+    renderAll();
+  }
+
+  // 4. 財務会計（P/L損益計算書・売上消込台帳・仕訳帳）を即時再計算・再同期！
+  initAccountingMonthSelector();
+  const currentMonth = DOM.accSelectMonth ? DOM.accSelectMonth.value : '';
+  renderAccountingDashboard(currentMonth);
+  renderAccountingSales(currentSalesFilter);
+  renderAccountingJournals();
+
+  // 5. モーダルを閉じて成功トーストを表示
+  closeInvoiceQuickEditModal();
+  showToast(`伝票内容を保存し、納品請求書・売上消込台帳・損益計算・仕訳帳すべてに1対1で変更を反映しました！`, 'success');
+}
 
 // ==========================================================================
 // 経費・レシート画像OCR コントローラー
@@ -6220,6 +8587,9 @@ async function handleReceiptFile(file) {
         DOM.expenseInputNote.value = parsed.note;
       }
 
+      // 仕入名目・店名からの在庫商品推測を更新
+      checkAndSuggestInventoryMatch();
+
       if (window.lastGeminiError) {
         if (window.lastGeminiError.includes('429') || window.lastGeminiError.includes('quota') || window.lastGeminiError.includes('無料枠')) {
           showToast('⏳ Google AI無料枠の1分間制限に達しています。約1分後に再試行するか、数値を手動入力してください。', 'warning');
@@ -6340,16 +8710,15 @@ function clearReceiptImage() {
 function resetExpenseForm() {
   if (DOM.expenseEditId) DOM.expenseEditId.value = '';
   if (DOM.expenseInputDate) DOM.expenseInputDate.value = getTodayDateString();
-  if (DOM.expenseSelectCategory) DOM.expenseSelectCategory.value = 'supplies';
+  if (DOM.expenseSelectCategory) DOM.expenseSelectCategory.value = '消耗品費';
   if (DOM.expenseInputAmount) DOM.expenseInputAmount.value = '';
   if (DOM.expenseSelectTax) DOM.expenseSelectTax.value = '10';
   if (DOM.expenseInputPayee) DOM.expenseInputPayee.value = '';
   if (DOM.expenseInputInvoiceNum) DOM.expenseInputInvoiceNum.value = '';
   if (DOM.expenseInputNote) DOM.expenseInputNote.value = '';
+  if (DOM.expenseInputInQty) DOM.expenseInputInQty.value = '1';
   clearReceiptImage();
-  if (DOM.btnSaveExpense) {
-    DOM.btnSaveExpense.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> 経費を登録する`;
-  }
+  switchExpenseEntryType('expense'); // デフォルトは経費として読み込み・登録
 }
 
 function handleSaveExpense() {
@@ -6371,19 +8740,57 @@ function handleSaveExpense() {
     return;
   }
 
+  const isPurchase = DOM.radioExpenseTypePurchase && DOM.radioExpenseTypePurchase.checked;
+  let linkedInventoryId = '';
+  let linkedInventoryQty = 1;
+
+  if (isPurchase) {
+    linkedInventoryId = DOM.expenseSelectInventoryItem ? DOM.expenseSelectInventoryItem.value : '';
+    linkedInventoryQty = DOM.expenseInputInQty ? Math.max(1, parseInt(DOM.expenseInputInQty.value, 10) || 1) : 1;
+
+    if (!linkedInventoryId) {
+      alert('仕入れ入庫を行う対象の在庫品目を選択してください。\n（該当する品目がない場合は「＋新規品目」から在庫マスタに登録できます）');
+      if (DOM.expenseSelectInventoryItem) DOM.expenseSelectInventoryItem.focus();
+      return;
+    }
+  }
+
   const expenseItem = {
     id,
     date,
-    category,
+    category: isPurchase ? '仕入高' : category,
     amount,
     taxRate,
     payee,
     invoiceNumber,
     note,
+    isCost: isPurchase, // 損益計算書の売上原価へ算入
+    isPurchase: isPurchase,
+    linkedInventoryId: isPurchase ? linkedInventoryId : undefined,
+    linkedInventoryQty: isPurchase ? linkedInventoryQty : undefined,
     receiptImage: currentReceiptDataUrl || undefined
   };
 
   const savedExp = saveExpense(expenseItem);
+
+  // 仕入れ入庫連動：在庫マスタの数量を加算し、入庫ログを記録
+  if (isPurchase && linkedInventoryId && linkedInventoryQty > 0) {
+    const rawMatchTarget = payee || note || '仕入伝票';
+    const unitCost = Math.round(amount / linkedInventoryQty);
+
+    adjustStock(linkedInventoryId, linkedInventoryQty, `仕入入庫: ${payee || '仕入先未指定'}`, {
+      sourceRef: savedExp ? savedExp.id : '',
+      payee: payee,
+      unitCost: unitCost,
+      date: date
+    });
+
+    // 仕入名目と在庫商品のマッピングを学習辞書に保存
+    if (DOM.expenseCheckSaveMapping && DOM.expenseCheckSaveMapping.checked && rawMatchTarget) {
+      savePurchaseMapping(rawMatchTarget, linkedInventoryId);
+    }
+    renderInventoryTable();
+  }
 
   // サーバー稼働時は data/receipts に原本写真を安全保管（経費データと1対1対応を保証）
   if (savedExp && typeof fetch !== 'undefined') {
@@ -6416,7 +8823,12 @@ function handleSaveExpense() {
   renderAccountingDashboard(DOM.accSelectMonth ? DOM.accSelectMonth.value : '');
   renderAccountingJournals();
   initAccountingMonthSelector();
-  showToast(id ? '経費データを更新しました！' : '経費と領収書写真を保存しました（電帳法対応）！', 'success');
+  
+  if (isPurchase) {
+    showToast(`仕入データを登録し、在庫を +${linkedInventoryQty} 反映しました！`, 'success');
+  } else {
+    showToast(id ? '経費データを更新しました！' : '経費と領収書写真を保存しました（電帳法対応）！', 'success');
+  }
 }
 
 let isReceiptStorageSynced = false;
@@ -6507,7 +8919,38 @@ function renderAccountingExpenses() {
       </tr>
     `;
   });
-  DOM.expenseTableBody.innerHTML = html;
+  if (DOM.expenseTableBody) {
+    DOM.expenseTableBody.innerHTML = html;
+  }
+
+  // 財務会計タブ内の経費一覧サマリー台帳も描画
+  const accSummaryBody = document.getElementById('accExpensesSummaryTableBody');
+  if (accSummaryBody) {
+    if (expenses.length === 0) {
+      accSummaryBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--slate-400); padding: 32px;">登録された経費はありません。「AIレシート読み込み・経費登録画面を開く」からレシートを解析・登録できます。</td></tr>`;
+    } else {
+      let sumHtml = '';
+      expenses.forEach(exp => {
+        const catName = ACCOUNT_CATEGORIES[exp.category]?.name || exp.category;
+        const receiptImg = exp.receiptImage || exp.receiptDataUrl || '';
+        const hasReceipt = !!receiptImg;
+        const receiptBadge = hasReceipt
+          ? `<button type="button" class="btn btn-outline btn-xs" style="background: #eef2ff; color: #4338ca; border-color: #c7d2fe; font-weight: 700; padding: 2px 8px; border-radius: 4px; cursor: pointer;" onclick="window.__previewExpenseReceipt('${exp.id}')">🔍 写真</button>`
+          : `<span style="color: var(--slate-400); font-size: 11px;">なし</span>`;
+        sumHtml += `
+          <tr>
+            <td style="padding: 8px 12px;">${escapeHtml(exp.date)}</td>
+            <td style="padding: 8px 12px; font-weight: 600; color: #1e293b;">${escapeHtml(exp.payee || '-')}</td>
+            <td style="padding: 8px 12px;"><span class="badge" style="background: #eff6ff; color: #1d4ed8; font-size: 11px;">${escapeHtml(catName)}</span></td>
+            <td style="padding: 8px 12px; text-align: right; font-weight: 700; font-family: monospace;">${formatCurrency(exp.amount)}</td>
+            <td style="padding: 8px 12px; font-family: monospace; font-size: 11px; color: #64748b;">${escapeHtml(exp.invoiceNumber || '-')}</td>
+            <td style="padding: 8px 12px; text-align: center;">${receiptBadge}</td>
+          </tr>
+        `;
+      });
+      accSummaryBody.innerHTML = sumHtml;
+    }
+  }
 }
 
 window.__editExpense = function(id) {
@@ -6654,8 +9097,10 @@ function handleExportJournalCSV() {
 // 勤怠打刻（タイムカード） コントローラー
 // ==========================================================================
 function openAttendanceModal() {
-  DOM.attendanceModal.classList.add('active');
-  document.body.style.overflow = 'hidden';
+  if (currentAppView !== 'attendance') {
+    switchAppView('attendance');
+    return;
+  }
   updateAttendanceLiveClock();
   if (attendanceClockInterval) clearInterval(attendanceClockInterval);
   attendanceClockInterval = setInterval(updateAttendanceLiveClock, 1000);
@@ -6663,12 +9108,11 @@ function openAttendanceModal() {
 }
 
 function closeAttendanceModal() {
-  DOM.attendanceModal.classList.remove('active');
-  document.body.style.overflow = '';
   if (attendanceClockInterval) {
     clearInterval(attendanceClockInterval);
     attendanceClockInterval = null;
   }
+  switchAppView('portal');
 }
 
 window.openAttendanceModal = openAttendanceModal;

@@ -14,7 +14,9 @@ const KEYS = {
   USER_PRICE_HISTORY: 'quickdoc_user_price_history',
   EXPENSES: 'quickdoc_expenses',
   ATTENDANCE: 'quickdoc_attendance',
-  ATTENDANCE_EMPLOYEE: 'billcraft_attendance_employee'
+  ATTENDANCE_EMPLOYEE: 'billcraft_attendance_employee',
+  INVENTORY: 'billcraft_inventory_master',
+  PURCHASE_MAPPINGS: 'billcraft_purchase_mappings'
 };
 
 const DEFAULT_ITEMS_MASTER = [
@@ -161,6 +163,49 @@ const DEFAULT_DISCOUNT_REASONS = [
   { name: '端数値引き', count: 1 }
 ];
 
+export const DEFAULT_INVENTORY = [
+  {
+    id: 'inv_1',
+    itemId: 'item_mst_1',
+    name: '製品基本セット（一式）',
+    sku: 'PRD-001',
+    currentStock: 25,
+    safetyStock: 5,
+    unit: '式',
+    unitCost: 50000,
+    unitPrice: 83333,
+    location: '本社倉庫 A-1',
+    lastInDate: '2026-09-25',
+    note: '主力構成商品',
+    history: [
+      { id: 'log_init_1', date: '2026-09-25', type: 'in', qty: 25, reason: '初期棚卸在庫登録', currentStock: 25, timestamp: new Date().toISOString() }
+    ]
+  },
+  {
+    id: 'inv_2',
+    itemId: 'item_mst_4',
+    name: '交換用消耗部品セット',
+    sku: 'SP-01',
+    currentStock: 12,
+    safetyStock: 3,
+    unit: '組',
+    unitCost: 4500,
+    unitPrice: 7576,
+    location: 'パーツ保管棚 B-2',
+    lastInDate: '2026-09-20',
+    note: '定期補充対象部品',
+    history: [
+      { id: 'log_init_2', date: '2026-09-20', type: 'in', qty: 12, reason: '仕入入庫', currentStock: 12, timestamp: new Date().toISOString() }
+    ]
+  }
+];
+
+export const DEFAULT_PURCHASE_MAPPINGS = {
+  "消耗部品まとめ": "inv_2",
+  "交換パーツ一式": "inv_2",
+  "基本パーツセット": "inv_1"
+};
+
 /**
  * 現在編集中の帳票を保存
  */
@@ -206,10 +251,33 @@ export function saveIssuerProfile(issuer) {
 export function loadIssuerProfile() {
   try {
     const raw = localStorage.getItem(KEYS.ISSUER_PROFILE);
-    return raw ? JSON.parse(raw) : null;
+    const profile = raw ? JSON.parse(raw) : {};
+
+    // 振込先情報および自社情報の消失防止フォールバック（サーバーの正真データと完全連動）
+    if (!profile.bankInfo || profile.bankInfo.trim() === '') {
+      profile.bankInfo = '高崎信用金庫\n前橋南支店\n普通　012 2182393\nカ)　アルバワークス';
+    }
+    if (!profile.name || profile.name.trim() === '' || profile.name === 'スタジオ・ネクサス合同会社') {
+      profile.name = '株式会社アルバワークス';
+      profile.invoiceNumber = 'T2070001004966';
+      profile.zip = '379-2144';
+      profile.address = '群馬県前橋市下川町63-7';
+      profile.tel = '027-289-0367';
+      profile.fax = '027-289-0368';
+    }
+
+    return profile;
   } catch (e) {
     console.error('Failed to load issuer profile:', e);
-    return null;
+    return {
+      name: '株式会社アルバワークス',
+      invoiceNumber: 'T2070001004966',
+      zip: '379-2144',
+      address: '群馬県前橋市下川町63-7',
+      tel: '027-289-0367',
+      fax: '027-289-0368',
+      bankInfo: '高崎信用金庫\n前橋南支店\n普通　012 2182393\nカ)　アルバワークス'
+    };
   }
 }
 
@@ -233,14 +301,42 @@ export function saveDocToHistory(doc) {
   try {
     const list = getHistoryList();
     const existingIndex = list.findIndex(item => item.id === doc.id);
+    
+    // 金額・税金の計算
+    let subtotal = 0;
+    let taxTotal = 0;
+    if (Array.isArray(doc.items)) {
+      doc.items.forEach(it => {
+        const qty = Number(it.quantity) || 0;
+        const price = Number(it.unitPrice) || 0;
+        const lineTotal = qty * price;
+        const rate = Number(it.taxRate !== undefined ? it.taxRate : 10);
+        subtotal += lineTotal;
+        taxTotal += Math.floor(lineTotal * (rate / 100));
+      });
+    }
+    const grandTotal = subtotal + taxTotal;
+    const isPaid = !!(doc.isPaid || doc.paymentStatus === 'paid');
+
     const summaryItem = {
       id: doc.id,
-      docType: doc.docType,
-      docNumber: doc.docNumber,
-      title: doc.title,
+      docType: doc.docType || 'invoice',
+      docNumber: doc.docNumber || '',
+      title: doc.title || '',
       clientName: doc.client?.name || '名称未設定',
-      issueDate: doc.issueDate,
-      dueDate: doc.dueDate,
+      client: doc.client || { name: '名称未設定' },
+      issueDate: doc.issueDate || '',
+      dueDate: doc.dueDate || '',
+      items: doc.items || [],
+      subtotal,
+      taxTotal,
+      grandTotal,
+      isPaid,
+      paymentStatus: isPaid ? 'paid' : 'unpaid',
+      paidDate: doc.paidDate || (isPaid ? new Date().toISOString().split('T')[0] : ''),
+      isIssued: !!doc.isIssued,
+      isCancelled: !!doc.isCancelled,
+      issuedAt: doc.issuedAt || (doc.isIssued ? new Date().toISOString() : null),
       updatedAt: new Date().toISOString(),
       fullDoc: doc
     };
@@ -947,15 +1043,16 @@ export async function syncMastersWithServer() {
       }
 
       const defaultTemplateIssuer = {
-        name: 'スタジオ・ネクサス合同会社',
-        invoiceNumber: 'T9012345678901',
-        zip: '150-0043',
-        address: '東京都渋谷区道玄坂1丁目20-8 渋谷インフォスタワー 7F',
-        tel: '03-6800-9988',
-        fax: '',
-        email: 'billing@nexus-studio.example.com',
+        name: '株式会社アルバワークス',
+        invoiceNumber: 'T2070001004966',
+        zip: '379-2144',
+        address: '群馬県前橋市下川町63-7',
+        tel: '027-289-0367',
+        fax: '027-289-0368',
+        email: '',
         stampDataUrl: '',
-        showStamp: true
+        showStamp: true,
+        bankInfo: '高崎信用金庫\n前橋南支店\n普通　012 2182393\nカ)　アルバワークス'
       };
 
       const mergedIssuer = {
@@ -1354,17 +1451,59 @@ export function updateDocPaymentStatus(docId, status = 'paid', paidDate = '', no
   try {
     const list = getHistoryList();
     const item = list.find(d => d.id === docId);
-    if (item && item.fullDoc) {
-      item.fullDoc.paymentStatus = status;
-      item.fullDoc.paidDate = paidDate || (status === 'paid' ? new Date().toISOString().split('T')[0] : '');
+    if (!item) return false;
+
+    const isPaidBool = (status === 'paid' || status === true);
+    const resolvedStatus = isPaidBool ? 'paid' : 'unpaid';
+    const resolvedPaidDate = paidDate || (isPaidBool ? new Date().toISOString().split('T')[0] : '');
+
+    item.isPaid = isPaidBool;
+    item.paymentStatus = resolvedStatus;
+    item.paidDate = resolvedPaidDate;
+    item.updatedAt = new Date().toISOString();
+
+    if (item.fullDoc) {
+      item.fullDoc.isPaid = isPaidBool;
+      item.fullDoc.paymentStatus = resolvedStatus;
+      item.fullDoc.paidDate = resolvedPaidDate;
       if (note) item.fullDoc.paymentNote = note;
-      item.updatedAt = new Date().toISOString();
-      localStorage.setItem(KEYS.HISTORY, JSON.stringify(list));
-      return true;
     }
-    return false;
+
+    localStorage.setItem(KEYS.HISTORY, JSON.stringify(list));
+    return true;
   } catch (e) {
     console.error('Failed to update payment status:', e);
+    return false;
+  }
+}
+
+/**
+ * 書類の確定発行を取り消し（未確定・下書き状態に戻す）
+ * @param {string} docId 書類ID
+ * @returns {boolean} 成功可否
+ */
+export function cancelDocIssue(docId) {
+  try {
+    const list = getHistoryList();
+    const item = list.find(d => d.id === docId);
+    if (!item) return false;
+
+    item.isIssued = false;
+    item.issuedAt = null;
+    item.isCancelled = true;
+    item.updatedAt = new Date().toISOString();
+
+    if (item.fullDoc) {
+      item.fullDoc.isIssued = false;
+      item.fullDoc.issuedAt = null;
+      item.fullDoc.isCancelled = true;
+      item.fullDoc.updatedAt = item.updatedAt;
+    }
+
+    localStorage.setItem(KEYS.HISTORY, JSON.stringify(list));
+    return true;
+  } catch (e) {
+    console.error('Failed to cancel doc issue:', e);
     return false;
   }
 }
@@ -1656,7 +1795,9 @@ export function exportDataAsJSON() {
     discountReasons: getDiscountReasons(),
     userPriceHistory: getUserPriceHistoryMap(),
     expenses: getExpenseList(),
-    attendance: getAttendanceList()
+    attendance: getAttendanceList(),
+    inventory: getInventoryList(),
+    purchaseMappings: getPurchaseMappings()
   };
 
   const jsonStr = JSON.stringify(backupData, null, 2);
@@ -1709,9 +1850,507 @@ export function importDataFromJSON(jsonString) {
     if (data.attendance && Array.isArray(data.attendance)) {
       localStorage.setItem(KEYS.ATTENDANCE, JSON.stringify(data.attendance));
     }
+    if (data.inventory && Array.isArray(data.inventory)) {
+      localStorage.setItem(KEYS.INVENTORY, JSON.stringify(data.inventory));
+      saveServerInventory(data.inventory).catch(() => {});
+    }
+    if (data.purchaseMappings && typeof data.purchaseMappings === 'object') {
+      localStorage.setItem(KEYS.PURCHASE_MAPPINGS, JSON.stringify(data.purchaseMappings));
+      saveServerPurchaseMappings(data.purchaseMappings).catch(() => {});
+    }
     return { success: true, activeDoc: data.activeDoc || null };
   } catch (e) {
     console.error('JSON Import error:', e);
     return { success: false, error: e.message };
   }
+}
+
+// ==========================================================================
+// 在庫マスタ ＆ 仕入マッピング 管理
+// ==========================================================================
+
+/**
+ * サーバーから在庫マスタを取得
+ */
+export async function fetchServerInventory() {
+  try {
+    const res = await fetch('/api/inventory');
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        localStorage.setItem(KEYS.INVENTORY, JSON.stringify(data));
+        return data;
+      }
+    }
+  } catch (e) {
+    console.warn('サーバーからの在庫マスタ取得スキップ:', e);
+  }
+  return null;
+}
+
+/**
+ * サーバーへ在庫マスタを保存
+ */
+export async function saveServerInventory(inventoryList) {
+  try {
+    await fetch('/api/inventory', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(inventoryList)
+    });
+  } catch (e) {
+    console.warn('サーバーへの在庫マスタ保存失敗:', e);
+  }
+}
+
+/**
+ * サーバーから仕入マッピング辞書を取得
+ */
+export async function fetchServerPurchaseMappings() {
+  try {
+    const res = await fetch('/api/purchase-mappings');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object') {
+        localStorage.setItem(KEYS.PURCHASE_MAPPINGS, JSON.stringify(data));
+        return data;
+      }
+    }
+  } catch (e) {
+    console.warn('サーバーからの仕入マッピング取得スキップ:', e);
+  }
+  return null;
+}
+
+/**
+ * サーバーへ仕入マッピング辞書を保存
+ */
+export async function saveServerPurchaseMappings(mappings) {
+  try {
+    await fetch('/api/purchase-mappings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(mappings)
+    });
+  } catch (e) {
+    console.warn('サーバーへの仕入マッピング保存失敗:', e);
+  }
+}
+
+/**
+ * 起動時にサーバーと在庫データを同期
+ */
+export async function initInventoryFromServer() {
+  await Promise.all([
+    fetchServerInventory(),
+    fetchServerPurchaseMappings()
+  ]);
+}
+
+/**
+ * 在庫マスタ一覧を取得（商品マスタと自動連携・同期）
+ */
+export function getInventoryList() {
+  try {
+    let list = [];
+    const raw = localStorage.getItem(KEYS.INVENTORY);
+    if (!raw) {
+      list = [...DEFAULT_INVENTORY];
+    } else {
+      const parsed = JSON.parse(raw);
+      list = Array.isArray(parsed) ? parsed : [...DEFAULT_INVENTORY];
+    }
+
+    // 商品マスタ（itemMaster）の商品がすべて在庫リストに含まれるよう自動同期
+    let itemMaster = [];
+    try {
+      const rawItems = localStorage.getItem(KEYS.ITEM_MASTER);
+      itemMaster = rawItems ? JSON.parse(rawItems) : [];
+    } catch (e) {}
+
+    let modified = false;
+    itemMaster.forEach(prod => {
+      // itemId または name でマッチング
+      const existing = list.find(inv => inv.itemId === prod.id || (inv.name && inv.name.trim() === prod.name.trim()));
+      if (existing) {
+        if (!existing.itemId) {
+          existing.itemId = prod.id;
+          modified = true;
+        }
+        if (!existing.unitPrice && prod.unitPrice) {
+          existing.unitPrice = prod.unitPrice;
+          modified = true;
+        }
+      } else {
+        // 商品マスタにあるが在庫リストにない商品を自動追加（初期在庫0）
+        list.push({
+          id: `inv_${prod.id}`,
+          itemId: prod.id,
+          name: prod.name,
+          sku: prod.sku || '',
+          currentStock: 0,
+          safetyStock: 5,
+          unit: prod.unit || '個',
+          unitCost: prod.unitPrice ? Math.round(prod.unitPrice * 0.6) : 0,
+          unitPrice: prod.unitPrice || 0,
+          location: '本社倉庫',
+          lastInDate: '',
+          note: prod.note || '',
+          history: [{
+            id: `log_init_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            date: new Date().toISOString().split('T')[0],
+            type: 'in',
+            qty: 0,
+            reason: '商品マスタ連携により初期登録',
+            currentStock: 0,
+            timestamp: new Date().toISOString()
+          }]
+        });
+        modified = true;
+      }
+    });
+
+    if (modified) {
+      localStorage.setItem(KEYS.INVENTORY, JSON.stringify(list));
+      saveServerInventory(list).catch(() => {});
+    }
+
+    return list;
+  } catch (e) {
+    return DEFAULT_INVENTORY;
+  }
+}
+
+/**
+ * 新規品目を商品マスタと在庫マスタの両方に一括自動登録
+ * @param {object} data - { name, sku, unit, unitCost, unitPrice, initialStock, safetyStock, note }
+ * @returns {{ product: object, inventory: object }}
+ */
+export function saveNewProductAndInventory(data) {
+  const name = (data.name || '').trim();
+  if (!name) return null;
+
+  // 1. 商品マスタ（itemMaster）へ保存
+  const product = saveItemToMaster({
+    name: name,
+    sku: data.sku || '',
+    unitPrice: Number(data.unitCost) > 0 ? Number(data.unitCost) : (Number(data.unitPrice) || 0),
+    userPrice: Number(data.unitPrice) > 0 ? Number(data.unitPrice) : Math.round(Number(data.unitCost || 0) * 1.3),
+    unit: data.unit || '個',
+    taxRate: Number(data.taxRate) || 10,
+    note: data.note || '仕入画面から新規登録'
+  });
+
+  // 2. 在庫マスタ（inventory）へ保存（初期在庫数を反映）
+  const initialStock = Number(data.initialStock) >= 0 ? Number(data.initialStock) : 0;
+  const inventory = saveInventoryItem({
+    id: `inv_${product.id}`,
+    itemId: product.id,
+    name: product.name,
+    sku: product.sku || data.sku || '',
+    currentStock: initialStock,
+    safetyStock: Number(data.safetyStock) >= 0 ? Number(data.safetyStock) : 5,
+    unit: product.unit || '個',
+    unitCost: Number(data.unitCost) || 0,
+    unitPrice: Number(data.unitPrice) || product.unitPrice || 0,
+    location: data.location || '本社倉庫',
+    note: product.note || '',
+    history: initialStock > 0 ? [{
+      id: `log_init_${Date.now()}`,
+      date: new Date().toISOString().split('T')[0],
+      type: 'in',
+      qty: initialStock,
+      reason: '新規品目登録時入庫',
+      currentStock: initialStock,
+      timestamp: new Date().toISOString()
+    }] : []
+  });
+
+  return { product, inventory };
+}
+
+/**
+ * 在庫品目を保存（追加または更新）
+ */
+export function saveInventoryItem(item) {
+  try {
+    const list = getInventoryList();
+    const id = item.id || `inv_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+    const nowStr = new Date().toISOString().split('T')[0];
+    
+    const existingIndex = list.findIndex(i => i.id === id || (item.itemId && i.itemId === item.itemId));
+    const updatedItem = {
+      id,
+      itemId: item.itemId || (existingIndex >= 0 ? list[existingIndex].itemId : ''),
+      name: (item.name || '').trim(),
+      sku: (item.sku || '').trim(),
+      currentStock: Number(item.currentStock) || 0,
+      safetyStock: Number(item.safetyStock) >= 0 ? Number(item.safetyStock) : 0,
+      unit: (item.unit || '個').trim(),
+      unitCost: Number(item.unitCost) || 0,
+      unitPrice: Number(item.unitPrice) || 0,
+      location: (item.location || '').trim(),
+      lastInDate: item.lastInDate || (existingIndex >= 0 ? list[existingIndex].lastInDate : nowStr),
+      note: (item.note || '').trim(),
+      history: Array.isArray(item.history) ? item.history : (existingIndex >= 0 ? (list[existingIndex].history || []) : [])
+    };
+
+    if (existingIndex >= 0) {
+      list[existingIndex] = updatedItem;
+    } else {
+      if (!updatedItem.history.length) {
+        updatedItem.history.push({
+          id: `log_${Date.now()}`,
+          date: nowStr,
+          type: 'in',
+          qty: updatedItem.currentStock,
+          reason: '初期登録',
+          currentStock: updatedItem.currentStock,
+          timestamp: new Date().toISOString()
+        });
+      }
+      list.push(updatedItem);
+    }
+
+    localStorage.setItem(KEYS.INVENTORY, JSON.stringify(list));
+    saveServerInventory(list).catch(() => {});
+    return updatedItem;
+  } catch (e) {
+    console.error('Failed to save inventory item:', e);
+    return null;
+  }
+}
+
+/**
+ * 在庫品目を削除
+ */
+export function deleteInventoryItem(id) {
+  try {
+    const list = getInventoryList();
+    const filtered = list.filter(i => i.id !== id);
+    localStorage.setItem(KEYS.INVENTORY, JSON.stringify(filtered));
+    saveServerInventory(filtered).catch(() => {});
+    return true;
+  } catch (e) {
+    console.error('Failed to delete inventory item:', e);
+    return false;
+  }
+}
+
+/**
+ * 在庫の数量調整・入出庫を記録
+ * @param {string} id - 在庫品目ID
+ * @param {number} deltaQty - 変動数量（入庫は正、出庫は負。isDirectSetなら設定後の在庫数）
+ * @param {string} reason - 理由（仕入入庫、納品出庫、棚卸調整など）
+ * @param {object} [metadata] - 伝票ID、取引先、単価などの付加情報
+ * @param {boolean} [isDirectSet] - trueの場合、deltaQtyを新しい在庫実数として直接設定
+ */
+export function adjustStock(id, deltaQty, reason = '', metadata = {}, isDirectSet = false) {
+  try {
+    const list = getInventoryList();
+    const item = list.find(i => i.id === id || i.itemId === id || (i.name && i.name.trim() === String(id).trim()));
+    if (!item) {
+      console.warn(`在庫品目が見つかりません: ${id}`);
+      return null;
+    }
+
+    const prevStock = Number(item.currentStock) || 0;
+    let newStock = prevStock;
+    let actualDelta = Number(deltaQty) || 0;
+
+    if (isDirectSet) {
+      newStock = Math.max(0, actualDelta);
+      actualDelta = newStock - prevStock;
+    } else {
+      newStock = Math.max(0, prevStock + actualDelta);
+    }
+
+    const nowStr = new Date().toISOString().split('T')[0];
+    const logType = actualDelta >= 0 ? 'in' : 'out';
+
+    if (!Array.isArray(item.history)) {
+      item.history = [];
+    }
+
+    const logEntry = {
+      id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      date: metadata.date || nowStr,
+      type: isDirectSet ? 'adjust' : logType,
+      qty: Math.abs(actualDelta),
+      delta: actualDelta,
+      reason: reason || (actualDelta >= 0 ? '入庫' : '出庫'),
+      currentStock: newStock,
+      sourceRef: metadata.sourceRef || '',
+      payee: metadata.payee || '',
+      unitCost: metadata.unitCost !== undefined ? Number(metadata.unitCost) : item.unitCost,
+      timestamp: new Date().toISOString()
+    };
+
+    item.history.unshift(logEntry); // 最新順
+    item.currentStock = newStock;
+    if (actualDelta > 0) {
+      item.lastInDate = metadata.date || nowStr;
+      if (metadata.unitCost && Number(metadata.unitCost) > 0) {
+        item.unitCost = Number(metadata.unitCost);
+      }
+    }
+
+    localStorage.setItem(KEYS.INVENTORY, JSON.stringify(list));
+    saveServerInventory(list).catch(() => {});
+    return { item, logEntry };
+  } catch (e) {
+    console.error('Failed to adjust stock:', e);
+    return null;
+  }
+}
+
+/**
+ * 商品マスタ（ItemMaster）から未登録の商品を在庫マスタにインポート
+ */
+export function syncInventoryWithItemsMaster() {
+  const invList = getInventoryList();
+  const rawItemMaster = localStorage.getItem(KEYS.ITEM_MASTER);
+  let itemMaster = [];
+  try {
+    itemMaster = rawItemMaster ? JSON.parse(rawItemMaster) : [];
+  } catch (e) {}
+
+  let addedCount = 0;
+  itemMaster.forEach(item => {
+    // 既存の在庫品目に同名または同itemIdがあるかチェック
+    const exists = invList.some(inv => inv.itemId === item.id || inv.name === item.name);
+    if (!exists) {
+      invList.push({
+        id: `inv_sync_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        itemId: item.id,
+        name: item.name,
+        sku: item.sku || `SKU-${item.id.replace('item_mst_', '')}`,
+        currentStock: 0,
+        safetyStock: 5,
+        unit: item.unit || '個',
+        unitCost: item.unitPrice ? Math.round(item.unitPrice * 0.6) : 0,
+        unitPrice: item.unitPrice || 0,
+        location: '倉庫未割当',
+        lastInDate: '',
+        note: `商品マスタ連携品目: ${item.note || ''}`,
+        history: [{
+          id: `log_init_${Date.now()}`,
+          date: new Date().toISOString().split('T')[0],
+          type: 'adjust',
+          qty: 0,
+          reason: '商品マスタ連携により初期登録',
+          currentStock: 0,
+          timestamp: new Date().toISOString()
+        }]
+      });
+      addedCount++;
+    }
+  });
+
+  if (addedCount > 0) {
+    localStorage.setItem(KEYS.INVENTORY, JSON.stringify(invList));
+    saveServerInventory(invList).catch(() => {});
+  }
+  return { addedCount, total: invList.length };
+}
+
+/**
+ * 仕入名目マッピング辞書を取得
+ */
+export function getPurchaseMappings() {
+  try {
+    const raw = localStorage.getItem(KEYS.PURCHASE_MAPPINGS);
+    if (!raw) {
+      localStorage.setItem(KEYS.PURCHASE_MAPPINGS, JSON.stringify(DEFAULT_PURCHASE_MAPPINGS));
+      saveServerPurchaseMappings(DEFAULT_PURCHASE_MAPPINGS).catch(() => {});
+      return { ...DEFAULT_PURCHASE_MAPPINGS };
+    }
+    const parsed = JSON.parse(raw);
+    return (parsed && typeof parsed === 'object') ? parsed : { ...DEFAULT_PURCHASE_MAPPINGS };
+  } catch (e) {
+    return { ...DEFAULT_PURCHASE_MAPPINGS };
+  }
+}
+
+/**
+ * 仕入名目と在庫商品IDのマッピングを保存・学習
+ * @param {string} rawName - レシート・伝票上の名目または仕入先名
+ * @param {string} inventoryId - 対応する在庫品目ID
+ */
+export function savePurchaseMapping(rawName, inventoryId) {
+  if (!rawName || !inventoryId) return;
+  const key = String(rawName).trim();
+  if (!key) return;
+  
+  try {
+    const mappings = getPurchaseMappings();
+    mappings[key] = inventoryId;
+    localStorage.setItem(KEYS.PURCHASE_MAPPINGS, JSON.stringify(mappings));
+    saveServerPurchaseMappings(mappings).catch(() => {});
+  } catch (e) {
+    console.error('Failed to save purchase mapping:', e);
+  }
+}
+
+/**
+ * 仕入名目（品名や仕入先）から在庫品目を推測・検索
+ * @param {string} rawName - レシート上の記載名目
+ * @returns {{ inventoryId: string, item: object, matchType: 'exact' | 'fuzzy' | 'none' } | null}
+ */
+export function findInventoryMatchForPurchase(rawName) {
+  if (!rawName) return null;
+  const query = String(rawName).trim();
+  if (!query) return null;
+
+  const mappings = getPurchaseMappings();
+  const invList = getInventoryList();
+
+  // 1. マッピング辞書の完全一致
+  if (mappings[query]) {
+    const matched = invList.find(i => i.id === mappings[query]);
+    if (matched) {
+      return { inventoryId: matched.id, item: matched, matchType: 'exact' };
+    }
+  }
+
+  // 2. マッピング辞書の部分一致
+  const cleanStr = (s) => (s || '').toLowerCase()
+    .replace(/[（(【\[].*?[）)】\]]/g, '') // 括弧とその中身を削除
+    .replace(/[\s\-_・、。/]/g, '');      // 記号や空白を除去
+
+  const queryLower = query.toLowerCase();
+  const queryClean = cleanStr(query);
+
+  for (const [mapKey, invId] of Object.entries(mappings)) {
+    const mapKeyLower = mapKey.toLowerCase();
+    const mapKeyClean = cleanStr(mapKey);
+    if (
+      queryLower.includes(mapKeyLower) || mapKeyLower.includes(queryLower) ||
+      (queryClean.length >= 2 && (queryClean.includes(mapKeyClean) || mapKeyClean.includes(queryClean)))
+    ) {
+      const matched = invList.find(i => i.id === invId);
+      if (matched) {
+        return { inventoryId: matched.id, item: matched, matchType: 'fuzzy' };
+      }
+    }
+  }
+
+  // 3. 在庫マスタ品名・SKUとの直接部分一致（カッコ除去クリーン名も含む）
+  for (const inv of invList) {
+    const invNameLower = (inv.name || '').toLowerCase();
+    const invNameClean = cleanStr(inv.name);
+    const invSkuLower = (inv.sku || '').toLowerCase();
+
+    if (invNameLower && (queryLower.includes(invNameLower) || invNameLower.includes(queryLower))) {
+      return { inventoryId: inv.id, item: inv, matchType: 'fuzzy' };
+    }
+    if (invNameClean && invNameClean.length >= 2 && (queryClean.includes(invNameClean) || invNameClean.includes(queryClean))) {
+      return { inventoryId: inv.id, item: inv, matchType: 'fuzzy' };
+    }
+    if (invSkuLower && (queryLower.includes(invSkuLower) || invSkuLower.includes(queryLower))) {
+      return { inventoryId: inv.id, item: inv, matchType: 'fuzzy' };
+    }
+  }
+
+  return { inventoryId: '', item: null, matchType: 'none' };
 }

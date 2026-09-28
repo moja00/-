@@ -1707,5 +1707,674 @@ label.form-label {
   border-top: 1.5px solid #000000;
 }
 
+/* ==========================================================================
+   統合業務ポータルMENU画面 ＆ アプリスイッチャー (AlbaCraft ERP)
+   ========================================================================== */
 
+/* ヘッダー内 アプリスイッチャー */
+.app-switcher-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #f1f5f9;
+  padding: 4px 6px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.app-switch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.app-switch-btn:hover {
+  background: rgba(255, 255, 255, 0.8);
+  color: #1e293b;
+}
+
+.app-switch-btn.active {
+  background: #ffffff;
+  color: #3b5bdb;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+  font-weight: 700;
+}
+
+.app-switch-btn.btn-portal-home {
+  background: linear-gradient(135deg, #3b5bdb, #4f46e5);
+  color: #ffffff;
+}
+.app-switch-btn.btn-portal-home:hover {
+  background: linear-gradient(135deg, #2b44af, #4338ca);
+  color: #ffffff;
+}
+.app-switch-btn.btn-portal-home.active {
+  background: linear-gradient(135deg, #1e1b4b, #3b5bdb);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(59, 91, 219, 0.4);
+}
+
+.app-switch-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* ポータルMENU画面（起動時全画面オーバーレイ） */
+.portal-menu-screen {
+  position: fixed;
+  top: 60px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at 50% 10%, #1e1b4b 0%, #0f172a 60%, #090d16 100%);
+  z-index: 45;
+  overflow-y: auto;
+  display: none;
+  padding: 36px 24px 60px 24px;
+}
+
+.portal-menu-screen.active {
+  display: block;
+  animation: fadeInPortal 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInPortal {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.portal-container {
+  max-width: 1140px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* ポータル ウェルカムヘッダーカード */
+.portal-welcome-card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 28px 36px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.4);
+  color: #ffffff;
+}
+
+.portal-welcome-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.portal-company-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(129, 140, 248, 0.35);
+  padding: 4px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #c7d2fe;
+  width: fit-content;
+}
+
+.portal-main-heading {
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin: 0;
+  background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.portal-sub-heading {
+  font-size: 14px;
+  color: #94a3b8;
+  margin: 0;
+  max-width: 600px;
+}
+
+.portal-welcome-right {
+  display: flex;
+  align-items: center;
+}
+
+.portal-live-clock {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px 20px;
+  border-radius: 14px;
+  text-align: right;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.live-clock-date {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.live-clock-time {
+  font-size: 26px;
+  font-weight: 800;
+  color: #60a5fa;
+  font-family: 'Inter', monospace;
+  letter-spacing: 1px;
+}
+
+/* ポータル 4大モジュールカード グリッド */
+.portal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 22px;
+}
+
+.portal-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 26px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
+}
+
+.portal-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  transition: height 0.2s ease;
+}
+
+.portal-card.card-invoice::before {
+  background: linear-gradient(90deg, #3b82f6, #6366f1);
+}
+.portal-card.card-accounting::before {
+  background: linear-gradient(90deg, #10b981, #06b6d4);
+}
+.portal-card.card-expenses::before {
+  background: linear-gradient(90deg, #8b5cf6, #d946ef);
+}
+.portal-card.card-attendance::before {
+  background: linear-gradient(90deg, #f59e0b, #ea580c);
+}
+
+.portal-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 25px 35px -5px rgba(0, 0, 0, 0.3), 0 10px 15px -5px rgba(0, 0, 0, 0.1);
+}
+
+.portal-card:hover::before {
+  height: 7px;
+}
+
+.portal-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.portal-card-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.icon-invoice {
+  background: #eff6ff;
+  color: #2563eb;
+}
+.icon-accounting {
+  background: #ecfdf5;
+  color: #059669;
+}
+.icon-expenses {
+  background: #faf5ff;
+  color: #7c3aed;
+}
+.icon-attendance {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.portal-card-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+}
+
+.tag-invoice {
+  background: #dbeafe;
+  color: #1e40af;
+}
+.tag-accounting {
+  background: #d1fae5;
+  color: #065f46;
+}
+.tag-expenses {
+  background: #f3e8ff;
+  color: #6b21a8;
+}
+.tag-attendance {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.portal-card-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 8px;
+}
+
+.portal-card-desc {
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.6;
+  margin-bottom: 20px;
+  flex: 1;
+}
+
+.portal-card-footer {
+  padding-top: 14px;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.portal-card-action {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.2s;
+}
+
+.portal-card:hover .portal-card-action {
+  color: #3b82f6;
+}
+
+.portal-card-action .arrow {
+  transition: transform 0.2s ease;
+}
+
+.portal-card:hover .portal-card-action .arrow {
+  transform: translateX(4px);
+}
+
+/* ポータル クイックバー */
+.portal-quick-bar {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.quick-bar-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.quick-link-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #e2e8f0;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.quick-link-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 768px) {
+  .portal-welcome-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px;
+  }
+  .portal-welcome-right {
+    width: 100%;
+  }
+  .portal-live-clock {
+    width: 100%;
+    text-align: left;
+  }
+  .app-switcher-nav {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+  .app-switch-btn span.app-switch-label {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   全業務アプリケーション 専用フル画面共通スタイル (AlbaCraft ERP)
+   ポップアップ（モーダル）ではなく独立した広大な専用ワークスペースを提供
+   ========================================================================== */
+.app-view-screen {
+  position: fixed;
+  top: 60px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(100vh - 60px);
+  background: #f8fafc;
+  overflow: hidden;
+  display: none !important;
+  z-index: 20;
+}
+
+.app-view-screen.active {
+  display: flex !important;
+  flex-direction: column;
+}
+
+/* 納品請求書エディタレイアウトの復元と保全（左右Flex分割を死守） */
+#appLayoutInvoice.app-view-screen {
+  position: fixed;
+  top: 60px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(100vh - 60px);
+  background: var(--bg-main);
+  overflow: hidden;
+  display: none !important;
+}
+
+#appLayoutInvoice.app-view-screen.active {
+  display: flex !important;
+  flex-direction: row !important;
+}
+
+/* 専用画面共通トップバー */
+.view-screen-header {
+  background: #ffffff;
+  border-bottom: 1px solid var(--border-color);
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.view-screen-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.view-screen-icon-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.view-screen-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.view-screen-subtitle {
+  font-size: 0.725rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.view-screen-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-back-to-portal {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-back-to-portal:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+/* 専用画面メインコンテンツエリア */
+.view-screen-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  background: #f8fafc;
+}
+
+/* 財務会計 専用画面 */
+.accounting-view-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 経費専用画面 2カラムレイアウト */
+.expenses-view-grid {
+  display: grid;
+  grid-template-columns: 480px 1fr;
+  gap: 24px;
+  max-width: 1560px;
+  margin: 0 auto;
+  height: 100%;
+}
+
+@media (max-width: 1100px) {
+  .expenses-view-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 勤怠専用画面 2カラムレイアウト */
+.attendance-view-grid {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+@media (max-width: 1024px) {
+  .attendance-view-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==========================================================================
+   経費 / 仕入 登録区分トグルボタンスタイル
+   ========================================================================== */
+.expense-type-label {
+  user-select: none;
+  border: 1px solid transparent;
+}
+.expense-type-label:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+.expense-type-label.active#labelExpenseTypeExpense {
+  background: #ffffff;
+  color: #4f46e5 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border-color: #cbd5e1;
+}
+.expense-type-label.active#labelExpenseTypePurchase {
+  background: #ffffff;
+  color: #059669 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border-color: #6ee7b7;
+}
+
+/* ==========================================================================
+   在庫マスタ・台帳テーブルスタイル
+   ========================================================================== */
+.inv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  background: #ffffff;
+}
+.inv-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 2px solid #e2e8f0;
+  white-space: nowrap;
+}
+.inv-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  vertical-align: middle;
+}
+.inv-table tr:hover {
+  background: #f8fafc;
+}
+.stock-val-pill {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.stock-safe {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+.stock-warn {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+  animation: pulse-soft 2s infinite;
+}
+.stock-danger {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  animation: pulse-soft 1.5s infinite;
+}
+.inv-action-btn-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.btn-inv-action {
+  padding: 3px 7px;
+  font-size: 0.725rem;
+  font-weight: 600;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.btn-inv-action:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+.btn-inv-in {
+  color: #047857;
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+}
+.btn-inv-in:hover {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+}
+.btn-inv-out {
+  color: #c2410c;
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+.btn-inv-out:hover {
+  background: #ffedd5;
+  border-color: #fdba74;
+}
 

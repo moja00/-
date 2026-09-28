@@ -25,8 +25,81 @@ export const ACCOUNT_CATEGORIES = [
 ];
 
 /**
+ * 伝票データ（summaryItemまたはfullDoc）から正確な明細と情報を正規化抽出
+ * @param {object} raw 伝票データ
+ * @returns {object} 正規化された伝票情報
+ */
+export function normalizeInvoiceDoc(raw) {
+  if (!raw) return null;
+  const doc = raw.fullDoc || raw;
+  const items = Array.isArray(doc.items) ? doc.items : (Array.isArray(raw.items) ? raw.items : []);
+  const docType = doc.docType || raw.docType || 'invoice';
+  const issueDate = doc.issueDate || raw.issueDate || '';
+  const dueDate = doc.dueDate || raw.dueDate || '';
+  const docNumber = doc.docNumber || raw.docNumber || '';
+  const clientName = (doc.client && doc.client.name) ? doc.client.name : (raw.clientName || '名称未設定');
+  const isPaid = !!(doc.isPaid || raw.isPaid || doc.paymentStatus === 'paid' || raw.paymentStatus === 'paid');
+  const paidDate = doc.paidDate || raw.paidDate || '';
+  const taxFractionRule = doc.taxFractionRule || raw.taxFractionRule || 'floor';
+  const id = doc.id || raw.id || `doc_${Date.now()}`;
+  const isCancelled = !!(doc.isCancelled || raw.isCancelled);
+  // 明示的に false または取消済の場合は false。未指定の古い履歴データは互換性維持
+  const isIssued = isCancelled ? false : (doc.isIssued !== undefined ? !!doc.isIssued : (raw.isIssued !== undefined ? !!raw.isIssued : true));
+
+  // 金額・税金の計算
+  let subtotal = 0;
+  let tax10 = 0;
+  let tax8 = 0;
+  let costTotal = 0;
+
+  items.forEach(it => {
+    const qty = Number(it.quantity) || 0;
+    const price = Number(it.unitPrice) || 0;
+    const lineTotal = qty * price;
+    const taxRate = Number(it.taxRate !== undefined ? it.taxRate : 10);
+
+    subtotal += lineTotal;
+    if (taxRate === 10) {
+      tax10 += Math.floor(lineTotal * 0.10);
+    } else if (taxRate === 8) {
+      tax8 += Math.floor(lineTotal * 0.08);
+    }
+
+    if (it.costPrice) {
+      costTotal += qty * Number(it.costPrice);
+    }
+  });
+
+  const taxTotal = tax10 + tax8;
+  const grandTotal = subtotal + taxTotal;
+
+  return {
+    id,
+    docType,
+    issueDate,
+    dueDate,
+    docNumber,
+    clientName,
+    items,
+    isPaid,
+    paymentStatus: isPaid ? 'paid' : 'unpaid',
+    paidDate,
+    taxFractionRule,
+    isIssued,
+    isCancelled,
+    subtotal,
+    tax10,
+    tax8,
+    taxTotal,
+    grandTotal,
+    costTotal,
+    rawDoc: doc
+  };
+}
+
+/**
  * 期間内の損益計算書（P/L）および経営KPIを集計
- * @param {Array} invoices 請求書リスト (fullDoc)
+ * @param {Array} invoices 請求書リスト (fullDocまたはsummaryItem)
  * @param {Array} expenses 経費リスト
  * @param {string} targetMonth 'YYYY-MM' または 'all'
  * @returns {object} P/L詳細・粗利益・純利益・未回収残高
@@ -49,50 +122,32 @@ export function calculateProfitAndLoss(invoices = [], expenses = [], targetMonth
   let unpaidSalesInc = 0; // 未回収売掛金（税込）
   let paidSalesInc = 0; // 回収済み売上（税込）
 
-  // 1. 請求書からの売上集計
-  invoices.forEach(inv => {
+  // 1. 伝票（請求書・納品書・領収書）からの売上集計
+  invoices.forEach(rawInv => {
+    const inv = normalizeInvoiceDoc(rawInv);
     if (!inv) return;
+
+    // 見積書（estimate）は確定売上ではないため除外
+    if (inv.docType === 'estimate') return;
+
+    // 確定発行されていない伝票・確定取消された伝票は除外
+    if (!inv.isIssued || inv.isCancelled) return;
+
     const issueDate = inv.issueDate || '';
     if (targetMonth !== 'all' && !issueDate.startsWith(targetMonth)) {
       return;
     }
 
-    // ドキュメントタイプがinvoice（請求書）または未指定
-    const isDeliveryOnly = inv.docType === 'delivery';
-    if (isDeliveryOnly) return; // 納品書のみは売上二重計上防止のためスキップ
-
-    let docSubtotal = 0;
-    let docTax = 0;
-    let docWholesaleCost = 0;
-
-    if (Array.isArray(inv.items)) {
-      inv.items.forEach(it => {
-        const qty = Number(it.quantity) || 0;
-        const price = Number(it.unitPrice) || 0;
-        const lineTotal = qty * price;
-        const taxRate = Number(it.taxRate !== undefined ? it.taxRate : 10);
-        
-        docSubtotal += lineTotal;
-        docTax += Math.round(lineTotal * (taxRate / 100));
-
-        // 原価（もし仕入れ原価が定義されていれば加算）
-        if (it.costPrice) {
-          docWholesaleCost += qty * Number(it.costPrice);
-        }
-      });
-    }
-
-    const docTotalInc = docSubtotal + docTax;
-    totalSales += docSubtotal;
-    totalSalesTax += docTax;
-    totalSalesInc += docTotalInc;
-    totalWholesaleCost += docWholesaleCost;
+    totalSales += inv.subtotal;
+    totalSalesTax += inv.taxTotal;
+    totalSalesInc += inv.grandTotal;
+    totalWholesaleCost += inv.costTotal;
 
     // 入金ステータス（未入金／入金済）
-    if (inv.paymentStatus === 'paid') {
-      paidSalesInc += docTotalInc;
+    if (inv.isPaid) {
+      paidSalesInc += inv.grandTotal;
     } else {
-      unpaidSalesInc += docTotalInc;
+      unpaidSalesInc += inv.grandTotal;
     }
   });
 
@@ -170,30 +225,35 @@ export function generateJournalEntries(invoices = [], expenses = []) {
 
   const journals = [];
 
-  // 1. 請求書発行（売上計上）
-  invoices.forEach(inv => {
-    if (!inv || inv.docType === 'delivery') return;
+  // 1. 伝票発行（売上計上）
+  invoices.forEach(rawInv => {
+    const inv = normalizeInvoiceDoc(rawInv);
+    if (!inv || inv.docType === 'estimate') return; // 見積書は除外
+    if (!inv.isIssued || inv.isCancelled) return; // 確定発行されていない伝票・確定取消された伝票は仕訳から除外
+
     const date = inv.issueDate || new Date().toISOString().split('T')[0];
-    const client = inv.client?.name || '取引先';
+    const client = inv.clientName || '取引先';
     const docNo = inv.docNumber || '';
+    const totalInc = inv.grandTotal;
+    if (totalInc <= 0) return;
 
-    let subtotal = 0;
-    let tax10 = 0;
-    let tax8 = 0;
-
-    if (Array.isArray(inv.items)) {
-      inv.items.forEach(it => {
-        const amt = (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0);
-        subtotal += amt;
-        const rate = Number(it.taxRate !== undefined ? it.taxRate : 10);
-        if (rate === 10) tax10 += Math.round(amt * 0.10);
-        else if (rate === 8) tax8 += Math.round(amt * 0.08);
+    // 領収書の場合は即時現金回収: （借）現金 / （貸）売上高
+    if (inv.docType === 'receipt') {
+      journals.push({
+        id: `jnl_rcpt_${inv.id}`,
+        date,
+        debitAccount: '現金',
+        debitAmount: totalInc,
+        creditAccount: '売上高',
+        creditAmount: totalInc,
+        description: `領収書売上（現金回収）: ${client} (${docNo})`,
+        docId: inv.id,
+        type: 'receipt'
       });
+      return;
     }
 
-    const totalInc = subtotal + tax10 + tax8;
-
-    // 売上計上の仕訳: （借）売掛金 totalInc / （貸）売上高 totalInc
+    // 請求書・納品書の売上計上仕訳: （借）売掛金 / （貸）売上高
     journals.push({
       id: `jnl_inv_${inv.id}`,
       date,
@@ -207,7 +267,7 @@ export function generateJournalEntries(invoices = [], expenses = []) {
     });
 
     // 入金済みの場合の仕訳: （借）普通預金 / （貸）売掛金
-    if (inv.paymentStatus === 'paid') {
+    if (inv.isPaid) {
       journals.push({
         id: `jnl_pay_${inv.id}`,
         date: inv.paidDate || inv.dueDate || date,
@@ -215,7 +275,7 @@ export function generateJournalEntries(invoices = [], expenses = []) {
         debitAmount: totalInc,
         creditAccount: '売掛金',
         creditAmount: totalInc,
-        description: `売掛金回収: ${client} (${docNo})`,
+        description: `売掛金回収（消込済）: ${client} (${docNo})`,
         docId: inv.id,
         type: 'receipt'
       });

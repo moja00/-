@@ -233,9 +233,10 @@ MASTERS_DIR = os.path.join(DATA_DIR, 'masters')
 COMPANY_DIR = os.path.join(DATA_DIR, 'company')
 ATTENDANCE_DIR = os.path.join(DATA_DIR, 'attendance')
 RECEIPTS_DIR = os.path.join(DATA_DIR, 'receipts')
+INVENTORY_DIR = os.path.join(DATA_DIR, 'inventory')
 BACKUPS_DIR = os.path.join(DATA_DIR, 'backups')
 
-for d in [MASTERS_DIR, COMPANY_DIR, ATTENDANCE_DIR, RECEIPTS_DIR, BACKUPS_DIR]:
+for d in [MASTERS_DIR, COMPANY_DIR, ATTENDANCE_DIR, RECEIPTS_DIR, INVENTORY_DIR, BACKUPS_DIR]:
     os.makedirs(d, exist_ok=True)
 
 ITEMS_MASTER_FILE = os.path.join(MASTERS_DIR, 'items_master.json')
@@ -243,6 +244,8 @@ CLIENTS_MASTER_FILE = os.path.join(MASTERS_DIR, 'clients_master.json')
 ISSUER_FILE = os.path.join(COMPANY_DIR, 'issuer_profile.json')
 ATTENDANCE_FILE = os.path.join(ATTENDANCE_DIR, 'attendance.json')
 ATTENDANCE_EMPLOYEE_FILE = os.path.join(ATTENDANCE_DIR, 'attendance_employee.json')
+INVENTORY_FILE = os.path.join(INVENTORY_DIR, 'inventory.json')
+PURCHASE_MAPPINGS_FILE = os.path.join(INVENTORY_DIR, 'purchase_mappings.json')
 
 def migrate_legacy_data_files():
     """data/直下に残っている旧ファイルを各カテゴリ専用フォルダへ自動移動"""
@@ -414,6 +417,49 @@ DEFAULT_CLIENTS = [
     }
 ]
 
+DEFAULT_INVENTORY = [
+    {
+        "id": "inv_1",
+        "itemId": "item_mst_1",
+        "name": "製品基本セット（一式）",
+        "sku": "PRD-001",
+        "currentStock": 25,
+        "safetyStock": 5,
+        "unit": "式",
+        "unitCost": 50000,
+        "unitPrice": 83333,
+        "location": "本社倉庫 A-1",
+        "lastInDate": "2026-09-25",
+        "note": "主力構成商品",
+        "history": [
+            {"date": "2026-09-25", "type": "in", "qty": 25, "reason": "初期棚卸在庫登録", "currentStock": 25}
+        ]
+    },
+    {
+        "id": "inv_2",
+        "itemId": "item_mst_4",
+        "name": "交換用消耗部品セット",
+        "sku": "SP-01",
+        "currentStock": 12,
+        "safetyStock": 3,
+        "unit": "組",
+        "unitCost": 4500,
+        "unitPrice": 7576,
+        "location": "パーツ保管棚 B-2",
+        "lastInDate": "2026-09-20",
+        "note": "定期補充対象部品",
+        "history": [
+            {"date": "2026-09-20", "type": "in", "qty": 12, "reason": "仕入入庫", "currentStock": 12}
+        ]
+    }
+]
+
+DEFAULT_PURCHASE_MAPPINGS = {
+    "消耗部品まとめ": "inv_2",
+    "交換パーツ一式": "inv_2",
+    "基本パーツセット": "inv_1"
+}
+
 def load_json_file(filepath, default_data):
     if os.path.exists(filepath):
         try:
@@ -546,6 +592,24 @@ class BillCraftHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.end_headers()
             self.wfile.write(json.dumps(emp_data, ensure_ascii=False).encode('utf-8'))
+            return
+
+        # 在庫マスタ取得API
+        if self.path == '/api/inventory':
+            inv_data = load_json_file(INVENTORY_FILE, DEFAULT_INVENTORY)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps(inv_data, ensure_ascii=False).encode('utf-8'))
+            return
+
+        # 仕入名目マッピング取得API
+        if self.path == '/api/purchase-mappings':
+            mappings = load_json_file(PURCHASE_MAPPINGS_FILE, DEFAULT_PURCHASE_MAPPINGS)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps(mappings, ensure_ascii=False).encode('utf-8'))
             return
 
         return super().do_GET()
@@ -826,6 +890,52 @@ class BillCraftHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
             return
 
+        # 在庫マスタ保存API
+        if self.path == '/api/inventory':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            try:
+                inv_data = json.loads(post_data)
+                if not isinstance(inv_data, list):
+                    raise ValueError("データ形式が配列ではありません")
+                success, err = save_json_file_with_backup(INVENTORY_FILE, inv_data, "inventory")
+                if not success:
+                    raise Exception(err)
+                print(f"[在庫マスタ 保存成功] 件数: {len(inv_data)}件 -> {INVENTORY_FILE}")
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True, "count": len(inv_data)}, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+            return
+
+        # 仕入名目マッピング辞書 保存API
+        if self.path == '/api/purchase-mappings':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            try:
+                mapping_data = json.loads(post_data)
+                if not isinstance(mapping_data, dict):
+                    raise ValueError("データ形式がオブジェクト(辞書)ではありません")
+                success, err = save_json_file_with_backup(PURCHASE_MAPPINGS_FILE, mapping_data, "purchase_mappings")
+                if not success:
+                    raise Exception(err)
+                print(f"[仕入マッピング 保存成功] キー数: {len(mapping_data)}件 -> {PURCHASE_MAPPINGS_FILE}")
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True, "count": len(mapping_data)}, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+            return
+
         self.send_response(404)
         self.end_headers()
 
@@ -875,7 +985,7 @@ def open_browser():
 
 if __name__ == '__main__':
     print("=" * 60)
-    print(" BillCraft ERP - ローカルサーバー起動中")
+    print(" AlbaCraft ERP - 統合業務管理サーバー起動中")
     print(f" URL: http://localhost:{PORT}")
     has_key = bool(get_gemini_api_key())
     if has_key:
