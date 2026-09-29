@@ -26,3 +26,5 @@ scratch/
 scratch_*
 scripts/
 tests/
+dist-wordpress/
+*.zip
