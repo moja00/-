@@ -27,4 +27,5 @@ scratch_*
 scripts/
 tests/
 dist-wordpress/
+dist-flat/
 *.zip
