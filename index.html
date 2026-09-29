@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AlbaCraft ERP - 納品請求・財務会計・経費OCR・勤怠管理 統合システム</title>
+  <title>Alva-works EPR - 納品請求・財務会計・経費OCR・勤怠管理 統合システム</title>
   <meta name="description" content="株式会社アルバワークス 統合業務システム。インボイス納品請求書発行、財務会計、AI経費OCR解析、タイムカード勤怠管理。">
-  <link rel="stylesheet" href="css/style.css?v=20260928_inventory_master_sync">
+  <link rel="stylesheet" href="css/style.css?v=20260929_portal_contrast_v3">
   <link rel="stylesheet" href="css/print.css?v=20260925_attendance_sheet" media="print">
   <!-- ブラウザ内AI文字認識（OCR）エンジン -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -18,7 +18,7 @@
       <div class="brand-logo" style="background: linear-gradient(135deg, #4f46e5, #06b6d4);">A</div>
       <div>
         <h1 class="brand-title">
-          AlbaCraft ERP
+          Alva-works EPR
           <span class="brand-subtitle">統合業務スイート</span>
         </h1>
       </div>
@@ -46,13 +46,13 @@
         <span class="app-switch-icon">⏰</span>
         <span class="app-switch-label">退勤・勤怠</span>
       </button>
+      <button type="button" class="app-switch-btn" data-app="payroll" onclick="window.switchAppView &amp;&amp; window.switchAppView('payroll')" title="給与計算・支給明細書・勤怠連動">
+        <span class="app-switch-icon">💴</span>
+        <span class="app-switch-label">給与計算</span>
+      </button>
     </nav>
 
     <div class="header-actions">
-      <button type="button" id="btnOpenHistory" class="btn btn-secondary btn-sm" title="作成履歴一覧を表示">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        書類履歴
-      </button>
       <button type="button" id="btnOpenItemMaster" class="btn btn-secondary btn-sm" title="商品・サービスマスタの管理">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
         商品マスタ
@@ -77,14 +77,14 @@
     <div class="portal-container">
       
       <!-- ポータルヘッダーバナー -->
-      <div class="portal-welcome-card">
+      <div class="portal-welcome-card" style="background: #ffffff; border: 1px solid #e2e8f0; color: #0f172a;">
         <div class="portal-welcome-left">
-          <div class="portal-company-badge">
+          <div class="portal-company-badge" style="background: #eef2ff; border: 1px solid #c7d2fe; color: #3730a3; font-weight: 700;">
             <span class="company-badge-icon">🏢</span>
             <span id="dispPortalCompanyName">株式会社アルバワークス</span>
           </div>
-          <h2 class="portal-main-heading">AlbaCraft 業務ポータル</h2>
-          <p class="portal-sub-heading">行いたい業務を選択してください。どの画面からでも上部メニューから切り替えが可能です。</p>
+          <h2 class="portal-main-heading" style="color: #0f172a; font-weight: 800;">Alva-works 業務ポータル</h2>
+          <p class="portal-sub-heading" style="color: #475569; font-weight: 500;">行いたい業務を選択してください。どの画面からでも上部メニューから切り替えが可能です。</p>
         </div>
         <div class="portal-welcome-right">
           <div class="portal-live-clock">
@@ -149,6 +149,19 @@
           </div>
         </div>
 
+        <!-- 5. 給与計算（月給制・勤怠連動・明細書） -->
+        <div class="portal-card card-payroll" onclick="window.switchAppView &amp;&amp; window.switchAppView('payroll')" title="給与計算専用画面へ" style="border-top-color: #0284c7;">
+          <div class="portal-card-header">
+            <div class="portal-card-icon icon-payroll" style="background: #e0f2fe; color: #0284c7;">💴</div>
+            <span class="portal-card-tag tag-payroll" style="background: #e0f2fe; color: #0284c7;">給与明細・社保</span>
+          </div>
+          <h3 class="portal-card-title">給与計算・明細書</h3>
+          <p class="portal-card-desc">宮崎真輔様（月給20万）の給与計算。勤怠アプリの実働・残業と自動連動、社保・所得税自動算出、A4給与支給明細書発行。</p>
+          <div class="portal-card-footer">
+            <span class="portal-card-action">専用画面を開く <span class="arrow">→</span></span>
+          </div>
+        </div>
+
       </div>
 
       <!-- 補助マスタ・クイックリンクバー -->
@@ -181,10 +194,16 @@
       <div style="padding: 12px 20px 0 20px; background: #ffffff;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <label class="form-label" style="margin-bottom: 0;">帳票の種類</label>
-          <button type="button" id="btnNewDoc" class="btn btn-secondary btn-xs" style="padding: 4px 10px; font-size: 0.775rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="新しい書類を作成">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-            新規作成
-          </button>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <button type="button" id="btnOpenHistorySidebar" class="btn btn-secondary btn-xs" style="padding: 4px 10px; font-size: 0.775rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; background: #f8fafc; border-color: #cbd5e1; color: #1e293b;" onclick="window.openHistoryModal &amp;&amp; window.openHistoryModal()" title="書類履歴・複合検索（商品同時購入・取引先・年月）を開く">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              書類履歴
+            </button>
+            <button type="button" id="btnNewDoc" class="btn btn-secondary btn-xs" style="padding: 4px 10px; font-size: 0.775rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="新しい書類を作成">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              新規作成
+            </button>
+          </div>
         </div>
         <div class="doc-type-selector" id="docTypeSelector">
           <button type="button" class="doc-type-btn active" data-type="invoice">請求書</button>
@@ -675,19 +694,98 @@
 
   </main>
 
-  <!-- 履歴一覧モーダル -->
+  <!-- 履歴一覧・複合検索モーダル -->
   <div class="modal-overlay" id="historyModal">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 class="modal-title">保存された書類履歴</h3>
-        <button type="button" class="btn-icon-danger" id="btnCloseHistoryModal" style="font-size: 1.2rem;">✕</button>
+    <div class="modal-card" style="max-width: 960px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; padding: 0; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);">
+      
+      <!-- モーダルヘッダー -->
+      <div class="modal-header" style="padding: 14px 22px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #ffffff;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <h3 class="modal-title" style="font-size: 1.15rem; font-weight: 800; color: #0f172a; margin: 0; display: flex; align-items: center; gap: 8px;">
+            📚 書類履歴・過去データ複合検索
+          </h3>
+          <span class="badge" id="historyTotalCountBadge" style="background: #e0f2fe; color: #0284c7; font-size: 0.75rem; font-weight: 700; padding: 3px 8px; border-radius: 12px;">
+            全 0 件
+          </span>
+        </div>
+        <button type="button" class="modal-close" id="btnCloseHistoryModal" style="font-size: 1.25rem; border: none; background: none; cursor: pointer; color: #64748b;" onclick="closeHistoryModal()">✕</button>
       </div>
-      <div class="modal-body" id="historyListContainer">
+
+      <!-- 複合検索コントロールパネル（商品・同時購入・取引先・年月） -->
+      <div style="padding: 14px 22px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 10px;" class="history-search-grid">
+          
+          <!-- ① 商品・同時購入検索 -->
+          <div>
+            <label style="display: block; font-size: 0.775rem; font-weight: 700; color: #334155; margin-bottom: 4px;">
+              🔍 商品名・同時購入検索 <span style="font-weight: normal; color: #64748b;">(スペースでAND)</span>
+            </label>
+            <div style="position: relative;">
+              <input type="text" id="historySearchProduct" class="form-input" placeholder="例: DP-5000 スプレッダー" style="width: 100%; padding: 7px 12px 7px 30px; font-size: 0.825rem; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; background: #fff;">
+              <span style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); font-size: 13px;">🛍️</span>
+            </div>
+            <!-- 商品クイック選択チップ -->
+            <div id="historyProductQuickChips" style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; max-height: 52px; overflow-y: auto;"></div>
+          </div>
+
+          <!-- ② 取引先検索 -->
+          <div>
+            <label style="display: block; font-size: 0.775rem; font-weight: 700; color: #334155; margin-bottom: 4px;">
+              🏢 取引先
+            </label>
+            <input type="text" id="historySearchClient" list="historyClientDatalist" class="form-input" placeholder="取引先名で絞り込み..." style="width: 100%; padding: 7px 10px; font-size: 0.825rem; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; background: #fff;">
+            <datalist id="historyClientDatalist"></datalist>
+          </div>
+
+          <!-- ③ 対象月（発行年月） -->
+          <div>
+            <label style="display: block; font-size: 0.775rem; font-weight: 700; color: #334155; margin-bottom: 4px;">
+              📅 対象年月
+            </label>
+            <select id="historySearchMonth" class="form-select" style="width: 100%; padding: 7px 10px; font-size: 0.825rem; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; background: #fff;">
+              <option value="">すべての年月</option>
+            </select>
+          </div>
+
+          <!-- ④ 書類種別 -->
+          <div>
+            <label style="display: block; font-size: 0.775rem; font-weight: 700; color: #334155; margin-bottom: 4px;">
+              📄 書類の種類
+            </label>
+            <select id="historySearchDocType" class="form-select" style="width: 100%; padding: 7px 10px; font-size: 0.825rem; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; background: #fff;">
+              <option value="">すべて</option>
+              <option value="invoice">請求書</option>
+              <option value="delivery">納品書</option>
+              <option value="estimate">見積書</option>
+              <option value="receipt">領収書</option>
+            </select>
+          </div>
+
+        </div>
+
+        <!-- 検索結果サマリー＆リセットバー -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 6px; border-top: 1px dashed #e2e8f0;">
+          <div id="historySearchResultSummary" style="font-size: 0.8rem; color: #475569; font-weight: 600;">
+            該当: <span id="historyMatchCount" style="color: #0284c7; font-weight: 800;">0</span> 件 / 合計金額: <span id="historyMatchTotalAmount" style="color: #0f172a; font-weight: 800;">¥0</span>
+          </div>
+          <button type="button" id="btnResetHistoryFilters" class="btn btn-secondary btn-xs" style="padding: 3px 10px; font-size: 0.75rem; border-color: #cbd5e1; background: #ffffff;">
+            ✕ 条件クリア
+          </button>
+        </div>
+
+      </div>
+
+      <!-- モーダル本体（リストスクロール領域） -->
+      <div class="modal-body" id="historyListContainer" style="padding: 16px 22px; overflow-y: auto; flex: 1; max-height: calc(90vh - 230px); background: #f8fafc;">
         <!-- 履歴一覧をJSでレンダリング -->
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary btn-sm" id="btnCloseHistoryModal2">閉じる</button>
+
+      <!-- モーダルフッター -->
+      <div class="modal-footer" style="padding: 10px 22px; background: #ffffff; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.75rem; color: #64748b;">※「この書類を開く」をクリックすると現在のエディタに読み込み、「複製して新規」で明細を引き継いで新規作成できます。</span>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCloseHistoryModal2" onclick="closeHistoryModal()">閉じる</button>
       </div>
+
     </div>
   </div>
 
@@ -1492,7 +1590,29 @@
           <span class="view-screen-subtitle">請求書連動の売上・入金消込・損益計算書（P/L）・自動仕訳帳</span>
         </div>
       </div>
-      <div class="view-screen-header-actions">
+      <div class="view-screen-header-actions" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <!-- 全サブ機能連動 集計対象期間コントロール -->
+        <div class="acc-global-period-control" style="display: inline-flex; align-items: center; gap: 8px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 4px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+          <span style="font-size: 0.8rem; font-weight: 700; color: #334155; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;">
+            📅 集計対象期間:
+          </span>
+          <select id="accGlobalPeriodPreset" class="form-select" style="padding: 4px 10px; font-size: 0.825rem; font-weight: 700; width: auto; border: 1px solid #94a3b8; border-radius: 6px; background: #f8fafc; color: #1e293b; cursor: pointer;">
+            <option value="thisMonth">今月 (当月)</option>
+            <option value="lastMonth">先月</option>
+            <option value="last3Months">直近3ヶ月</option>
+            <option value="thisYear">今年度 (4月〜翌3月)</option>
+            <option value="lastYear">前年度</option>
+            <option value="all">全期間 (すべて)</option>
+            <option value="custom">📅 任意期間カレンダー指定...</option>
+          </select>
+
+          <!-- アクティブ期間ラベルバッジ（クリックでいつでもカレンダー指定が開く！） -->
+          <button type="button" id="badgeAccActivePeriod" onclick="window.openAccDateRangeModal &amp;&amp; window.openAccDateRangeModal()" title="クリックしてカレンダーから開始日・終了日を直接指定" style="font-size: 0.8rem; font-weight: 800; padding: 4px 12px; border-radius: 6px; background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; white-space: nowrap; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s;">
+            <span id="dispAccActivePeriodText">全期間</span>
+            <span style="font-size: 12px; opacity: 0.85;">📅✏️</span>
+          </button>
+        </div>
+
         <button type="button" class="btn-back-to-portal" id="btnCloseAccountingModal" onclick="window.switchAppView &amp;&amp; window.switchAppView('portal')" title="メインポータルMENUへ戻る">
           <span>🏠</span> 業務MENUへ戻る
         </button>
@@ -1525,15 +1645,8 @@
 
         <!-- 1. 損益ダッシュボードペイン -->
         <div class="acc-pane active" id="acc-tab-dashboard">
-          <!-- 期間セレクター -->
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 0.85rem; font-weight: 700; color: #334155;">集計対象期間:</span>
-              <select id="accSelectMonth" class="form-select" style="width: 160px; font-weight: 600;">
-                <!-- JSで月リストを出力 -->
-              </select>
-            </div>
-            <span style="font-size: 0.75rem; color: #64748b;">※請求書・経費データからリアルタイム自動集計</span>
+          <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 12px;">
+            <span style="font-size: 0.75rem; color: #64748b;">※上部「集計対象期間」で選択した期間のデータをリアルタイム自動集計しています</span>
           </div>
 
           <!-- KPIサマリーカード群 -->
@@ -1634,11 +1747,16 @@
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
             <div>
               <span style="font-size: 0.875rem; font-weight: 700; color: #1e293b;">登録済み経費・レシート明細一覧</span>
-              <p style="font-size: 0.75rem; color: #64748b; margin: 2px 0 0 0;">AI OCR読み込みや手入力で登録された経費一覧です。新しいレシートの解析・登録は右のボタンから行えます。</p>
+              <p style="font-size: 0.75rem; color: #64748b; margin: 2px 0 0 0;">AI OCR読み込みや手入力で登録された経費一覧です。社員別の経費精算書もワンクリックで発行できます。</p>
             </div>
-            <button type="button" class="btn btn-primary btn-sm" onclick="window.switchAppView && window.switchAppView('expenses')" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;">
-              <span>📷</span> AIレシート読み込み・経費登録画面を開く
-            </button>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <button type="button" class="btn btn-secondary btn-sm" id="btnOpenExpenseSettlementModalFromAcc" onclick="if(window.openExpenseSettlementModal){window.openExpenseSettlementModal();}else{var m=document.getElementById('expenseSettlementModal');if(m){m.classList.add('active');m.style.display='flex';}}" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: #f0fdf4; border-color: #86efac; color: #166534; font-weight: 700; cursor: pointer;">
+                <span>🖨️</span> 経費精算書 発行
+              </button>
+              <button type="button" class="btn btn-primary btn-sm" onclick="window.switchAppView &amp;&amp; window.switchAppView('expenses')" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;">
+                <span>📷</span> AIレシート読み込み・経費登録画面を開く
+              </button>
+            </div>
           </div>
 
           <!-- 経費一覧テーブル -->
@@ -1647,11 +1765,12 @@
               <thead>
                 <tr style="background: #f1f5f9; color: #475569; text-align: left;">
                   <th style="padding: 10px 12px; width: 90px;">日付</th>
+                  <th style="padding: 10px 12px; width: 100px;">立替者</th>
                   <th style="padding: 10px 12px;">支払先・店名</th>
-                  <th style="padding: 10px 12px; width: 120px;">勘定科目</th>
-                  <th style="padding: 10px 12px; text-align: right; width: 110px;">金額 (税込)</th>
-                  <th style="padding: 10px 12px; width: 130px;">インボイス番号</th>
-                  <th style="padding: 10px 12px; text-align: center; width: 80px;">レシート</th>
+                  <th style="padding: 10px 12px; width: 110px;">勘定科目</th>
+                  <th style="padding: 10px 12px; text-align: right; width: 105px;">金額 (税込)</th>
+                  <th style="padding: 10px 12px; width: 120px;">インボイス番号</th>
+                  <th style="padding: 10px 12px; text-align: center; width: 75px;">レシート</th>
                 </tr>
               </thead>
               <tbody id="accExpensesSummaryTableBody">
@@ -1712,7 +1831,10 @@
           <span class="view-screen-subtitle">Gemini AIマルチモーダルOCR解析・適格請求書(インボイス)番号自動読取・経費精算</span>
         </div>
       </div>
-      <div class="view-screen-header-actions">
+      <div class="view-screen-header-actions" style="display: flex; gap: 8px; align-items: center;">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnOpenExpenseSettlementModal" onclick="if(window.openExpenseSettlementModal){window.openExpenseSettlementModal();}else{var m=document.getElementById('expenseSettlementModal');if(m){m.classList.add('active');m.style.display='flex';}}" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: #f0fdf4; border-color: #86efac; color: #166534; font-weight: 700; cursor: pointer;">
+          <span>🖨️</span> 経費精算書 発行
+        </button>
         <button type="button" class="btn-back-to-portal" id="btnCloseExpensesScreen" onclick="window.switchAppView &amp;&amp; window.switchAppView('portal')" title="メインポータルMENUへ戻る">
           <span>🏠</span> 業務MENUへ戻る
         </button>
@@ -1724,24 +1846,47 @@
       <div class="expenses-view-grid">
         
         <!-- 左カラム：レシートAI OCR読み込み ＆ 経費登録フォーム -->
-        <div style="display: flex; flex-direction: column; gap: 18px;">
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+
+          <!-- 👤 経費立替者（精算対象社員）選択バー（複数枚連続読み込みでも設定維持） -->
+          <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 12px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <span style="font-size: 0.85rem; font-weight: 800; color: #1e293b; display: inline-flex; align-items: center; gap: 6px;">
+                👤 経費立替者（精算対象）:
+              </span>
+              <div style="display: inline-flex; gap: 6px;" id="expenseClaimantSelector">
+                <button type="button" class="btn btn-sm btn-claimant active" data-claimant="小林俊介" id="btnClaimantKobayashi" style="padding: 4px 14px; font-weight: 700; border-radius: 20px; font-size: 0.8rem; background: #4f46e5; color: #ffffff; border: 1px solid #4338ca; cursor: pointer; transition: all 0.2s;">
+                  小林 俊介
+                </button>
+                <button type="button" class="btn btn-sm btn-claimant" data-claimant="宮崎真輔" id="btnClaimantMiyazaki" style="padding: 4px 14px; font-weight: 700; border-radius: 20px; font-size: 0.8rem; background: #ffffff; color: #475569; border: 1px solid #cbd5e1; cursor: pointer; transition: all 0.2s;">
+                  宮崎 真輔
+                </button>
+                <button type="button" class="btn btn-sm btn-claimant" data-claimant="会社立替/その他" id="btnClaimantCompany" style="padding: 4px 12px; font-weight: 600; border-radius: 20px; font-size: 0.8rem; background: #ffffff; color: #64748b; border: 1px solid #cbd5e1; cursor: pointer; transition: all 0.2s;">
+                  会社直接/その他
+                </button>
+              </div>
+            </div>
+            <span style="font-size: 0.725rem; color: #64748b;">
+              ※選択した社員は固定され、複数枚連続で読み込んでも自動適用されます
+            </span>
+          </div>
           
           <!-- レシート画像アップロードカード -->
           <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
               <span style="font-size: 0.9rem; font-weight: 700; color: #1e293b;">
-                📸 レシート画像アップロード（自動読み取り）
+                📸 レシート画像アップロード（自動読み取り・複数枚対応）
               </span>
               <span id="geminiOcrBadge" style="display: none; font-size: 0.65rem; background: linear-gradient(135deg, #e0e7ff, #ede9fe); color: #4338ca; border: 1px solid #c7d2fe; padding: 2px 8px; border-radius: 12px; font-weight: 700;">
                 ✨ Gemini AI 連携中
               </span>
             </div>
 
-            <!-- 画像アップロードドロップゾーン -->
+            <!-- 画像アップロードドロップゾーン（複数ファイル選択対応） -->
             <div id="receiptDropZone" style="border: 2px dashed #cbd5e1; border-radius: 8px; padding: 24px; text-align: center; background: #f8fafc; cursor: pointer; margin-bottom: 14px; transition: border-color 0.2s;">
-              <input type="file" id="receiptFileInput" accept="image/*" style="display: none;">
+              <input type="file" id="receiptFileInput" accept="image/*" multiple style="display: none;">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" style="margin: 0 auto 8px auto; display: block;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              <span style="font-size: 0.85rem; font-weight: 700; color: #334155; display: block;">レシート写真を選択 または ドラッグ＆ドロップ</span>
+              <span style="font-size: 0.85rem; font-weight: 700; color: #334155; display: block;">レシート写真を選択 または ドラッグ＆ドロップ（複数枚一括可）</span>
               <span style="font-size: 0.725rem; color: #64748b; margin-top: 4px; display: block;">日付・金額・店名・インボイス番号を瞬時に自動抽出します</span>
             </div>
 
@@ -1843,6 +1988,14 @@
 
               <div class="form-row" style="margin-bottom: 10px;">
                 <div class="form-group" style="flex: 1;">
+                  <label class="form-label" style="font-size: 0.75rem;" for="expenseInputClaimant">👤 立替者（社員名） <span style="color: var(--danger);">*</span></label>
+                  <select id="expenseInputClaimant" class="form-select" style="font-size: 0.85rem; font-weight: 700; color: #1e293b; background: #f8fafc;" required>
+                    <option value="小林俊介">小林 俊介</option>
+                    <option value="宮崎真輔">宮崎 真輔</option>
+                    <option value="会社立替/その他">会社立替/その他</option>
+                  </select>
+                </div>
+                <div class="form-group" style="flex: 1;">
                   <label class="form-label" style="font-size: 0.75rem;" for="expenseInputDate">出費日・仕入日 <span style="color: var(--danger);">*</span></label>
                   <input type="date" id="expenseInputDate" class="form-input" style="font-size: 0.85rem;" required>
                 </div>
@@ -1921,17 +2074,35 @@
               <span id="expenseListTotalAmount" style="font-size: 1.1rem; font-weight: 800; color: #d97706; background: #fffbeb; padding: 6px 14px; border-radius: 8px; border: 1px solid #fef3c7;">合計: ¥0</span>
             </div>
             
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 0.775rem; font-weight: 700; color: #475569;">絞り込み:</span>
+                <select id="expenseFilterClaimant" class="form-select" style="font-size: 0.775rem; padding: 3px 8px; width: auto; background: #ffffff;">
+                  <option value="all">全社員（全員）</option>
+                  <option value="小林俊介">小林 俊介</option>
+                  <option value="宮崎真輔">宮崎 真輔</option>
+                  <option value="会社立替/その他">会社直接/その他</option>
+                </select>
+                <label style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; color: #92400e; cursor: pointer; background: #fffbeb; padding: 2px 8px; border-radius: 4px; border: 1px solid #fde68a;">
+                  <input type="checkbox" id="expenseFilterUnsettledOnly" style="accent-color: #d97706;">
+                  <span>未精算のみ</span>
+                </label>
+              </div>
+            </div>
+            
             <div id="expenseTableContainer" style="overflow-x: auto; flex: 1;">
               <table class="acc-table" style="width: 100%; border-collapse: collapse; font-size: 0.825rem;">
                 <thead>
                   <tr style="background: #f1f5f9; color: #475569; text-align: left;">
-                    <th style="padding: 10px 12px; width: 105px;">出費日</th>
-                    <th style="padding: 10px 12px; width: 100px;">科目</th>
+                    <th style="padding: 10px 12px; width: 95px;">出費日</th>
+                    <th style="padding: 10px 12px; width: 90px;">立替者</th>
+                    <th style="padding: 10px 12px; width: 95px;">科目</th>
                     <th style="padding: 10px 12px;">支払先 / 摘要</th>
-                    <th style="padding: 10px 12px; text-align: right; width: 110px;">金額</th>
-                    <th style="padding: 10px 12px; text-align: center; width: 65px;">税率</th>
-                    <th style="padding: 10px 12px; text-align: center; width: 110px;">レシート</th>
-                    <th style="padding: 10px 12px; text-align: center; width: 110px;">操作</th>
+                    <th style="padding: 10px 12px; text-align: right; width: 105px;">金額</th>
+                    <th style="padding: 10px 12px; text-align: center; width: 55px;">税率</th>
+                    <th style="padding: 10px 12px; text-align: center; width: 85px;">レシート</th>
+                    <th style="padding: 10px 12px; text-align: center; width: 80px;">精算</th>
+                    <th style="padding: 10px 12px; text-align: center; width: 90px;">操作</th>
                   </tr>
                 </thead>
                 <tbody id="expenseTableBody">
@@ -2120,6 +2291,503 @@
     </div>
   </section>
 
+  <!-- 5. 給与計算・支給明細書専用画面 -->
+  <section id="payrollView" class="app-view-screen" style="display: none;">
+    
+    <!-- 専用画面トップバー（固定ヘッダー） -->
+    <div class="view-screen-header">
+      <div class="view-screen-header-left">
+        <div class="view-screen-icon-badge" style="background: #e0f2fe; color: #0284c7;">💴</div>
+        <div>
+          <h2 class="view-screen-title" style="display: flex; align-items: center; gap: 8px;">
+            給与計算・支給明細
+            <span style="background: #e0f2fe; color: #0284c7; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">
+              月給制 20万円・勤怠連動
+            </span>
+          </h2>
+          <span class="view-screen-subtitle">宮崎真輔様（社員番号2）の給与計算。勤怠自動集計・育休日割り・社保免除・手動微調整・A4明細印刷</span>
+        </div>
+      </div>
+
+      <!-- アクションコントロールバー -->
+      <div class="view-screen-header-actions" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <!-- 対象年月セレクター -->
+        <div style="display: flex; align-items: center; gap: 4px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 3px 6px;">
+          <button type="button" id="btnPayrollPrevMonth" class="btn btn-secondary btn-xs" style="padding: 2px 6px;">◀ 前月</button>
+          <input type="month" id="payrollMonthSelector" class="form-input" style="padding: 3px 8px; font-size: 0.85rem; border: none; font-weight: 700; width: 135px;">
+          <button type="button" id="btnPayrollNextMonth" class="btn btn-secondary btn-xs" style="padding: 2px 6px;">次月 ▶</button>
+        </div>
+
+        <!-- 勤怠自動読込ボタン -->
+        <button type="button" id="btnPayrollImportAttendance" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #059669; border-color: #86efac; background: #ecfdf5;" title="当月の給与明細に対応する前月勤務分の勤怠打刻（出勤日数・所定時間・残業時間）を自動集計して反映します">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          前月勤怠から自動読込
+        </button>
+
+        <!-- 前年所得・住民税読込ボタン -->
+        <button type="button" id="btnPayrollTogglePrevYear" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #15803d; border-color: #86efac; background: #f0fdf4;" title="前年の給与所得・明細の登録と住民税法定試算を行います">
+          📊 前年所得・住民税
+        </button>
+
+        <!-- 設定パネルトグル -->
+        <button type="button" id="btnPayrollToggleSettings" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem;">
+          ⚙️ 設定
+        </button>
+
+        <!-- 保存ボタン -->
+        <button type="button" id="btnPayrollSave" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; background: #059669; border-color: #059669;">
+          💾 保存
+        </button>
+
+        <!-- A4印刷プレビュー -->
+        <button type="button" id="btnPayrollOpenSheetModal" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; background: #0284c7; border-color: #0284c7;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          A4印刷
+        </button>
+
+        <!-- 財務会計へ連携 -->
+        <button type="button" id="btnPayrollSyncToAccounting" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem;" title="当月の給与・社会保険料を財務会計の自動仕訳に反映します">
+          📋 会計反映
+        </button>
+
+        <!-- 業務MENUへ戻るボタン -->
+        <button type="button" class="btn-back-to-portal" onclick="window.switchAppView &amp;&amp; window.switchAppView('portal')" title="メインポータルMENUへ戻る">
+          <span>🏠</span> 業務MENUへ戻る
+        </button>
+      </div>
+    </div>
+
+    <!-- メインコンテンツ（スクロール可能） -->
+    <div class="view-screen-content" style="overflow-y: auto; flex: 1; padding: 24px 32px;">
+      <div style="max-width: 1440px; margin: 0 auto;">
+
+    <!-- 育児休業（育休中・実出勤日数連動＆社会保険免除）コントロールバー -->
+    <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 12px 18px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; box-shadow: 0 1px 3px rgba(217, 119, 6, 0.08);">
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 800; font-size: 0.9rem; color: #b45309;">
+          👶 育児休業連動:
+        </span>
+        <span id="badgeChildcarePeriodStatus" style="font-size: 0.8rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; background: #fef3c7; color: #92400e; border: 1px solid #fde68a;">
+          育休期間中 (2026/03/14 〜 2027/03/31)
+        </span>
+        <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.825rem; font-weight: 700; color: #78350f; cursor: pointer; background: #ffffff; padding: 4px 10px; border-radius: 6px; border: 1px solid #fcd34d;">
+          <input type="checkbox" id="checkPayIsChildcare" checked style="width: 16px; height: 16px; accent-color: #d97706; cursor: pointer;">
+          実出勤日数分のみ支給（育休日割り）
+        </label>
+        <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.825rem; font-weight: 700; color: #047857; cursor: pointer; background: #ffffff; padding: 4px 10px; border-radius: 6px; border: 1px solid #a7f3d0;">
+          <input type="checkbox" id="checkPayExemptSocial" checked style="width: 16px; height: 16px; accent-color: #059669; cursor: pointer;">
+          🛡️ 社会保険料免除（健保・厚年・介護を0円）
+        </label>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #92400e;">
+        <span style="font-weight: 700;">日割り計算基準:</span>
+        <select id="selectPayDailyWageType" class="form-input" style="padding: 3px 8px; font-size: 0.8rem; width: auto; background: #ffffff;">
+          <option value="proRata">所定日数割 (20万円÷所定日数)</option>
+          <option value="fixedDaily">固定日給単価指定</option>
+          <option value="hourly">所定労働時間×時給</option>
+        </select>
+        <div id="wrapperPayDailyWageUnit" style="display: none; align-items: center; gap: 4px;">
+          <input type="number" id="inputPayDailyWageUnit" class="form-input" value="10000" style="width: 85px; padding: 3px 6px; font-size: 0.8rem; background: #ffffff;">
+          <span>円/日</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3大サマリーカード（総支給額・総控除額・手取り額） -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 20px;">
+      <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); border-left: 5px solid #0284c7;">
+        <span style="font-size: 0.775rem; color: #64748b; font-weight: 700;">総支給額 (課税+非課税)</span>
+        <div id="payrollCardTotalGross" style="font-size: 1.7rem; font-weight: 800; color: #0284c7; margin-top: 4px;">¥0</div>
+        <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 4px;" id="dispPayrollCardGrossSub">基本給 ＋ 残業手当・手当計</div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); border-left: 5px solid #e11d48;">
+        <span style="font-size: 0.775rem; color: #64748b; font-weight: 700;">総控除額 (社会保険+所得税+住民税)</span>
+        <div id="payrollCardTotalDeductions" style="font-size: 1.7rem; font-weight: 800; color: #e11d48; margin-top: 4px;">¥0</div>
+        <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 4px;" id="dispPayrollCardDeductionSub">社会保険 ＋ 所得税・住民税</div>
+      </div>
+
+      <div style="background: linear-gradient(135deg, #059669, #10b981); border-radius: 12px; padding: 18px; color: #ffffff; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);">
+        <span style="font-size: 0.775rem; opacity: 0.9; font-weight: 700;">差引支給額 (手取り振込額)</span>
+        <div id="payrollCardNetPay" style="font-size: 1.85rem; font-weight: 900; margin-top: 4px; letter-spacing: 0.5px;">¥0</div>
+        <div style="font-size: 0.75rem; opacity: 0.85; margin-top: 4px;">差引支給額 ＝ 総支給額 − 総控除額</div>
+      </div>
+    </div>
+
+    <!-- 設定パネル（トグル開閉式） -->
+    <div id="payrollSettingsCard" style="display: none; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.03);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <span style="font-size: 0.95rem; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+          ⚙️ 給与・社会保険料 基本設定（後からいつでも自由に変更できます）
+        </span>
+        <button type="button" id="btnClosePayrollSettings" style="background: none; border: none; font-size: 1.1rem; color: #64748b; cursor: pointer;">✕</button>
+      </div>
+      
+      <div style="background: #e0f2fe; border-left: 4px solid #0284c7; padding: 10px 14px; border-radius: 6px; margin-bottom: 16px; font-size: 0.8rem; color: #0369a1; display: flex; flex-wrap: wrap; gap: 16px; align-items: center;">
+        <div><strong>👤 対象社員:</strong> 宮崎真輔 様（社員番号 2）</div>
+        <div><strong>🎂 生年月日:</strong> 1981年11月12日（満44歳 / 介護保険第2号該当）</div>
+        <div><strong>🏢 会社所在地:</strong> 群馬県（協会けんぽ群馬支部）</div>
+        <div><strong>👨‍👩‍👧 扶養親族:</strong> 0人</div>
+        <div><strong>👶 育児休業期間:</strong> <span id="dispSettingChildcarePeriod">2026年3月14日 〜 2027年3月31日（社保免除対象）</span></div>
+      </div>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px;">
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 700; color: #475569;">基準月給 (円)</label>
+          <input type="number" id="settingPayBaseSalary" class="form-input" value="200000" style="margin-top: 4px;">
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 700; color: #475569;">残業単価 (円/時間)</label>
+          <input type="number" step="0.01" id="settingPayOvertimeUnit" class="form-input" value="1785.456" title="空欄の場合は基本給÷140h×1.25で自動計算" style="margin-top: 4px;">
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 700; color: #475569;">健康保険料 (群馬支部基準額)</label>
+          <input type="number" id="settingPayHealth" class="form-input" value="9970" style="margin-top: 4px;">
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 700; color: #475569;">厚生年金保険料 (通常時基準額)</label>
+          <input type="number" id="settingPayWelfare" class="form-input" value="18300" style="margin-top: 4px;">
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 700; color: #475569;">介護保険料 (40歳以上基準額)</label>
+          <input type="number" id="settingPayNursing" class="form-input" value="1590" style="margin-top: 4px;">
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 700; color: #475569;">雇用保険料率 / 方式</label>
+          <div style="display: flex; gap: 4px; margin-top: 4px;">
+            <select id="settingPayEmploymentType" class="form-input" style="width: 140px; font-size: 0.75rem;">
+              <option value="rate">総支給×0.55%(明細逆算)</option>
+              <option value="rate_standard">法定 0.6%</option>
+              <option value="fixed">固定1,156円</option>
+            </select>
+            <input type="number" step="0.0005" id="settingPayEmploymentRate" class="form-input" value="0.0055" style="flex: 1;" title="明細逆算料率: 0.0055 (5.5/1000)">
+          </div>
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 700; color: #475569;">扶養親族等の数 (人)</label>
+          <input type="number" id="settingPayDependents" class="form-input" value="0" min="0" max="7" style="margin-top: 4px;">
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 700; color: #475569;">住民税月額（控除5番・自由入力可）</label>
+          <input type="number" id="settingPayResidentTax" class="form-input" value="3500" style="margin-top: 4px;" title="明細実績: 3,500円。後からいつでも変更可能">
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 700; color: #475569;">テレワーク補助 (非課税・円)</label>
+          <input type="number" id="settingPayAllowanceNonTaxOther" class="form-input" value="10000" style="margin-top: 4px;" title="明細実績: 10,000円。後から変更可能">
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 700; color: #b45309;">👶 育休開始日</label>
+          <input type="date" id="settingPayChildcareStart" class="form-input" value="2026-03-14" style="margin-top: 4px;">
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 700; color: #b45309;">👶 育休終了予定日</label>
+          <input type="date" id="settingPayChildcareEnd" class="form-input" value="2027-03-31" style="margin-top: 4px;">
+        </div>
+      </div>
+      
+      <div style="display: flex; justify-content: flex-end; margin-top: 14px;">
+        <button type="button" class="btn btn-primary btn-sm" id="btnSavePayrollSettings">設定を保存して再計算</button>
+      </div>
+    </div>
+
+    <!-- 前年の所得・明細データ管理 ＆ 住民税法定計算パネル -->
+    <div id="payrollPrevYearCard" style="display: none; background: #f0fdf4; border: 1px solid #86efac; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.03);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <span style="font-size: 0.95rem; font-weight: 800; color: #166534; display: flex; align-items: center; gap: 8px;">
+          📊 前年の所得・明細データ ＆ 住民税法定計算（シミュレーション）
+        </span>
+        <button type="button" id="btnClosePayrollPrevYear" style="background: none; border: none; font-size: 1.1rem; color: #64748b; cursor: pointer;">✕</button>
+      </div>
+
+      <p style="font-size: 0.8rem; color: #15803d; margin-bottom: 14px; line-height: 1.5;">
+        前年の給与総額（年収）および社会保険料控除等の数値を入力・保存すると、地方税法（所得割10%＋均等割4,000円＋森林環境税1,000円）に基づく住民税特別徴収額（6月分・7月〜翌5月分）を正確に試算し、給与設定へワンクリックで自動反映できます。<br>
+        ※前年の給与明細や源泉徴収票が手元に届きましたら、下記の各数値を登録してください（後で明細を渡していただければ一括読み込みにも対応します）。
+      </p>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 14px;">
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 700; color: #166534;">対象年度（前年）</label>
+          <input type="number" id="prevYearTarget" class="form-input" value="2025" style="margin-top: 4px; background: #ffffff;">
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 700; color: #166534;">前年 支払金額（年収総支給額 円）</label>
+          <input type="number" id="prevYearGrossSalary" class="form-input" value="2400000" style="margin-top: 4px; background: #ffffff;">
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 700; color: #166534;">前年 社会保険料控除額（年間計 円）</label>
+          <input type="number" id="prevYearSocialDeduction" class="form-input" value="350000" style="margin-top: 4px; background: #ffffff;">
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 700; color: #166534;">扶養親族等の数（人）</label>
+          <input type="number" id="prevYearDependents" class="form-input" value="0" min="0" max="7" style="margin-top: 4px; background: #ffffff;">
+        </div>
+      </div>
+
+      <!-- 試算結果ボックス -->
+      <div id="prevYearResultBox" style="background: #ffffff; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px; margin-bottom: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <span style="font-size: 0.75rem; color: #166534; font-weight: 700;">【法定試算結果】住民税 年税額</span>
+            <div id="dispPrevYearAnnualTax" style="font-size: 1.3rem; font-weight: 800; color: #15803d;">¥0</div>
+          </div>
+          <div>
+            <span style="font-size: 0.75rem; color: #166534; font-weight: 700;">特別徴収: 6月分</span>
+            <div id="dispPrevYearTaxJune" style="font-size: 1.1rem; font-weight: 700; color: #0f172a;">¥0</div>
+          </div>
+          <div>
+            <span style="font-size: 0.75rem; color: #166534; font-weight: 700;">特別徴収: 7月〜翌5月分 (月額)</span>
+            <div id="dispPrevYearTaxRegular" style="font-size: 1.1rem; font-weight: 700; color: #0284c7;">¥0</div>
+          </div>
+          <button type="button" id="btnApplyResidentTaxToSettings" class="btn btn-primary btn-sm" style="background: #059669; border-color: #059669; font-size: 0.8rem;">
+            この住民税月額を設定に反映
+          </button>
+        </div>
+        <div id="dispPrevYearTaxMessage" style="font-size: 0.75rem; color: #475569; margin-top: 8px;"></div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <span style="font-size: 0.75rem; color: #64748b;">
+          ※データは <code>data/payroll/previous_year_income.json</code> に安全に永続化保存されます。
+        </span>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" id="btnCalcPrevYearTax" class="btn btn-secondary btn-sm" style="font-size: 0.8rem; background: #ffffff;">
+            🔄 再試算
+          </button>
+          <button type="button" id="btnSavePrevYearIncome" class="btn btn-primary btn-sm" style="font-size: 0.8rem; background: #16a34a; border-color: #16a34a;">
+            💾 前年所得データを保存
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 給与明細 リアルタイム編集シート（見本画像の表形式完全再現） -->
+    <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 22px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); margin-bottom: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #0284c7; padding-bottom: 8px;">
+        <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;">
+          <span style="font-size: 1.15rem; font-weight: 800; color: #0f172a;">給与支給明細データ</span>
+          <span id="dispCurrentPayrollTitle" style="font-size: 0.95rem; font-weight: 800; color: #0284c7;">--年--月度</span>
+          <span id="dispPayrollWorkPeriodBadge" style="font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 3px 10px; border-radius: 9999px; font-weight: 700; border: 1px solid #bae6fd;">
+            📅 発行月: --年--月（前月勤務分）
+          </span>
+        </div>
+        <span style="font-size: 0.75rem; color: #64748b;">
+          💡 表内の数値を変更すると、手取り額・合計がリアルタイムに即座に再計算されます。
+        </span>
+      </div>
+
+      <!-- 1. 勤怠ブロック -->
+      <div style="margin-bottom: 16px;">
+        <div style="display: flex; align-items: stretch; border: 1px solid #94a3b8; border-radius: 4px; overflow: hidden;">
+          <div style="width: 48px; background: #0284c7; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem; letter-spacing: 2px; writing-mode: vertical-rl;">勤怠</div>
+          <div style="flex: 1; overflow-x: auto;">
+            <table class="att-calendar-table" style="margin: 0; width: 100%; border: none;">
+              <thead>
+                <tr style="background: #e0f2fe; color: #0369a1; font-size: 0.75rem;">
+                  <th style="padding: 6px;">就業日数</th>
+                  <th style="padding: 6px;">出勤日数</th>
+                  <th style="padding: 6px;">労働時間</th>
+                  <th style="padding: 6px;">欠勤日数</th>
+                  <th style="padding: 6px;">休日出勤日数</th>
+                  <th style="padding: 6px;">有給消化日数</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="padding: 4px;"><input type="number" id="payWorkDaysStandard" class="att-sheet-editable-input" value="21" style="text-align: center;"></td>
+                  <td style="padding: 4px;"><input type="number" id="payWorkDaysActual" class="att-sheet-editable-input" value="21" style="text-align: center;"></td>
+                  <td style="padding: 4px;"><input type="number" step="0.01" id="payWorkHoursStandard" class="att-sheet-editable-input" value="147" style="text-align: center; font-weight: 700;"></td>
+                  <td style="padding: 4px;"><input type="number" id="payAbsenceDays" class="att-sheet-editable-input" value="0" style="text-align: center;"></td>
+                  <td style="padding: 4px;"><input type="number" id="payHolidayWorkDays" class="att-sheet-editable-input" value="0" style="text-align: center;"></td>
+                  <td style="padding: 4px;"><input type="number" id="payPaidLeaveDays" class="att-sheet-editable-input" value="0" style="text-align: center;"></td>
+                </tr>
+              </tbody>
+              <thead>
+                <tr style="background: #e0f2fe; color: #0369a1; font-size: 0.75rem;">
+                  <th style="padding: 6px;">平日普通残業</th>
+                  <th style="padding: 6px;">平日深夜残業</th>
+                  <th style="padding: 6px; background: #f8fafc;"></th>
+                  <th style="padding: 6px; background: #f8fafc;"></th>
+                  <th style="padding: 6px;">遅刻早退時間</th>
+                  <th style="padding: 6px;">有給残日数</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="padding: 4px;"><input type="number" step="0.01" id="payOvertimeHours" class="att-sheet-editable-input" value="9.97" style="text-align: center; font-weight: 700; color: #0284c7;"></td>
+                  <td style="padding: 4px;"><input type="number" step="0.01" id="payMidnightOvertimeHours" class="att-sheet-editable-input" value="0" style="text-align: center;"></td>
+                  <td style="background: #f8fafc;"></td>
+                  <td style="background: #f8fafc;"></td>
+                  <td style="padding: 4px;"><input type="number" step="0.01" id="payLateEarlyHours" class="att-sheet-editable-input" value="0" style="text-align: center;"></td>
+                  <td style="padding: 4px;"><input type="number" id="payPaidLeaveRemaining" class="att-sheet-editable-input" value="0" style="text-align: center;"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. 支給ブロック -->
+      <div style="margin-bottom: 16px;">
+        <div style="display: flex; align-items: stretch; border: 1px solid #94a3b8; border-radius: 4px; overflow: hidden;">
+          <div style="width: 48px; background: #0284c7; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem; letter-spacing: 2px; writing-mode: vertical-rl;">支給</div>
+          <div style="flex: 1; overflow-x: auto;">
+            <table class="att-calendar-table" style="margin: 0; width: 100%; border: none;">
+              <thead>
+                <tr style="background: #e0f2fe; color: #0369a1; font-size: 0.75rem;">
+                  <th style="padding: 6px;">基本給</th>
+                  <th style="padding: 6px;">役職手当</th>
+                  <th style="padding: 6px;">資格手当</th>
+                  <th style="padding: 6px;">住宅手当</th>
+                  <th style="padding: 6px;">家族手当</th>
+                  <th style="padding: 6px; background: #bae6fd; color: #0369a1;">平日普通残業</th>
+                  <th style="padding: 6px; background: #f8fafc;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="padding: 4px;"><input type="number" id="payBaseSalary" class="att-sheet-editable-input" value="200000" style="text-align: right; font-weight: 700;"></td>
+                  <td style="padding: 4px;"><input type="number" id="payAllowanceExecutive" class="att-sheet-editable-input" value="0" style="text-align: right;"></td>
+                  <td style="padding: 4px;"><input type="number" id="payAllowanceQualification" class="att-sheet-editable-input" value="0" style="text-align: right;"></td>
+                  <td style="padding: 4px;"><input type="number" id="payAllowanceHousing" class="att-sheet-editable-input" value="0" style="text-align: right;"></td>
+                  <td style="padding: 4px;"><input type="number" id="payAllowanceFamily" class="att-sheet-editable-input" value="0" style="text-align: right;"></td>
+                  <td style="padding: 4px; background: #f0f9ff;"><input type="number" id="payOvertimePay" class="att-sheet-editable-input" value="17801" style="text-align: right; font-weight: 800; color: #0369a1;" title="残業代（直接編集可能）"></td>
+                  <td style="background: #f8fafc;"></td>
+                </tr>
+              </tbody>
+              <thead>
+                <tr style="background: #e0f2fe; color: #0369a1; font-size: 0.75rem;">
+                  <th style="padding: 6px;">非課税通勤</th>
+                  <th style="padding: 6px;">テレワーク補助</th>
+                  <th style="padding: 6px;">深夜勤務手当</th>
+                  <th style="padding: 6px;">法定休日手当</th>
+                  <th style="padding: 6px; background: #e2e8f0; color: #334155;">非課税合計</th>
+                  <th style="padding: 6px; background: #e2e8f0; color: #334155;">課税合計</th>
+                  <th style="padding: 6px; background: #0284c7; color: #ffffff;">総支給額</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="padding: 4px;"><input type="number" id="payAllowanceCommuteNonTax" class="att-sheet-editable-input" value="0" style="text-align: right;"></td>
+                  <td style="padding: 4px;"><input type="number" id="payAllowanceNonTaxOther" class="att-sheet-editable-input" value="0" style="text-align: right;"></td>
+                  <td style="padding: 4px;"><input type="number" id="payMidnightPay" class="att-sheet-editable-input" value="0" style="text-align: right;"></td>
+                  <td style="padding: 4px;"><input type="number" id="payHolidayPay" class="att-sheet-editable-input" value="0" style="text-align: right;"></td>
+                  <td style="padding: 4px; background: #f1f5f9; text-align: right; font-weight: 700;" id="dispPayTotalNonTax">0</td>
+                  <td style="padding: 4px; background: #f1f5f9; text-align: right; font-weight: 700;" id="dispPayTotalTaxable">0</td>
+                  <td style="padding: 4px; background: #e0f2fe; text-align: right; font-weight: 900; color: #0369a1; font-size: 0.95rem;" id="dispPayTotalGross">0</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. 控除ブロック -->
+      <div style="margin-bottom: 16px;">
+        <div style="display: flex; align-items: stretch; border: 1px solid #94a3b8; border-radius: 4px; overflow: hidden;">
+          <div style="width: 48px; background: #0284c7; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem; letter-spacing: 2px; writing-mode: vertical-rl;">控除</div>
+          <div style="flex: 1; overflow-x: auto;">
+            <table class="att-calendar-table" style="margin: 0; width: 100%; border: none;">
+              <thead>
+                <tr style="background: #e0f2fe; color: #0369a1; font-size: 0.75rem;">
+                  <th style="padding: 6px;">健康保険</th>
+                  <th style="padding: 6px;">厚生年金保険</th>
+                  <th style="padding: 6px;">厚生年金基金</th>
+                  <th style="padding: 6px;">介護保険</th>
+                  <th style="padding: 6px;">雇用保険</th>
+                  <th style="padding: 6px; background: #e2e8f0; color: #334155;">社会保険合計</th>
+                  <th style="padding: 6px; background: #e2e8f0; color: #334155;">課税対象額</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="padding: 4px;"><input type="number" id="payHealthInsurance" class="att-sheet-editable-input" value="0" style="text-align: right; font-weight: 700;"></td>
+                  <td style="padding: 4px;"><input type="number" id="payWelfarePension" class="att-sheet-editable-input" value="0" style="text-align: right; font-weight: 700;"></td>
+                  <td style="padding: 4px;"><input type="number" id="payWelfarePensionFund" class="att-sheet-editable-input" value="0" style="text-align: right;"></td>
+                  <td style="padding: 4px;"><input type="number" id="payNursingInsurance" class="att-sheet-editable-input" value="0" style="text-align: right; font-weight: 700;"></td>
+                  <td style="padding: 4px;"><input type="number" id="payEmploymentInsurance" class="att-sheet-editable-input" value="0" style="text-align: right; font-weight: 700;"></td>
+                  <td style="padding: 4px; background: #f1f5f9; text-align: right; font-weight: 800; color: #e11d48;" id="dispPayTotalSocialInsurance">0</td>
+                  <td style="padding: 4px; background: #f1f5f9; text-align: right; font-weight: 700;" id="dispPayTaxableIncome">0</td>
+                </tr>
+              </tbody>
+              <thead>
+                <tr style="background: #e0f2fe; color: #0369a1; font-size: 0.75rem;">
+                  <th style="padding: 6px; background: #bae6fd; color: #0369a1;">所得税</th>
+                  <th style="padding: 6px;">住民税</th>
+                  <th style="padding: 6px; background: #e2e8f0; color: #334155;">税額合計</th>
+                  <th style="padding: 6px;">共済費</th>
+                  <th style="padding: 6px; background: #f8fafc;"></th>
+                  <th style="padding: 6px; background: #f8fafc;"></th>
+                  <th style="padding: 6px; background: #e11d48; color: #ffffff;">総控除額</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="padding: 4px; background: #f0f9ff;"><input type="number" id="payIncomeTax" class="att-sheet-editable-input" value="0" style="text-align: right; font-weight: 800; color: #0369a1;" title="源泉所得税額（直接編集可能）"></td>
+                  <td style="padding: 4px;"><input type="number" id="payResidentTax" class="att-sheet-editable-input" value="0" style="text-align: right;"></td>
+                  <td style="padding: 4px; background: #f1f5f9; text-align: right; font-weight: 700;" id="dispPayTotalTax">0</td>
+                  <td style="padding: 4px;"><input type="number" id="payMutualAid" class="att-sheet-editable-input" value="0" style="text-align: right;"></td>
+                  <td style="background: #f8fafc;"></td>
+                  <td style="background: #f8fafc;"></td>
+                  <td style="padding: 4px; background: #ffe4e6; text-align: right; font-weight: 900; color: #e11d48; font-size: 0.95rem;" id="dispPayTotalDeductions">0</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. 合計ブロック -->
+      <div style="display: flex; align-items: stretch; border: 2px solid #0284c7; border-radius: 6px; overflow: hidden; background: #f8fafc;">
+        <div style="width: 48px; background: #0284c7; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem; letter-spacing: 2px; writing-mode: vertical-rl;">合計</div>
+        <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr 1.3fr; align-items: center; padding: 12px 20px; gap: 16px;">
+          <div>
+            <span style="font-size: 0.8rem; color: #64748b; font-weight: 700;">総支給額</span>
+            <div id="dispSummaryTotalGross" style="font-size: 1.3rem; font-weight: 800; color: #0f172a; margin-top: 2px;">0</div>
+          </div>
+          <div>
+            <span style="font-size: 0.8rem; color: #64748b; font-weight: 700;">総控除額</span>
+            <div id="dispSummaryTotalDeductions" style="font-size: 1.3rem; font-weight: 800; color: #e11d48; margin-top: 2px;">0</div>
+          </div>
+          <div style="background: #e0f2fe; padding: 10px 16px; border-radius: 8px; border: 1px solid #7dd3fc; text-align: right;">
+            <span style="font-size: 0.85rem; color: #0369a1; font-weight: 800;">差引支給額 (手取り振込額)</span>
+            <div id="dispSummaryNetPay" style="font-size: 1.6rem; font-weight: 900; color: #0284c7; margin-top: 2px;">0 円</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 過去の給与明細履歴テーブル -->
+    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <span style="font-size: 0.95rem; font-weight: 800; color: #1e293b;">📋 給与明細履歴・保存済み月次一覧</span>
+      </div>
+      <div style="overflow-x: auto;">
+        <table class="acc-table" style="width: 100%; border-collapse: collapse; font-size: 0.825rem;">
+          <thead>
+            <tr style="background: #f1f5f9; color: #475569; text-align: left;">
+              <th style="padding: 10px 12px;">対象年月</th>
+              <th style="padding: 10px 12px;">社員番号・氏名</th>
+              <th style="padding: 10px 12px; text-align: center;">出勤 / 残業時間</th>
+              <th style="padding: 10px 12px; text-align: right;">総支給額</th>
+              <th style="padding: 10px 12px; text-align: right;">総控除額</th>
+              <th style="padding: 10px 12px; text-align: right; color: #0284c7; font-weight: 700;">差引手取り額</th>
+              <th style="padding: 10px 12px; text-align: center;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="payrollHistoryTableBody">
+            <!-- JSでレンダリング -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+      </div><!-- /.max-width: 1440px -->
+    </div><!-- /.view-screen-content -->
+
+  </section>
+
   <!-- 出勤簿 印刷・PDFプレビューモーダル（A4縦帳票） -->
   <div class="modal-overlay" id="attendanceSheetModal">
     <div class="modal-card" style="max-width: 900px; width: 95vw; max-height: 94vh; display: flex; flex-direction: column;">
@@ -2190,7 +2858,7 @@
           <div class="att-employee-bar">
             <div class="att-emp-label">社員番号</div>
             <div class="att-emp-val">
-              <input type="text" id="inputSheetEmpNo" class="att-sheet-editable-input" value="1111" placeholder="社員番号" title="クリックして社員番号を編集">
+              <input type="text" id="inputSheetEmpNo" class="att-sheet-editable-input" value="2" placeholder="社員番号" title="クリックして社員番号を編集">
             </div>
             <div class="att-emp-label">氏名</div>
             <div class="att-emp-val" style="flex: 2;">
@@ -2242,6 +2910,474 @@
     </div>
   </div>
 
+  <!-- A4給与支給明細書 印刷・PDFプレビューモーダル（見本画像完全準拠） -->
+  <div class="modal-overlay" id="payrollSheetModal">
+    <div class="modal-card" style="max-width: 1020px; width: 96vw; max-height: 94vh; display: flex; flex-direction: column;">
+      
+      <!-- モーダルヘッダー（印刷時は非表示） -->
+      <div class="modal-header no-print" style="padding: 12px 20px; background: #ffffff; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <h3 class="modal-title" style="display: flex; align-items: center; gap: 6px;">
+            📄 給与支給明細書（A4印刷プレビュー）
+          </h3>
+          <span style="font-size: 0.8rem; color: #64748b;" id="dispModalPayrollSubTitle">2025年7月度 宮崎真輔 様</span>
+        </div>
+        
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" id="btnPrintPayrollSheet" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; background: #0284c7; border-color: #0284c7;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            A4で印刷 / PDF保存
+          </button>
+          <button type="button" class="btn-icon-danger" id="btnClosePayrollSheetModal" style="font-size: 1.2rem;" title="閉じる">✕</button>
+        </div>
+      </div>
+
+      <!-- 用紙プレビューコンテナ（背景グレーで用紙を浮き立たせる） -->
+      <div class="modal-body" style="padding: 24px; overflow-y: auto; background: #475569; display: flex; justify-content: center;">
+        
+        <!-- 給与明細用紙（A4サイズ） -->
+        <article class="payroll-sheet-paper" id="payrollSheetPaper" style="background: #ffffff; width: 100%; max-width: 900px; padding: 36px 42px; box-shadow: 0 10px 25px rgba(0,0,0,0.25); border-radius: 4px; box-sizing: border-box; font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'BIZ UDPGothic', sans-serif;">
+          
+          <!-- 1. 最上部ヘッダー（会社名・年月・タイトル・社員番号・氏名） -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; border-bottom: 2px solid #0f172a; padding-bottom: 8px;">
+            <div style="flex: 1;">
+              <div style="font-size: 1.05rem; font-weight: 700; color: #0f172a;" id="printPayCompany">株式会社アルバワークス</div>
+              <div style="font-size: 1rem; font-weight: 800; color: #0284c7; margin-top: 2px;" id="printPayMonth">2025年7月度</div>
+              <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;" id="printPayPeriod">支給日: 2025年7月10日（前月6月勤務分）</div>
+            </div>
+            
+            <div style="flex: 1.5; text-align: center;">
+              <h2 style="font-size: 1.65rem; font-weight: 900; letter-spacing: 4px; color: #0f172a; margin: 0;">給与支給明細書</h2>
+            </div>
+
+            <div style="flex: 1; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
+                <span style="color: #475569; font-weight: 600;">社員番号:</span>
+                <span style="font-weight: 800; font-family: monospace; font-size: 1.05rem;" id="printPayEmpNo">2</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 0.95rem;">
+                <span style="color: #475569; font-weight: 600;">氏名:</span>
+                <span style="font-weight: 800; font-size: 1.1rem; border-bottom: 1px solid #94a3b8; padding: 0 8px;" id="printPayEmpName">宮崎 真輔</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. 勤怠ブロック -->
+          <div style="margin-bottom: 14px; border: 1.5px solid #0284c7; border-radius: 4px; overflow: hidden; display: flex;">
+            <div style="width: 44px; background: #0284c7; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.9rem; letter-spacing: 4px; writing-mode: vertical-rl;">勤怠</div>
+            <div style="flex: 1;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; text-align: center;">
+                <thead>
+                  <tr style="background: #e0f2fe; color: #0369a1; border-bottom: 1px solid #93c5fd;">
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">就業日数</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">出勤日数</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">労働時間</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">欠勤日数</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">休日出勤日数</th>
+                    <th style="padding: 5px;">有給消化日数</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom: 1px solid #cbd5e1; font-weight: 600;">
+                    <td style="padding: 5px; border-right: 1px solid #cbd5e1;" id="pSheetWorkDaysStandard">21</td>
+                    <td style="padding: 5px; border-right: 1px solid #cbd5e1;" id="pSheetWorkDaysActual">21</td>
+                    <td style="padding: 5px; border-right: 1px solid #cbd5e1;" id="pSheetWorkHoursStandard">147</td>
+                    <td style="padding: 5px; border-right: 1px solid #cbd5e1;" id="pSheetAbsenceDays">0</td>
+                    <td style="padding: 5px; border-right: 1px solid #cbd5e1;" id="pSheetHolidayWorkDays">0</td>
+                    <td style="padding: 5px;" id="pSheetPaidLeaveDays">0</td>
+                  </tr>
+                </tbody>
+                <thead>
+                  <tr style="background: #e0f2fe; color: #0369a1; border-bottom: 1px solid #93c5fd;">
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">平日普通残業</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">平日深夜残業</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd; background: #f8fafc;"></th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd; background: #f8fafc;"></th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">遅刻早退時間</th>
+                    <th style="padding: 5px;">有給残日数</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="font-weight: 600;">
+                    <td style="padding: 5px; border-right: 1px solid #cbd5e1; font-weight: 800; color: #0284c7;" id="pSheetOvertimeHours">9.97</td>
+                    <td style="padding: 5px; border-right: 1px solid #cbd5e1;" id="pSheetMidnightOvertimeHours">0</td>
+                    <td style="padding: 5px; border-right: 1px solid #cbd5e1; background: #f8fafc;"></td>
+                    <td style="padding: 5px; border-right: 1px solid #cbd5e1; background: #f8fafc;"></td>
+                    <td style="padding: 5px; border-right: 1px solid #cbd5e1;" id="pSheetLateEarlyHours">0</td>
+                    <td style="padding: 5px;" id="pSheetPaidLeaveRemaining">0</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 3. 支給ブロック -->
+          <div style="margin-bottom: 14px; border: 1.5px solid #0284c7; border-radius: 4px; overflow: hidden; display: flex;">
+            <div style="width: 44px; background: #0284c7; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.9rem; letter-spacing: 4px; writing-mode: vertical-rl;">支給</div>
+            <div style="flex: 1;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; text-align: center;">
+                <thead>
+                  <tr style="background: #e0f2fe; color: #0369a1; border-bottom: 1px solid #93c5fd;">
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">基本給</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">役職手当</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">資格手当</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">住宅手当</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">家族手当</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd; background: #bae6fd;">平日普通残業</th>
+                    <th style="padding: 5px; background: #f8fafc;"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom: 1px solid #cbd5e1; font-weight: 600; text-align: right;">
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1; font-weight: 700;" id="pSheetBaseSalary">200,000</td>
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1;" id="pSheetAllowanceExecutive"></td>
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1;" id="pSheetAllowanceQualification"></td>
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1;" id="pSheetAllowanceHousing"></td>
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1;" id="pSheetAllowanceFamily"></td>
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1; font-weight: 800; color: #0284c7;" id="pSheetOvertimePay">17,801</td>
+                    <td style="background: #f8fafc;"></td>
+                  </tr>
+                </tbody>
+                <thead>
+                  <tr style="background: #e0f2fe; color: #0369a1; border-bottom: 1px solid #93c5fd;">
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">非課税通勤</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">テレワーク補助</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">深夜勤務手当</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">法定休日手当</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd; background: #e2e8f0; color: #334155;">非課税合計</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd; background: #e2e8f0; color: #334155;">課税合計</th>
+                    <th style="padding: 5px; background: #0284c7; color: #ffffff;">総支給額</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="font-weight: 600; text-align: right;">
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1;" id="pSheetAllowanceCommuteNonTax">0</td>
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1;" id="pSheetAllowanceNonTaxOther"></td>
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1;" id="pSheetMidnightPay"></td>
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1;" id="pSheetHolidayPay"></td>
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1; background: #f8fafc; font-weight: 700;" id="pSheetTotalNonTax">0</td>
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1; background: #f8fafc; font-weight: 800;" id="pSheetTotalTaxable">217,801</td>
+                    <td style="padding: 5px 8px; background: #e0f2fe; font-weight: 900; color: #0369a1; font-size: 0.95rem;" id="pSheetTotalGross">217,801</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 4. 控除ブロック -->
+          <div style="margin-bottom: 14px; border: 1.5px solid #0284c7; border-radius: 4px; overflow: hidden; display: flex;">
+            <div style="width: 44px; background: #0284c7; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.9rem; letter-spacing: 4px; writing-mode: vertical-rl;">控除</div>
+            <div style="flex: 1;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; text-align: center;">
+                <thead>
+                  <tr style="background: #e0f2fe; color: #0369a1; border-bottom: 1px solid #93c5fd;">
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">健康保険</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">厚生年金保険</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">厚生年金基金</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">介護保険</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">雇用保険</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd; background: #e2e8f0; color: #334155;">社会保険合計</th>
+                    <th style="padding: 5px; background: #e2e8f0; color: #334155;">課税対象額</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom: 1px solid #cbd5e1; font-weight: 600; text-align: right;">
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1;" id="pSheetHealthInsurance">9,970</td>
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1;" id="pSheetWelfarePension">18,300</td>
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1;" id="pSheetWelfarePensionFund"></td>
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1;" id="pSheetNursingInsurance">1,590</td>
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1;" id="pSheetEmploymentInsurance">1,100</td>
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1; background: #f8fafc; font-weight: 800; color: #e11d48;" id="pSheetTotalSocialInsurance">30,960</td>
+                    <td style="padding: 5px 8px; background: #f8fafc; font-weight: 800;" id="pSheetTaxableIncome">186,841</td>
+                  </tr>
+                </tbody>
+                <thead>
+                  <tr style="background: #e0f2fe; color: #0369a1; border-bottom: 1px solid #93c5fd;">
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd; background: #bae6fd;">所得税</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">住民税</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd; background: #e2e8f0; color: #334155;">税額合計</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd;">共済費</th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd; background: #f8fafc;"></th>
+                    <th style="padding: 5px; border-right: 1px solid #bae6fd; background: #f8fafc;"></th>
+                    <th style="padding: 5px; background: #e11d48; color: #ffffff;">総控除額</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="font-weight: 600; text-align: right;">
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1; font-weight: 800; color: #0284c7;" id="pSheetIncomeTax">3,340</td>
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1;" id="pSheetResidentTax"></td>
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1; background: #f8fafc; font-weight: 700;" id="pSheetTotalTax">3,340</td>
+                    <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1;" id="pSheetMutualAid"></td>
+                    <td style="background: #f8fafc;"></td>
+                    <td style="background: #f8fafc;"></td>
+                    <td style="padding: 5px 8px; background: #ffe4e6; font-weight: 900; color: #e11d48; font-size: 0.95rem;" id="pSheetTotalDeductions">34,300</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 5. 最下部 合計ブロック -->
+          <div style="border: 2px solid #0284c7; border-radius: 4px; overflow: hidden; display: flex; background: #f8fafc;">
+            <div style="width: 44px; background: #0284c7; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.9rem; letter-spacing: 4px; writing-mode: vertical-rl;">合計</div>
+            <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr 1.4fr; align-items: center; padding: 8px 16px; text-align: center;">
+              <div>
+                <span style="font-size: 0.75rem; color: #64748b; font-weight: 700;">総支給額</span>
+                <div style="font-size: 1.15rem; font-weight: 900; color: #0f172a; margin-top: 2px;" id="pSheetBottomGross">217,801</div>
+              </div>
+              <div style="border-left: 1px solid #cbd5e1; border-right: 1px solid #cbd5e1; padding: 0 10px;">
+                <span style="font-size: 0.75rem; color: #64748b; font-weight: 700;">総控除額</span>
+                <div style="font-size: 1.15rem; font-weight: 900; color: #e11d48; margin-top: 2px;" id="pSheetBottomDeductions">34,300</div>
+              </div>
+              <div style="background: #e0f2fe; padding: 6px 14px; border-radius: 4px; margin-left: 10px; text-align: right;">
+                <span style="font-size: 0.8rem; color: #0369a1; font-weight: 800;">差引支給額</span>
+                <div style="font-size: 1.45rem; font-weight: 900; color: #0284c7; margin-top: 1px;" id="pSheetBottomNetPay">183,501</div>
+              </div>
+            </div>
+          </div>
+
+        </article>
+
+      </div>
+
+      <!-- モーダルフッター（印刷時は非表示） -->
+      <div class="modal-footer no-print" style="padding: 10px 20px; background: #ffffff; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; align-items: center;">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnClosePayrollSheetModal2">閉じる</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 財務会計 任意期間カレンダー指定ポップアップモーダル -->
+  <div class="modal-overlay" id="accDateRangeModal" style="z-index: 99999;" onclick="if(event.target === this) window.closeAccDateRangeModal && window.closeAccDateRangeModal()">
+    <div class="modal-card" style="max-width: 520px; width: 95%; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.4); border: 1px solid #cbd5e1; padding: 0;" onclick="event.stopPropagation()">
+      
+      <div class="modal-header" style="padding: 14px 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+          📅 集計対象期間の設定（カレンダー指定）
+        </h3>
+        <button type="button" class="modal-close" onclick="window.closeAccDateRangeModal && window.closeAccDateRangeModal()" style="font-size: 1.25rem; border: none; background: none; cursor: pointer; color: #64748b;">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 20px 22px;">
+        
+        <!-- ワンタッチプリセットボタン -->
+        <div style="margin-bottom: 16px;">
+          <span style="font-size: 0.775rem; font-weight: 700; color: #475569; display: block; margin-bottom: 6px;">
+            クイック期間選択:
+          </span>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;" id="accModalPresetBtns">
+            <button type="button" class="btn btn-secondary btn-xs" onclick="window.setAccDateRangeModalPreset && window.setAccDateRangeModalPreset('thisMonth')">今月</button>
+            <button type="button" class="btn btn-secondary btn-xs" onclick="window.setAccDateRangeModalPreset && window.setAccDateRangeModalPreset('lastMonth')">先月</button>
+            <button type="button" class="btn btn-secondary btn-xs" onclick="window.setAccDateRangeModalPreset && window.setAccDateRangeModalPreset('last3Months')">直近3ヶ月</button>
+            <button type="button" class="btn btn-secondary btn-xs" onclick="window.setAccDateRangeModalPreset && window.setAccDateRangeModalPreset('thisYear')">今年度</button>
+            <button type="button" class="btn btn-secondary btn-xs" onclick="window.setAccDateRangeModalPreset && window.setAccDateRangeModalPreset('lastYear')">前年度</button>
+            <button type="button" class="btn btn-secondary btn-xs" onclick="window.setAccDateRangeModalPreset && window.setAccDateRangeModalPreset('all')">全期間</button>
+          </div>
+        </div>
+
+        <!-- カレンダー開始日・終了日 -->
+        <div style="background: #f1f5f9; border-radius: 8px; padding: 16px; border: 1px solid #e2e8f0; margin-bottom: 16px;">
+          <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center;">
+            <div>
+              <label style="display: block; font-size: 0.775rem; font-weight: 700; color: #334155; margin-bottom: 4px;">
+                集計 開始日
+              </label>
+              <input type="date" id="modalAccDateStart" class="form-input" style="width: 100%; padding: 8px 10px; font-size: 0.9rem; font-weight: 700; background: #fff; border: 1.5px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; cursor: pointer;">
+            </div>
+            <div style="font-size: 1.2rem; font-weight: 700; color: #64748b; padding-top: 18px;">
+              〜
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.775rem; font-weight: 700; color: #334155; margin-bottom: 4px;">
+                集計 終了日
+              </label>
+              <input type="date" id="modalAccDateEnd" class="form-input" style="width: 100%; padding: 8px 10px; font-size: 0.9rem; font-weight: 700; background: #fff; border: 1.5px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; cursor: pointer;">
+            </div>
+          </div>
+
+          <!-- 選択期間サマリープレビュー -->
+          <div id="modalAccDateRangePreview" style="margin-top: 12px; font-size: 0.825rem; font-weight: 800; color: #0369a1; text-align: center; background: #e0f2fe; padding: 7px 12px; border-radius: 6px; border: 1px solid #bae6fd;">
+            選択中: 2026/09/01 〜 2026/09/30
+          </div>
+        </div>
+
+        <p style="font-size: 0.75rem; color: #64748b; margin: 0; line-height: 1.5;">
+          ※期間を適用すると、「損益ダッシュボード」「売上入金消込」「経費一覧」「仕訳帳」の4画面すべてが上記期間の集計結果に瞬時に切り替わります。
+        </p>
+
+      </div>
+
+      <div class="modal-footer" style="padding: 12px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 8px;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="window.closeAccDateRangeModal && window.closeAccDateRangeModal()">キャンセル</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btnConfirmAccDateRange" onclick="window.confirmAccDateRangeFromModal && window.confirmAccDateRangeFromModal()" style="font-weight: 700; padding: 6px 18px; background: #0284c7; border-color: #0284c7;">
+          ✓ この期間で集計する
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 経費精算書（立替金精算申請書）モーダル -->
+  <div class="modal-overlay" id="expenseSettlementModal" style="display: none; position: fixed; inset: 0; z-index: 99999; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 16px; box-sizing: border-box;">
+    <div class="modal-card" style="max-width: 900px; width: 95%; max-height: 92vh; display: flex; flex-direction: column; padding: 0; background: #f1f5f9; border-radius: 12px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4); border: 1px solid #cbd5e1; position: relative;">
+      
+      <!-- モーダルヘッダー（印刷時は非表示） -->
+      <div class="modal-header no-print" style="padding: 14px 20px; background: #ffffff; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 1.1rem; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+            🖨️ 経費精算書（立替金精算申請書）発行
+          </span>
+          <span class="badge" style="background: #e0f2fe; color: #0284c7; font-size: 0.75rem; font-weight: 700;">A4帳票出力</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" class="btn btn-primary btn-sm" id="btnPrintExpenseSettlement" style="display: flex; align-items: center; gap: 6px; font-weight: 700; background: #0284c7; border-color: #0284c7;">
+            🖨️ 印刷 / PDF保存
+          </button>
+          <button type="button" class="btn btn-success btn-sm" id="btnMarkExpensesSettled" style="display: flex; align-items: center; gap: 6px; font-weight: 700; background: #059669; border-color: #059669;">
+            ✓ 一覧を一括精算済みにする
+          </button>
+          <button type="button" class="modal-close" id="btnCloseExpenseSettlementModal" onclick="if(window.closeExpenseSettlementModal){window.closeExpenseSettlementModal();}else{var m=document.getElementById('expenseSettlementModal');if(m){m.classList.remove('active');m.style.display='none';document.body.style.overflow='';}}" style="font-size: 1.25rem; border: none; background: none; cursor: pointer; color: #64748b;">✕</button>
+        </div>
+      </div>
+
+      <!-- モーダル設定コントロールバー（印刷時は非表示） -->
+      <div class="no-print" style="padding: 10px 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 0.8rem;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-weight: 700; color: #475569;">👤 申請者:</span>
+          <select id="settlementModalClaimant" class="form-input" style="padding: 4px 8px; font-size: 0.825rem; font-weight: 700; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff;">
+            <option value="小林俊介">小林俊介</option>
+            <option value="宮崎真輔">宮崎真輔</option>
+            <option value="会社立替/その他">会社立替/その他</option>
+            <option value="all">全員（一覧）</option>
+          </select>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-weight: 700; color: #475569;">📅 精算対象期間:</span>
+          <input type="date" id="settlementModalPeriodStart" class="form-input" style="padding: 4px 8px; font-size: 0.8rem; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff;">
+          <span style="color: #94a3b8;">〜</span>
+          <input type="date" id="settlementModalPeriodEnd" class="form-input" style="padding: 4px 8px; font-size: 0.8rem; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff;">
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-weight: 600; color: #334155;">
+            <input type="checkbox" id="settlementModalUnsettledOnly" checked style="cursor: pointer;">
+            未精算分のみ対象
+          </label>
+        </div>
+
+        <button type="button" class="btn btn-secondary btn-xs" id="btnApplySettlementFilter" style="padding: 4px 10px; font-size: 0.75rem;">再集計</button>
+      </div>
+
+      <!-- モーダル本体（スクロール領域：A4プレビュー用紙を表示） -->
+      <div class="modal-body" style="padding: 24px 20px; overflow-y: auto; flex: 1; display: flex; justify-content: center; background: #cbd5e1;">
+        
+        <!-- A4印刷用紙コンテナ -->
+        <article class="settlement-a4-sheet" id="expenseSettlementSheetPrintArea" style="background: #ffffff; width: 100%; max-width: 800px; min-height: 1050px; padding: 36px 40px; box-sizing: border-box; box-shadow: 0 4px 16px rgba(0,0,0,0.1); border-radius: 4px; color: #1e293b; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Hiragino Sans', 'Noto Sans JP', sans-serif;">
+          
+          <!-- 帳票ヘッダー -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 2px solid #0f172a; padding-bottom: 12px;">
+            <div>
+              <div style="font-size: 0.85rem; font-weight: 700; color: #475569; letter-spacing: 1px;">株式会社アルバワークス</div>
+              <h1 style="font-size: 1.6rem; font-weight: 900; margin: 4px 0 0 0; color: #0f172a; letter-spacing: 2px;">経費立替精算書</h1>
+              <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">EXPENSE CLAIM &amp; REIMBURSEMENT SHEET</div>
+            </div>
+
+            <!-- 印鑑枠（3枠: 承認 / 審査 / 担当） -->
+            <div style="display: flex; border: 1px solid #94a3b8; border-radius: 4px; overflow: hidden; background: #fff; text-align: center;">
+              <div style="width: 60px; border-right: 1px solid #94a3b8;">
+                <div style="background: #f1f5f9; font-size: 0.65rem; font-weight: 700; padding: 2px 0; color: #475569; border-bottom: 1px solid #94a3b8;">承認</div>
+                <div style="height: 54px;"></div>
+              </div>
+              <div style="width: 60px; border-right: 1px solid #94a3b8;">
+                <div style="background: #f1f5f9; font-size: 0.65rem; font-weight: 700; padding: 2px 0; color: #475569; border-bottom: 1px solid #94a3b8;">審査</div>
+                <div style="height: 54px;"></div>
+              </div>
+              <div style="width: 60px;">
+                <div style="background: #f1f5f9; font-size: 0.65rem; font-weight: 700; padding: 2px 0; color: #475569; border-bottom: 1px solid #94a3b8;">担当</div>
+                <div style="height: 54px;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 申請情報・対象期間・氏名欄 -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; font-size: 0.85rem;">
+            <div style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 14px; background: #f8fafc;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                <span style="color: #64748b; font-size: 0.75rem;">申請日:</span>
+                <span style="font-weight: 700;" id="settlementSheetApplyDate">2026年09月29日</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: #64748b; font-size: 0.75rem;">精算対象期間:</span>
+                <span style="font-weight: 700;" id="settlementSheetPeriod">2026/09/01 〜 2026/09/30</span>
+              </div>
+            </div>
+
+            <div style="border: 1px solid #0284c7; border-radius: 6px; padding: 10px 14px; background: #f0f9ff; display: flex; align-items: center; justify-content: space-between;">
+              <div>
+                <span style="color: #0369a1; font-size: 0.75rem; font-weight: 700; display: block;">立替者（精算対象社員）</span>
+                <span style="font-size: 1.25rem; font-weight: 900; color: #0c4a6e;" id="settlementSheetClaimantName">小林 俊介</span>
+              </div>
+              <div style="width: 44px; height: 44px; border: 1px dashed #0284c7; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: #0284c7;">
+                印
+              </div>
+            </div>
+          </div>
+
+          <!-- 精算合計サマリーバナー -->
+          <div style="background: linear-gradient(135deg, #0f172a, #1e293b); color: #ffffff; border-radius: 8px; padding: 14px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 600;">精算対象件数: <span id="settlementSheetItemCount" style="color: #fff; font-weight: 800;">0</span> 件</span>
+              <div style="font-size: 0.8rem; color: #cbd5e1; margin-top: 2px;">
+                10%対象: <span id="settlementSheetTax10Subtotal">¥0</span> / 8%軽減: <span id="settlementSheetTax8Subtotal">¥0</span>
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <span style="font-size: 0.75rem; color: #38bdf8; font-weight: 700; display: block;">差引精算金（振込・支払総額）</span>
+              <div style="font-size: 1.8rem; font-weight: 900; color: #38bdf8; line-height: 1.1;" id="settlementSheetGrandTotal">¥0</div>
+            </div>
+          </div>
+
+          <!-- 明細テーブル -->
+          <table class="settlement-print-table" style="width: 100%; border-collapse: collapse; font-size: 0.75rem; margin-bottom: 20px;">
+            <thead>
+              <tr style="background: #f1f5f9; border-top: 1px solid #cbd5e1; border-bottom: 2px solid #0f172a;">
+                <th style="padding: 6px 4px; text-align: center; width: 30px;">No.</th>
+                <th style="padding: 6px 6px; text-align: left; width: 75px;">日付</th>
+                <th style="padding: 6px 6px; text-align: left; width: 85px;">勘定科目</th>
+                <th style="padding: 6px 6px; text-align: left;">支払先 / 店舗</th>
+                <th style="padding: 6px 6px; text-align: left;">内容 / 摘要</th>
+                <th style="padding: 6px 4px; text-align: center; width: 45px;">税率</th>
+                <th style="padding: 6px 6px; text-align: right; width: 85px;">金額(税込)</th>
+                <th style="padding: 6px 4px; text-align: center; width: 60px;">精算状況</th>
+              </tr>
+            </thead>
+            <tbody id="settlementSheetTableBody">
+              <!-- JSで動的出力 -->
+            </tbody>
+          </table>
+
+          <!-- 備考・注意事項欄 -->
+          <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 14px; font-size: 0.725rem; color: #475569; background: #f8fafc;">
+            <div style="font-weight: 700; margin-bottom: 4px; color: #1e293b;">【精算にあたっての注意事項・受領確認】</div>
+            <p style="margin: 0 0 2px 0;">・上記記載の立替費用につき、領収書・レシート原本（または電帳法準拠のスキャン画像）を確認の上、精算を申請・承認します。</p>
+            <p style="margin: 0;">・精算金額は、所定の振込日または給与支払日にあわせて立替者名義の指定口座へ振り込みます。</p>
+          </div>
+
+        </article>
+
+      </div>
+
+      <!-- モーダルフッター（印刷時は非表示） -->
+      <div class="modal-footer no-print" style="padding: 10px 20px; background: #ffffff; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.75rem; color: #64748b;">※「印刷 / PDF保存」をクリックすると、上記A4精算書のみが綺麗に印刷・PDF保存されます。</span>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCloseExpenseSettlementModal2" onclick="if(window.closeExpenseSettlementModal){window.closeExpenseSettlementModal();}else{var m=document.getElementById('expenseSettlementModal');if(m){m.classList.remove('active');m.style.display='none';document.body.style.overflow='';}}">閉じる</button>
+      </div>
+
+    </div>
+  </div>
+
   <!-- レシート画像 全体拡大確認モーダル（電子帳簿保存法スキャナ保存対応） -->
   <div id="receiptZoomModal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 99999; background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); align-items: center; justify-content: center; padding: 16px; box-sizing: border-box;">
     <div style="position: relative; max-width: 92vw; max-height: 94vh; display: flex; flex-direction: column; background: #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6); border: 1px solid #334155;">
@@ -2278,6 +3414,6 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- JavaScript エントリーポイント (file:// 及び http:// 部分両対応) -->
-  <script src="js/app.bundle.js?v=20260928_blank_new_doc"></script>
+  <script src="js/app.bundle.js?v=20260929_acc_daterange_modal_v3"></script>
 </body>
 </html>

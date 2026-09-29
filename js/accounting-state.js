@@ -98,22 +98,51 @@ export function normalizeInvoiceDoc(raw) {
 }
 
 /**
+ * 指定日付が期間フィルター（'all', 'YYYY-MM', または {start, end}）に合致するか判定
+ * @param {string} dateStr 'YYYY-MM-DD' などの日付文字列
+ * @param {string|object} periodFilter 期間設定
+ * @returns {boolean}
+ */
+export function isDateInPeriod(dateStr, periodFilter = 'all') {
+  if (!periodFilter || periodFilter === 'all') return true;
+  if (!dateStr) return false;
+  const d = String(dateStr).trim().slice(0, 10);
+  if (!d) return false;
+
+  // 'YYYY-MM' または文字列
+  if (typeof periodFilter === 'string') {
+    if (periodFilter === 'all') return true;
+    return d.startsWith(periodFilter);
+  }
+
+  // { start, end } オブジェクト
+  if (typeof periodFilter === 'object') {
+    const { start, end } = periodFilter;
+    if (start && d < start) return false;
+    if (end && d > end) return false;
+    return true;
+  }
+
+  return true;
+}
+
+/**
  * 期間内の損益計算書（P/L）および経営KPIを集計
  * @param {Array} invoices 請求書リスト (fullDocまたはsummaryItem)
  * @param {Array} expenses 経費リスト
- * @param {string} targetMonth 'YYYY-MM' または 'all'
+ * @param {string|object} periodFilter 'YYYY-MM' または 'all' または { start, end }
  * @returns {object} P/L詳細・粗利益・純利益・未回収残高
  */
-export function calculateProfitAndLoss(invoices = [], expenses = [], targetMonth = 'all') {
-  // 引数が文字列1つの場合（targetMonthのみ渡された場合）のフォールバック
-  if (typeof invoices === 'string') {
-    targetMonth = invoices || 'all';
+export function calculateProfitAndLoss(invoices = [], expenses = [], periodFilter = 'all') {
+  // 引数が文字列1つの場合（periodFilterのみ渡された場合）のフォールバック
+  if (typeof invoices === 'string' || (invoices && typeof invoices === 'object' && !Array.isArray(invoices) && invoices.start !== undefined)) {
+    periodFilter = invoices || 'all';
     invoices = [];
     expenses = [];
   }
   if (!Array.isArray(invoices)) invoices = [];
   if (!Array.isArray(expenses)) expenses = [];
-  if (!targetMonth) targetMonth = 'all';
+  if (!periodFilter) periodFilter = 'all';
 
   let totalSales = 0; // 総売上高（税抜）
   let totalSalesTax = 0; // 売上消費税
@@ -134,7 +163,7 @@ export function calculateProfitAndLoss(invoices = [], expenses = [], targetMonth
     if (!inv.isIssued || inv.isCancelled) return;
 
     const issueDate = inv.issueDate || '';
-    if (targetMonth !== 'all' && !issueDate.startsWith(targetMonth)) {
+    if (!isDateInPeriod(issueDate, periodFilter)) {
       return;
     }
 
@@ -160,7 +189,7 @@ export function calculateProfitAndLoss(invoices = [], expenses = [], targetMonth
   expenses.forEach(exp => {
     if (!exp) return;
     const date = exp.date || '';
-    if (targetMonth !== 'all' && !date.startsWith(targetMonth)) {
+    if (!isDateInPeriod(date, periodFilter)) {
       return;
     }
 
@@ -190,7 +219,8 @@ export function calculateProfitAndLoss(invoices = [], expenses = [], targetMonth
   const operatingProfitMargin = totalSales > 0 ? (operatingProfit / totalSales) * 100 : 0; // 営業利益率
 
   return {
-    targetMonth,
+    periodFilter,
+    targetMonth: typeof periodFilter === 'string' ? periodFilter : 'custom',
     totalSales,
     totalSalesTax,
     totalSalesInc,
@@ -213,10 +243,12 @@ export function calculateProfitAndLoss(invoices = [], expenses = [], targetMonth
  * 請求書や経費から複式簿記の仕訳リストを自動生成
  * @param {Array} invoices 請求書リスト
  * @param {Array} expenses 経費リスト
+ * @param {string|object} periodFilter 期間フィルター
  * @returns {Array<object>} 仕訳帳データ
  */
-export function generateJournalEntries(invoices = [], expenses = []) {
-  if (typeof invoices === 'string') {
+export function generateJournalEntries(invoices = [], expenses = [], periodFilter = 'all') {
+  if (typeof invoices === 'string' || (invoices && typeof invoices === 'object' && !Array.isArray(invoices) && invoices.start !== undefined)) {
+    periodFilter = invoices || 'all';
     invoices = [];
     expenses = [];
   }
@@ -232,6 +264,7 @@ export function generateJournalEntries(invoices = [], expenses = []) {
     if (!inv.isIssued || inv.isCancelled) return; // 確定発行されていない伝票・確定取消された伝票は仕訳から除外
 
     const date = inv.issueDate || new Date().toISOString().split('T')[0];
+    if (!isDateInPeriod(date, periodFilter)) return;
     const client = inv.clientName || '取引先';
     const docNo = inv.docNumber || '';
     const totalInc = inv.grandTotal;
@@ -286,6 +319,7 @@ export function generateJournalEntries(invoices = [], expenses = []) {
   expenses.forEach(exp => {
     if (!exp) return;
     const date = exp.date || new Date().toISOString().split('T')[0];
+    if (!isDateInPeriod(date, periodFilter)) return;
     const amount = Number(exp.amount) || 0;
     const taxRate = Number(exp.taxRate !== undefined ? exp.taxRate : 10);
     const amountInc = Math.round(amount * (1 + taxRate / 100));

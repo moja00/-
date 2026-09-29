@@ -234,9 +234,12 @@ COMPANY_DIR = os.path.join(DATA_DIR, 'company')
 ATTENDANCE_DIR = os.path.join(DATA_DIR, 'attendance')
 RECEIPTS_DIR = os.path.join(DATA_DIR, 'receipts')
 INVENTORY_DIR = os.path.join(DATA_DIR, 'inventory')
+PAYROLL_DIR = os.path.join(DATA_DIR, 'payroll')
+INVOICES_DIR = os.path.join(DATA_DIR, 'invoices')
+EXPENSES_DIR = os.path.join(DATA_DIR, 'expenses')
 BACKUPS_DIR = os.path.join(DATA_DIR, 'backups')
 
-for d in [MASTERS_DIR, COMPANY_DIR, ATTENDANCE_DIR, RECEIPTS_DIR, INVENTORY_DIR, BACKUPS_DIR]:
+for d in [MASTERS_DIR, COMPANY_DIR, ATTENDANCE_DIR, RECEIPTS_DIR, INVENTORY_DIR, PAYROLL_DIR, INVOICES_DIR, EXPENSES_DIR, BACKUPS_DIR]:
     os.makedirs(d, exist_ok=True)
 
 ITEMS_MASTER_FILE = os.path.join(MASTERS_DIR, 'items_master.json')
@@ -246,6 +249,12 @@ ATTENDANCE_FILE = os.path.join(ATTENDANCE_DIR, 'attendance.json')
 ATTENDANCE_EMPLOYEE_FILE = os.path.join(ATTENDANCE_DIR, 'attendance_employee.json')
 INVENTORY_FILE = os.path.join(INVENTORY_DIR, 'inventory.json')
 PURCHASE_MAPPINGS_FILE = os.path.join(INVENTORY_DIR, 'purchase_mappings.json')
+PAYROLL_RECORDS_FILE = os.path.join(PAYROLL_DIR, 'payroll_records.json')
+PAYROLL_SETTINGS_FILE = os.path.join(PAYROLL_DIR, 'payroll_settings.json')
+PREVIOUS_YEAR_INCOME_FILE = os.path.join(PAYROLL_DIR, 'previous_year_income.json')
+INVOICES_HISTORY_FILE = os.path.join(INVOICES_DIR, 'invoices_history.json')
+ACTIVE_DOC_FILE = os.path.join(INVOICES_DIR, 'active_doc.json')
+EXPENSES_FILE = os.path.join(EXPENSES_DIR, 'expenses.json')
 
 def migrate_legacy_data_files():
     """data/直下に残っている旧ファイルを各カテゴリ専用フォルダへ自動移動"""
@@ -269,9 +278,113 @@ migrate_legacy_data_files()
 
 DEFAULT_ATTENDANCE = []
 DEFAULT_ATTENDANCE_EMPLOYEE = {
-    "empNo": "1111",
+    "empNo": "2",
     "empName": "宮崎真輔"
 }
+
+DEFAULT_PAYROLL_SETTINGS = {
+    "empNo": "2",
+    "empName": "宮崎真輔",
+    "companyName": "株式会社アルバワークス",
+    "salaryType": "monthly",
+    "baseSalary": 200000,
+    "isChildcareLeave": True,
+    "childcareStartDate": "2026-03-14",
+    "childcareEndDate": "2027-03-31",
+    "childcareExemptSocialInsurance": True,
+    "dailyWageCalculationType": "proRata",
+    "dailyWageUnit": 10000,
+    "monthlyStandardDays": 20,
+    "monthlyStandardHours": 140.0,
+    "overtimeRate": 1.25,
+    "overtimeUnitHourly": 1785.456,
+    "standardMonthlyRemuneration": 200000,
+    "healthInsurance": 9970,
+    "welfarePension": 18300,
+    "nursingInsurance": 1590,
+    "employmentInsuranceFixed": 1156,
+    "employmentInsuranceRate": 0.0055,
+    "useFixedEmploymentInsurance": False,
+    "dependentsCount": 0,
+    "residentTax": 3500,
+    "allowanceExecutive": 0,
+    "allowanceQualification": 0,
+    "allowanceHousing": 0,
+    "allowanceFamily": 0,
+    "allowanceCommuteNonTax": 0,
+    "allowanceNonTaxOther": 10000,
+    "closingDay": "末日",
+    "paymentDay": "翌月10日",
+    "birthDate": "1981-11-12",
+    "prefecture": "群馬県"
+}
+
+DEFAULT_PREVIOUS_YEAR_INCOME = {
+    "targetYear": 2025,
+    "empNo": "2",
+    "empName": "宮崎真輔",
+    "companyName": "株式会社アルバワークス",
+    "annualGrossSalary": 2400000,
+    "socialInsuranceDeduction": 0,
+    "basicDeduction": 430000,
+    "dependentsDeduction": 0,
+    "spouseDeduction": 0,
+    "otherDeductions": 0,
+    "residentTaxMonthlyJune": 0,
+    "residentTaxMonthlyRegular": 0,
+    "annualResidentTaxTotal": 0,
+    "monthlyRecords": [],
+    "notes": "前年の給与明細・源泉徴収票データ（受取後に詳細登録可能）"
+}
+
+DEFAULT_PAYROLL_RECORDS = [
+    {
+        "id": "pay_2025-07",
+        "targetMonth": "2025-07",
+        "empNo": "2",
+        "empName": "宮崎真輔",
+        "companyName": "株式会社アルバワークス",
+        "workDaysStandard": 21,
+        "workDaysActual": 21,
+        "workHoursStandard": 147.0,
+        "absenceDays": 0,
+        "holidayWorkDays": 0,
+        "paidLeaveDays": 0,
+        "overtimeHours": 9.97,
+        "midnightOvertimeHours": 0.0,
+        "lateEarlyHours": 0.0,
+        "paidLeaveRemaining": 0.0,
+        "baseSalary": 200000,
+        "allowanceExecutive": 0,
+        "allowanceQualification": 0,
+        "allowanceHousing": 0,
+        "allowanceFamily": 0,
+        "overtimePay": 17801,
+        "allowanceCommuteNonTax": 0,
+        "allowanceNonTaxOther": 0,
+        "midnightPay": 0,
+        "holidayPay": 0,
+        "totalNonTax": 0,
+        "totalTaxable": 217801,
+        "totalGross": 217801,
+        "healthInsurance": 9970,
+        "welfarePension": 18300,
+        "welfarePensionFund": 0,
+        "nursingInsurance": 1590,
+        "employmentInsurance": 1100,
+        "totalSocialInsurance": 30960,
+        "taxableIncome": 186841,
+        "incomeTax": 3340,
+        "residentTax": 0,
+        "mutualAid": 0,
+        "totalTax": 3340,
+        "totalDeductions": 34300,
+        "netPay": 183501,
+        "note": "2025年7月度 給与支給明細書（見本データ）",
+        "createdAt": "2025-07-25T10:00:00.000Z",
+        "updatedAt": "2025-07-25T10:00:00.000Z"
+    }
+]
 
 DEFAULT_ISSUER = {
     "name": "株式会社サンプル商事",
@@ -612,6 +725,60 @@ class BillCraftHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(mappings, ensure_ascii=False).encode('utf-8'))
             return
 
+        # 給与明細レコード一覧取得API
+        if self.path == '/api/payroll/records':
+            pay_records = load_json_file(PAYROLL_RECORDS_FILE, DEFAULT_PAYROLL_RECORDS)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps(pay_records, ensure_ascii=False).encode('utf-8'))
+            return
+
+        # 給与計算設定取得API
+        if self.path == '/api/payroll/settings':
+            pay_settings = load_json_file(PAYROLL_SETTINGS_FILE, DEFAULT_PAYROLL_SETTINGS)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps(pay_settings, ensure_ascii=False).encode('utf-8'))
+            return
+
+        # 前年所得・明細データ取得API
+        if self.path == '/api/payroll/previous-year':
+            prev_income = load_json_file(PREVIOUS_YEAR_INCOME_FILE, DEFAULT_PREVIOUS_YEAR_INCOME)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps(prev_income, ensure_ascii=False).encode('utf-8'))
+            return
+
+        # 請求書履歴一覧取得API
+        if self.path == '/api/invoices/history':
+            invoices = load_json_file(INVOICES_HISTORY_FILE, [])
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps(invoices, ensure_ascii=False).encode('utf-8'))
+            return
+
+        # アクティブ編集伝票取得API
+        if self.path == '/api/invoices/active':
+            active_doc = load_json_file(ACTIVE_DOC_FILE, None)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps(active_doc, ensure_ascii=False).encode('utf-8'))
+            return
+
+        # 経費・仕訳データ一覧取得API
+        if self.path == '/api/expenses':
+            expenses = load_json_file(EXPENSES_FILE, [])
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps(expenses, ensure_ascii=False).encode('utf-8'))
+            return
+
         return super().do_GET()
 
     def do_POST(self):
@@ -936,6 +1103,141 @@ class BillCraftHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
             return
 
+        # 給与明細レコード一覧 保存API
+        if self.path == '/api/payroll/records':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            try:
+                records = json.loads(post_data)
+                if not isinstance(records, list):
+                    raise ValueError("データ形式が配列ではありません")
+                success, err = save_json_file_with_backup(PAYROLL_RECORDS_FILE, records, "payroll_records")
+                if not success:
+                    raise Exception(err)
+                print(f"[給与明細レコード 保存成功] 件数: {len(records)}件 -> {PAYROLL_RECORDS_FILE}")
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True, "count": len(records)}, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+            return
+
+        # 給与計算設定 保存API
+        if self.path == '/api/payroll/settings':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            try:
+                settings = json.loads(post_data)
+                if not isinstance(settings, dict):
+                    raise ValueError("データ形式がオブジェクトではありません")
+                success, err = save_json_file_with_backup(PAYROLL_SETTINGS_FILE, settings, "payroll_settings")
+                if not success:
+                    raise Exception(err)
+                print(f"[給与設定 保存成功] 社員: {settings.get('empName')} -> {PAYROLL_SETTINGS_FILE}")
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True}, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+            return
+
+        # 前年所得・明細データ保存API
+        if self.path == '/api/payroll/previous-year':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            try:
+                prev_data = json.loads(post_data)
+                if not isinstance(prev_data, dict):
+                    raise ValueError("データ形式がオブジェクトではありません")
+                success, err = save_json_file_with_backup(PREVIOUS_YEAR_INCOME_FILE, prev_data, "previous_year_income")
+                if not success:
+                    raise Exception(err)
+                print(f"[前年所得データ 保存成功] 対象年: {prev_data.get('targetYear')}年 -> {PREVIOUS_YEAR_INCOME_FILE}")
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True}, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+            return
+
+        if self.path == '/api/invoices/history':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            try:
+                invoices = json.loads(post_data)
+                if not isinstance(invoices, list):
+                    raise ValueError("データ形式が配列ではありません")
+                success, err = save_json_file_with_backup(INVOICES_HISTORY_FILE, invoices, "invoices_history")
+                if not success:
+                    raise Exception(err)
+                print(f"[請求書履歴 保存成功] 件数: {len(invoices)}件 -> {INVOICES_HISTORY_FILE}")
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True}, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+            return
+
+        # アクティブ編集伝票 保存API
+        if self.path == '/api/invoices/active':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            try:
+                active_doc = json.loads(post_data) if post_data else None
+                success, err = save_json_file_with_backup(ACTIVE_DOC_FILE, active_doc, "active_doc")
+                if not success:
+                    raise Exception(err)
+                print(f"[アクティブ伝票 保存成功] -> {ACTIVE_DOC_FILE}")
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True}, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+            return
+
+        # 経費明細 保存API
+        if self.path == '/api/expenses':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            try:
+                expenses = json.loads(post_data)
+                if not isinstance(expenses, list):
+                    raise ValueError("データ形式が配列ではありません")
+                success, err = save_json_file_with_backup(EXPENSES_FILE, expenses, "expenses")
+                if not success:
+                    raise Exception(err)
+                print(f"[経費データ 保存成功] 件数: {len(expenses)}件 -> {EXPENSES_FILE}")
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True}, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+            return
+
         self.send_response(404)
         self.end_headers()
 
@@ -985,7 +1287,7 @@ def open_browser():
 
 if __name__ == '__main__':
     print("=" * 60)
-    print(" AlbaCraft ERP - 統合業務管理サーバー起動中")
+    print(" Alva-works EPR - 統合業務管理サーバー起動中")
     print(f" URL: http://localhost:{PORT}")
     has_key = bool(get_gemini_api_key())
     if has_key:
@@ -998,6 +1300,7 @@ if __name__ == '__main__':
     threading.Timer(0.8, open_browser).start()
 
     try:
+        socketserver.TCPServer.allow_reuse_address = True
         with socketserver.TCPServer(('', PORT), BillCraftHandler) as httpd:
             httpd.serve_forever()
     except OSError as e:

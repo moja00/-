@@ -27,6 +27,9 @@ with open('js/accounting-state.js', 'r', encoding='utf-8') as f:
 with open('js/attendance-state.js', 'r', encoding='utf-8') as f:
     attendance_state_code = clean_code(f.read())
 
+with open('js/payroll-state.js', 'r', encoding='utf-8') as f:
+    payroll_state_code = clean_code(f.read())
+
 with open('js/receipt-parser.js', 'r', encoding='utf-8') as f:
     receipt_parser_code = clean_code(f.read())
 
@@ -69,6 +72,11 @@ bundle_content = f"""/**
   // 勤怠管理・タイムカード（休憩1時間自動控除）ロジック
   // ==========================================================================
 {attendance_state_code}
+
+  // ==========================================================================
+  // 給与計算（月給制・社保・所得税・支給控除）ロジック
+  // ==========================================================================
+{payroll_state_code}
 
   // ==========================================================================
   // レシート・領収書画像解析エンジン

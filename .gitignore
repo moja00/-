@@ -21,6 +21,8 @@ Thumbs.db
 .vscode/
 .idea/
 
-# 一時ファイル
+# 一時ファイル・検証スクリプト
 scratch/
 scratch_*
+scripts/
+tests/

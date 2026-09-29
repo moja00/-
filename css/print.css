@@ -135,5 +135,84 @@
     width: 100% !important;
     min-height: auto !important;
   }
+
+  /* ========================================================================
+     経費立替精算書印刷モード（A4縦帳票）
+     ======================================================================== */
+  #expenseSettlementModal:not([style*="display: none"]) {
+    display: block !important;
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  #expenseSettlementModal:not([style*="display: none"]) .modal-content {
+    box-shadow: none !important;
+    border: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 0 !important;
+    background: transparent !important;
+    overflow: visible !important;
+  }
+
+  #expenseSettlementModal:not([style*="display: none"]) .modal-body {
+    background: transparent !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .settlement-a4-sheet {
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    background: transparent !important;
+  }
+
+  .settlement-print-table tr {
+    page-break-inside: avoid;
+  }
+
+  /* ========================================================================
+     給与明細書印刷モード（A4用紙）
+     ======================================================================== */
+  #payrollSheetModal:not([style*="display: none"]) {
+    display: block !important;
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  #payrollSheetModal:not([style*="display: none"]) .modal-content {
+    box-shadow: none !important;
+    border: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 0 !important;
+    background: transparent !important;
+    overflow: visible !important;
+  }
+
+  #payrollSheetModal:not([style*="display: none"]) .modal-body {
+    background: transparent !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  #payrollSheetModal article {
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+  }
 }
 

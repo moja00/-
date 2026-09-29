@@ -16,7 +16,10 @@ const KEYS = {
   ATTENDANCE: 'quickdoc_attendance',
   ATTENDANCE_EMPLOYEE: 'billcraft_attendance_employee',
   INVENTORY: 'billcraft_inventory_master',
-  PURCHASE_MAPPINGS: 'billcraft_purchase_mappings'
+  PURCHASE_MAPPINGS: 'billcraft_purchase_mappings',
+  PAYROLL_RECORDS: 'billcraft_payroll_records',
+  PAYROLL_SETTINGS: 'billcraft_payroll_settings',
+  PREVIOUS_YEAR_INCOME: 'billcraft_previous_year_income'
 };
 
 const DEFAULT_ITEMS_MASTER = [
@@ -212,6 +215,10 @@ export const DEFAULT_PURCHASE_MAPPINGS = {
 export function saveActiveDoc(doc) {
   try {
     localStorage.setItem(KEYS.ACTIVE_DOC, JSON.stringify(doc));
+    // サーバーファイル（data/invoices/active_doc.json）にも即時保存
+    saveServerActiveDoc(doc).catch(e => {
+      console.warn('Server active doc save failed:', e);
+    });
   } catch (e) {
     console.error('Failed to save active doc to localStorage:', e);
   }
@@ -353,6 +360,10 @@ export function saveDocToHistory(doc) {
     }
 
     localStorage.setItem(KEYS.HISTORY, JSON.stringify(list));
+    // サーバーファイル（data/invoices/invoices_history.json）にも即時保存
+    saveServerInvoicesHistory(list).catch(e => {
+      console.warn('Server invoices history save failed:', e);
+    });
     // 自社情報もプロファイルに保存
     if (doc.issuer) {
       saveIssuerProfile(doc.issuer);
@@ -373,6 +384,10 @@ export function deleteDocFromHistory(id) {
   try {
     const list = getHistoryList().filter(item => item.id !== id);
     localStorage.setItem(KEYS.HISTORY, JSON.stringify(list));
+    // サーバーファイル（data/invoices/invoices_history.json）にも即時保存
+    saveServerInvoicesHistory(list).catch(e => {
+      console.warn('Server invoices history delete save failed:', e);
+    });
     return true;
   } catch (e) {
     console.error('Failed to delete doc from history:', e);
@@ -549,6 +564,77 @@ export async function deleteServerAttendanceRecord(date = '', id = '') {
     if (id) params.set('id', id);
     const res = await fetch(`/api/attendance?${params.toString()}`, {
       method: 'DELETE'
+    });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+export async function fetchServerInvoicesHistory() {
+  try {
+    const res = await fetch('/api/invoices/history', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+    }
+  } catch (e) {}
+  return null;
+}
+
+export async function saveServerInvoicesHistory(invoices) {
+  try {
+    const res = await fetch('/api/invoices/history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(invoices)
+    });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+export async function fetchServerActiveDoc() {
+  try {
+    const res = await fetch('/api/invoices/active', { cache: 'no-store' });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {}
+  return null;
+}
+
+export async function saveServerActiveDoc(doc) {
+  try {
+    const res = await fetch('/api/invoices/active', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(doc)
+    });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+export async function fetchServerExpenses() {
+  try {
+    const res = await fetch('/api/expenses', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+    }
+  } catch (e) {}
+  return null;
+}
+
+export async function saveServerExpenses(expenses) {
+  try {
+    const res = await fetch('/api/expenses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(expenses)
     });
     return res.ok;
   } catch (e) {
@@ -1095,11 +1181,14 @@ export async function syncMastersWithServer() {
       const serverEmp = await fetchServerAttendanceEmployee();
       const localEmp = getAttendanceEmployee();
 
-      let finalEmp = { empNo: '1111', empName: '宮崎真輔' };
+      let finalEmp = { empNo: '2', empName: '宮崎真輔' };
       if (serverEmp && serverEmp.empName && serverEmp.empName !== '山田 一郎') {
         finalEmp = { ...serverEmp };
       } else if (localEmp && localEmp.empName && localEmp.empName !== '山田 一郎') {
         finalEmp = { ...localEmp };
+      }
+      if (!finalEmp.empNo || finalEmp.empNo === '1111') {
+        finalEmp.empNo = '2';
       }
 
       localStorage.setItem(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(finalEmp));
@@ -1107,6 +1196,94 @@ export async function syncMastersWithServer() {
       console.log(`[勤怠同期完了] 勤怠社員情報（氏名: ${finalEmp.empName}）をサーバー・ローカルで同期しました`);
     } catch (empErr) {
       console.warn('Sync attendance employee error:', empErr);
+    }
+
+    // 6. 給与明細レコード（data/payroll/payroll_records.json）の双方向同期
+    try {
+      const serverPayRecords = await fetchServerPayrollRecords();
+      const localPayRecords = getPayrollRecords();
+
+      if (serverPayRecords && serverPayRecords.length > 0) {
+        localStorage.setItem(KEYS.PAYROLL_RECORDS, JSON.stringify(serverPayRecords));
+      } else if (localPayRecords.length > 0) {
+        await saveServerPayrollRecords(localPayRecords);
+      }
+    } catch (payErr) {
+      console.warn('Sync payroll records error:', payErr);
+    }
+
+    // 7. 給与計算設定（data/payroll/payroll_settings.json）の双方向同期
+    try {
+      const serverPaySettings = await fetchServerPayrollSettings();
+      const localPaySettings = getPayrollSettings();
+
+      if (serverPaySettings && serverPaySettings.empNo) {
+        localStorage.setItem(KEYS.PAYROLL_SETTINGS, JSON.stringify(serverPaySettings));
+      } else if (localPaySettings && localPaySettings.empNo) {
+        await saveServerPayrollSettings(localPaySettings);
+      }
+    } catch (setErr) {
+      console.warn('Sync payroll settings error:', setErr);
+    }
+
+    // 7-2. 前年所得・明細データ（data/payroll/previous_year_income.json）の双方向同期
+    try {
+      const serverPrevIncome = await fetchServerPreviousYearIncome();
+      const localPrevIncome = getPreviousYearIncome();
+
+      if (serverPrevIncome && serverPrevIncome.targetYear) {
+        localStorage.setItem(KEYS.PREVIOUS_YEAR_INCOME, JSON.stringify(serverPrevIncome));
+      } else if (localPrevIncome && localPrevIncome.targetYear) {
+        await saveServerPreviousYearIncome(localPrevIncome);
+      }
+    } catch (prevErr) {
+      console.warn('Sync previous year income error:', prevErr);
+    }
+
+    // 8. 請求書履歴（data/invoices/invoices_history.json）の同期
+    try {
+      const serverInvoices = await fetchServerInvoicesHistory();
+      const localInvoices = getHistoryList();
+
+      if (serverInvoices && Array.isArray(serverInvoices) && serverInvoices.length > 0) {
+        localStorage.setItem(KEYS.HISTORY, JSON.stringify(serverInvoices));
+        console.log(`[請求書同期完了] 請求書履歴: 全 ${serverInvoices.length} 件をサーバーから同期しました`);
+      } else if (localInvoices && localInvoices.length > 0) {
+        await saveServerInvoicesHistory(localInvoices);
+        console.log(`[請求書同期完了] ローカル請求書履歴: 全 ${localInvoices.length} 件をサーバーへ保存しました`);
+      }
+    } catch (invErr) {
+      console.warn('Sync invoices history error:', invErr);
+    }
+
+    // 9. アクティブ伝票（data/invoices/active_doc.json）の同期
+    try {
+      const serverActiveDoc = await fetchServerActiveDoc();
+      const localActiveDoc = loadActiveDoc();
+
+      if (serverActiveDoc) {
+        localStorage.setItem(KEYS.ACTIVE_DOC, JSON.stringify(serverActiveDoc));
+      } else if (localActiveDoc) {
+        await saveServerActiveDoc(localActiveDoc);
+      }
+    } catch (actErr) {
+      console.warn('Sync active doc error:', actErr);
+    }
+
+    // 10. 経費データ（data/expenses/expenses.json）の同期
+    try {
+      const serverExpenses = await fetchServerExpenses();
+      const localExpenses = getExpenseList();
+
+      if (serverExpenses && Array.isArray(serverExpenses) && serverExpenses.length > 0) {
+        localStorage.setItem(KEYS.EXPENSES, JSON.stringify(serverExpenses));
+        console.log(`[経費同期完了] 経費データ: 全 ${serverExpenses.length} 件をサーバーから同期しました`);
+      } else if (localExpenses && localExpenses.length > 0) {
+        await saveServerExpenses(localExpenses);
+        console.log(`[経費同期完了] ローカル経費データ: 全 ${localExpenses.length} 件をサーバーへ保存しました`);
+      }
+    } catch (expErr) {
+      console.warn('Sync expenses error:', expErr);
     }
 
     return true;
@@ -1470,6 +1647,7 @@ export function updateDocPaymentStatus(docId, status = 'paid', paidDate = '', no
     }
 
     localStorage.setItem(KEYS.HISTORY, JSON.stringify(list));
+    saveServerInvoicesHistory(list).catch(() => {});
     return true;
   } catch (e) {
     console.error('Failed to update payment status:', e);
@@ -1501,6 +1679,7 @@ export function cancelDocIssue(docId) {
     }
 
     localStorage.setItem(KEYS.HISTORY, JSON.stringify(list));
+    saveServerInvoicesHistory(list).catch(() => {});
     return true;
   } catch (e) {
     console.error('Failed to cancel doc issue:', e);
@@ -1561,6 +1740,9 @@ export function saveExpense(expense) {
       receiptImage: receiptImg,
       receiptDataUrl: receiptImg,
       isCost: !!expense.isCost,
+      claimant: expense.claimant || '小林俊介',
+      isSettled: !!expense.isSettled,
+      settledDate: expense.settledDate || null,
       paymentMethod: expense.paymentMethod || '普通預金',
       updatedAt: new Date().toISOString()
     };
@@ -1573,10 +1755,48 @@ export function saveExpense(expense) {
     }
 
     localStorage.setItem(KEYS.EXPENSES, JSON.stringify(list));
+    // サーバーファイル（data/expenses/expenses.json）にも即時保存
+    saveServerExpenses(list).catch(e => {
+      console.warn('Server expenses save failed:', e);
+    });
     return newExp;
   } catch (e) {
     console.error('Failed to save expense:', e);
     return null;
+  }
+}
+
+/**
+ * 複数経費を一括精算済みに更新
+ * @param {Array<string>} expenseIds 
+ * @param {string} settledDate 
+ * @returns {number} 更新件数
+ */
+export function markExpensesSettled(expenseIds = [], settledDate = '') {
+  try {
+    if (!Array.isArray(expenseIds) || expenseIds.length === 0) return 0;
+    const targetSet = new Set(expenseIds);
+    const list = getExpenseList();
+    const dateStr = settledDate || new Date().toISOString().split('T')[0];
+    let count = 0;
+
+    list.forEach(e => {
+      if (targetSet.has(e.id)) {
+        e.isSettled = true;
+        e.settledDate = dateStr;
+        e.updatedAt = new Date().toISOString();
+        count++;
+      }
+    });
+
+    if (count > 0) {
+      localStorage.setItem(KEYS.EXPENSES, JSON.stringify(list));
+      saveServerExpenses(list).catch(e => console.warn('Server expenses save failed:', e));
+    }
+    return count;
+  } catch (err) {
+    console.error('Failed to mark expenses settled:', err);
+    return 0;
   }
 }
 
@@ -1587,6 +1807,10 @@ export function deleteExpense(id) {
   try {
     const list = getExpenseList().filter(e => e.id !== id);
     localStorage.setItem(KEYS.EXPENSES, JSON.stringify(list));
+    // サーバーファイル（data/expenses/expenses.json）にも即時保存
+    saveServerExpenses(list).catch(e => {
+      console.warn('Server expenses delete save failed:', e);
+    });
     return true;
   } catch (e) {
     console.error('Failed to delete expense:', e);
@@ -1741,7 +1965,7 @@ export function getAttendanceEmployee() {
     const raw = localStorage.getItem(KEYS.ATTENDANCE_EMPLOYEE);
     let data = raw ? JSON.parse(raw) : null;
     if (!data) {
-      data = { empNo: '1111', empName: '宮崎真輔' };
+      data = { empNo: '2', empName: '宮崎真輔' };
       localStorage.setItem(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(data));
       return data;
     }
@@ -1750,9 +1974,14 @@ export function getAttendanceEmployee() {
       data.empName = '宮崎真輔';
       localStorage.setItem(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(data));
     }
+    // 社員番号未設定または旧番号「1111」の場合は「2」に自動更新
+    if (!data.empNo || data.empNo === '1111') {
+      data.empNo = '2';
+      localStorage.setItem(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(data));
+    }
     return data;
   } catch (e) {
-    return { empNo: '1111', empName: '宮崎真輔' };
+    return { empNo: '2', empName: '宮崎真輔' };
   }
 }
 
@@ -2353,4 +2582,268 @@ export function findInventoryMatchForPurchase(rawName) {
   }
 
   return { inventoryId: '', item: null, matchType: 'none' };
+}
+
+// ==========================================================================
+// 給与計算（給与明細レコード・給与計算設定）のデータ管理
+// ==========================================================================
+
+export async function fetchServerPayrollRecords() {
+  try {
+    const res = await fetch('/api/payroll/records');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    return null;
+  }
+}
+
+export async function saveServerPayrollRecords(records) {
+  try {
+    const res = await fetch('/api/payroll/records', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(records)
+    });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+export async function fetchServerPayrollSettings() {
+  try {
+    const res = await fetch('/api/payroll/settings');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    return null;
+  }
+}
+
+export async function saveServerPayrollSettings(settings) {
+  try {
+    const res = await fetch('/api/payroll/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings)
+    });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+export async function fetchServerPreviousYearIncome() {
+  try {
+    const res = await fetch('/api/payroll/previous-year');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    return null;
+  }
+}
+
+export async function saveServerPreviousYearIncome(data) {
+  try {
+    const res = await fetch('/api/payroll/previous-year', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * 前年の所得・明細データの取得
+ */
+export function getPreviousYearIncome() {
+  try {
+    const raw = localStorage.getItem(KEYS.PREVIOUS_YEAR_INCOME);
+    let data = raw ? JSON.parse(raw) : null;
+    if (!data) {
+      data = {
+        targetYear: 2025,
+        empNo: '2',
+        empName: '宮崎真輔',
+        companyName: '株式会社アルバワークス',
+        annualGrossSalary: 2400000,
+        socialInsuranceDeduction: 0,
+        basicDeduction: 430000,
+        dependentsDeduction: 0,
+        spouseDeduction: 0,
+        otherDeductions: 0,
+        residentTaxMonthlyJune: 0,
+        residentTaxMonthlyRegular: 0,
+        annualResidentTaxTotal: 0,
+        monthlyRecords: [],
+        notes: '前年の給与明細・源泉徴収票データ（受取後に詳細登録可能）'
+      };
+      localStorage.setItem(KEYS.PREVIOUS_YEAR_INCOME, JSON.stringify(data));
+    }
+    return data;
+  } catch (e) {
+    return {
+      targetYear: 2025,
+      empNo: '2',
+      empName: '宮崎真輔',
+      annualGrossSalary: 2400000
+    };
+  }
+}
+
+/**
+ * 前年の所得・明細データの保存
+ */
+export function savePreviousYearIncome(data) {
+  try {
+    const current = getPreviousYearIncome();
+    const updated = { ...current, ...data, updatedAt: new Date().toISOString() };
+    localStorage.setItem(KEYS.PREVIOUS_YEAR_INCOME, JSON.stringify(updated));
+    saveServerPreviousYearIncome(updated);
+    return updated;
+  } catch (e) {
+    console.error('Failed to save previous year income:', e);
+    return null;
+  }
+}
+
+/**
+ * 給与計算設定の取得（デフォルト: 宮崎真輔様・社員番号2・基本給20万円）
+ */
+export function getPayrollSettings() {
+  try {
+    const raw = localStorage.getItem(KEYS.PAYROLL_SETTINGS);
+    let data = raw ? JSON.parse(raw) : null;
+    if (!data) {
+      data = {
+        empNo: '2',
+        empName: '宮崎真輔',
+        companyName: '株式会社アルバワークス',
+        salaryType: 'monthly',
+        baseSalary: 200000,
+        isChildcareLeave: true,
+        childcareStartDate: '2026-03-14',
+        childcareEndDate: '2027-03-31',
+        childcareExemptSocialInsurance: true,
+        dailyWageCalculationType: 'proRata',
+        dailyWageUnit: 10000,
+        monthlyStandardDays: 20,
+        monthlyStandardHours: 140.0,
+        overtimeRate: 1.25,
+        overtimeUnitHourly: 1785.456,
+        standardMonthlyRemuneration: 200000,
+        healthInsurance: 9970,
+        welfarePension: 18300,
+        nursingInsurance: 1590,
+        employmentInsuranceFixed: 1156,
+        employmentInsuranceRate: 0.0055,
+        useFixedEmploymentInsurance: false,
+        dependentsCount: 0,
+        residentTax: 3500,
+        allowanceExecutive: 0,
+        allowanceQualification: 0,
+        allowanceHousing: 0,
+        allowanceFamily: 0,
+        allowanceCommuteNonTax: 0,
+        allowanceNonTaxOther: 10000,
+        closingDay: '末日',
+        paymentDay: '翌月10日',
+        birthDate: '1981-11-12',
+        prefecture: '群馬県'
+      };
+      localStorage.setItem(KEYS.PAYROLL_SETTINGS, JSON.stringify(data));
+    }
+    return data;
+  } catch (e) {
+    return {
+      empNo: '2',
+      empName: '宮崎真輔',
+      companyName: '株式会社アルバワークス',
+      baseSalary: 200000
+    };
+  }
+}
+
+/**
+ * 給与計算設定の保存
+ */
+export function savePayrollSettings(settings) {
+  try {
+    const current = getPayrollSettings();
+    const updated = { ...current, ...settings };
+    localStorage.setItem(KEYS.PAYROLL_SETTINGS, JSON.stringify(updated));
+    saveServerPayrollSettings(updated);
+    return updated;
+  } catch (e) {
+    console.error('Failed to save payroll settings:', e);
+    return null;
+  }
+}
+
+/**
+ * 給与明細レコード全件の取得
+ */
+export function getPayrollRecords() {
+  try {
+    const raw = localStorage.getItem(KEYS.PAYROLL_RECORDS);
+    if (!raw) return [];
+    return JSON.parse(raw) || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * 指定年月の給与明細レコードを取得
+ */
+export function getPayrollRecordByMonth(targetMonth) {
+  const records = getPayrollRecords();
+  return records.find(r => r.targetMonth === targetMonth) || null;
+}
+
+/**
+ * 給与明細レコードの保存（新規または更新）
+ */
+export function savePayrollRecord(record) {
+  try {
+    const records = getPayrollRecords();
+    const idx = records.findIndex(r => r.targetMonth === record.targetMonth || (record.id && r.id === record.id));
+    const toSave = {
+      ...record,
+      id: record.id || `pay_${record.targetMonth}`,
+      updatedAt: new Date().toISOString()
+    };
+    if (idx >= 0) {
+      records[idx] = toSave;
+    } else {
+      toSave.createdAt = new Date().toISOString();
+      records.unshift(toSave);
+    }
+    localStorage.setItem(KEYS.PAYROLL_RECORDS, JSON.stringify(records));
+    saveServerPayrollRecords(records);
+    return toSave;
+  } catch (e) {
+    console.error('Failed to save payroll record:', e);
+    return null;
+  }
+}
+
+/**
+ * 給与明細レコードの削除
+ */
+export function deletePayrollRecord(targetMonthOrId) {
+  try {
+    let records = getPayrollRecords();
+    records = records.filter(r => r.id !== targetMonthOrId && r.targetMonth !== targetMonthOrId);
+    localStorage.setItem(KEYS.PAYROLL_RECORDS, JSON.stringify(records));
+    saveServerPayrollRecords(records);
+    return true;
+  } catch (e) {
+    console.error('Failed to delete payroll record:', e);
+    return false;
+  }
 }

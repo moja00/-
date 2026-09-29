@@ -63,7 +63,16 @@ import {
   savePurchaseMapping,
   findInventoryMatchForPurchase,
   saveNewProductAndInventory,
-  cancelDocIssue
+  getPayrollSettings,
+  savePayrollSettings,
+  getPayrollRecords,
+  getPayrollRecordByMonth,
+  savePayrollRecord,
+  deletePayrollRecord,
+  cancelDocIssue,
+  getPreviousYearIncome,
+  savePreviousYearIncome,
+  markExpensesSettled
 } from './storage.js';
 
 import {
@@ -71,7 +80,8 @@ import {
   calculateProfitAndLoss,
   generateJournalEntries,
   exportJournalsToCSV,
-  normalizeInvoiceDoc
+  normalizeInvoiceDoc,
+  isDateInPeriod
 } from './accounting-state.js';
 
 import {
@@ -79,6 +89,7 @@ import {
   getCurrentTimeString,
   calculateWorkDuration,
   formatMinutesToHours,
+  formatMinutesToDecimalHours,
   calculateMonthlyAttendance,
   exportAttendanceToCSV
 } from './attendance-state.js';
@@ -89,6 +100,20 @@ import {
   parseReceiptText,
   buildLearnedPayeeIndex
 } from './receipt-parser.js';
+
+import {
+  calculateIncomeTax,
+  getDefaultPayrollSettings,
+  extractAttendanceForPayroll,
+  calculatePayrollRecord,
+  formatPayrollCurrency,
+  calculateResidentTaxFromAnnualIncome,
+  calculateEmploymentInsurance,
+  calculateEmploymentIncomeDeduction,
+  getPreviousMonthStr,
+  getWorkPeriodLabel,
+  SOCIAL_INSURANCE_PREFECTURES
+} from './payroll-state.js';
 
 import { SAMPLE_DOCUMENTS } from './sample-data.js';
 
@@ -209,6 +234,7 @@ const DOM = {
   btnNewDoc: document.getElementById('btnNewDoc'),
   btnLoadSample: document.getElementById('btnLoadSample'),
   btnOpenHistory: document.getElementById('btnOpenHistory'),
+  btnOpenHistorySidebar: document.getElementById('btnOpenHistorySidebar'),
   btnOpenBackup: document.getElementById('btnOpenBackup'),
 
   // モーダル
@@ -216,6 +242,16 @@ const DOM = {
   btnCloseHistoryModal: document.getElementById('btnCloseHistoryModal'),
   btnCloseHistoryModal2: document.getElementById('btnCloseHistoryModal2'),
   historyListContainer: document.getElementById('historyListContainer'),
+  historyTotalCountBadge: document.getElementById('historyTotalCountBadge'),
+  historySearchProduct: document.getElementById('historySearchProduct'),
+  historyProductQuickChips: document.getElementById('historyProductQuickChips'),
+  historySearchClient: document.getElementById('historySearchClient'),
+  historyClientDatalist: document.getElementById('historyClientDatalist'),
+  historySearchMonth: document.getElementById('historySearchMonth'),
+  historySearchDocType: document.getElementById('historySearchDocType'),
+  historyMatchCount: document.getElementById('historyMatchCount'),
+  historyMatchTotalAmount: document.getElementById('historyMatchTotalAmount'),
+  btnResetHistoryFilters: document.getElementById('btnResetHistoryFilters'),
 
   backupModal: document.getElementById('backupModal'),
   btnCloseBackupModal: document.getElementById('btnCloseBackupModal'),
@@ -395,6 +431,18 @@ const DOM = {
   accTabBtns: document.querySelectorAll('.acc-tab-btn'),
   accPanes: document.querySelectorAll('.acc-pane'),
   accSelectMonth: document.getElementById('accSelectMonth'),
+  // 財務会計トップバー 共通集計期間セレクター
+  accGlobalPeriodPreset: document.getElementById('accGlobalPeriodPreset'),
+  accGlobalPeriodStart: document.getElementById('accGlobalPeriodStart'),
+  accGlobalPeriodEnd: document.getElementById('accGlobalPeriodEnd'),
+  btnApplyAccGlobalCustomRange: document.getElementById('btnApplyAccGlobalCustomRange'),
+  badgeAccActivePeriod: document.getElementById('badgeAccActivePeriod'),
+  dispAccActivePeriodText: document.getElementById('dispAccActivePeriodText'),
+  accDateRangeModal: document.getElementById('accDateRangeModal'),
+  modalAccDateStart: document.getElementById('modalAccDateStart'),
+  modalAccDateEnd: document.getElementById('modalAccDateEnd'),
+  modalAccDateRangePreview: document.getElementById('modalAccDateRangePreview'),
+  btnConfirmAccDateRange: document.getElementById('btnConfirmAccDateRange'),
   kpiTotalSales: document.getElementById('kpiTotalSales'),
   kpiTotalSalesInc: document.getElementById('kpiTotalSalesInc'),
   kpiGrossProfit: document.getElementById('kpiGrossProfit'),
@@ -438,6 +486,10 @@ const DOM = {
   expenseInputPayee: document.getElementById('expenseInputPayee'),
   expenseInputInvoiceNum: document.getElementById('expenseInputInvoiceNum'),
   expenseInputNote: document.getElementById('expenseInputNote'),
+  expenseInputClaimant: document.getElementById('expenseInputClaimant'),
+  btnClaimantKobayashi: document.getElementById('btnClaimantKobayashi'),
+  btnClaimantMiyazaki: document.getElementById('btnClaimantMiyazaki'),
+  btnClaimantCompany: document.getElementById('btnClaimantCompany'),
   btnResetExpenseForm: document.getElementById('btnResetExpenseForm'),
   btnSaveExpense: document.getElementById('btnSaveExpense'),
   radioExpenseTypeExpense: document.getElementById('radioExpenseTypeExpense'),
@@ -458,8 +510,32 @@ const DOM = {
   expenseDispRawPayee: document.getElementById('expenseDispRawPayee'),
   expenseListTotalAmount: document.getElementById('expenseListTotalAmount'),
   expenseTableBody: document.getElementById('expenseTableBody'),
+  expenseFilterClaimant: document.getElementById('expenseFilterClaimant'),
+  expenseFilterUnsettledOnly: document.getElementById('expenseFilterUnsettledOnly'),
   btnExportJournalCSV: document.getElementById('btnExportJournalCSV'),
   accJournalTableBody: document.getElementById('accJournalTableBody'),
+
+  // 経費精算書モーダル
+  btnOpenExpenseSettlementModal: document.getElementById('btnOpenExpenseSettlementModal'),
+  btnOpenExpenseSettlementModalAcc: document.getElementById('btnOpenExpenseSettlementModalAcc') || document.getElementById('btnOpenExpenseSettlementModalFromAcc'),
+  expenseSettlementModal: document.getElementById('expenseSettlementModal'),
+  btnCloseExpenseSettlementModal: document.getElementById('btnCloseExpenseSettlementModal'),
+  btnCloseExpenseSettlementModal2: document.getElementById('btnCloseExpenseSettlementModal2'),
+  btnPrintExpenseSettlement: document.getElementById('btnPrintExpenseSettlement'),
+  btnMarkExpensesSettled: document.getElementById('btnMarkExpensesSettled'),
+  settlementModalClaimant: document.getElementById('settlementModalClaimant'),
+  settlementModalPeriodStart: document.getElementById('settlementModalPeriodStart'),
+  settlementModalPeriodEnd: document.getElementById('settlementModalPeriodEnd'),
+  settlementModalUnsettledOnly: document.getElementById('settlementModalUnsettledOnly'),
+  btnApplySettlementFilter: document.getElementById('btnApplySettlementFilter'),
+  settlementSheetApplyDate: document.getElementById('settlementSheetApplyDate'),
+  settlementSheetPeriod: document.getElementById('settlementSheetPeriod'),
+  settlementSheetClaimantName: document.getElementById('settlementSheetClaimantName'),
+  settlementSheetItemCount: document.getElementById('settlementSheetItemCount'),
+  settlementSheetTax10Subtotal: document.getElementById('settlementSheetTax10Subtotal'),
+  settlementSheetTax8Subtotal: document.getElementById('settlementSheetTax8Subtotal'),
+  settlementSheetGrandTotal: document.getElementById('settlementSheetGrandTotal'),
+  settlementSheetTableBody: document.getElementById('settlementSheetTableBody'),
 
   // 勤怠打刻（タイムカード）
   btnOpenAttendance: document.getElementById('btnOpenAttendance'),
@@ -518,7 +594,66 @@ const DOM = {
   portalLiveTime: document.getElementById('portalLiveTime'),
   dispPortalCompanyName: document.getElementById('dispPortalCompanyName'),
   appSwitcherNav: document.getElementById('appSwitcherNav'),
-  appLayoutInvoice: document.getElementById('appLayoutInvoice')
+  appLayoutInvoice: document.getElementById('appLayoutInvoice'),
+
+  // 給与計算モジュール
+  payrollView: document.getElementById('payrollView'),
+  payrollMonthSelector: document.getElementById('payrollMonthSelector'),
+  btnPayrollPrevMonth: document.getElementById('btnPayrollPrevMonth'),
+  btnPayrollNextMonth: document.getElementById('btnPayrollNextMonth'),
+  btnPayrollImportAttendance: document.getElementById('btnPayrollImportAttendance'),
+  btnPayrollToggleSettings: document.getElementById('btnPayrollToggleSettings'),
+  btnPayrollSave: document.getElementById('btnPayrollSave'),
+  btnPayrollOpenSheetModal: document.getElementById('btnPayrollOpenSheetModal'),
+  btnPayrollSyncToAccounting: document.getElementById('btnPayrollSyncToAccounting'),
+  payrollSettingsCard: document.getElementById('payrollSettingsCard'),
+  btnClosePayrollSettings: document.getElementById('btnClosePayrollSettings'),
+  btnSavePayrollSettings: document.getElementById('btnSavePayrollSettings'),
+  payrollCardTotalGross: document.getElementById('payrollCardTotalGross'),
+  payrollCardTotalDeductions: document.getElementById('payrollCardTotalDeductions'),
+  payrollCardNetPay: document.getElementById('payrollCardNetPay'),
+  dispPayrollCardGrossSub: document.getElementById('dispPayrollCardGrossSub'),
+  dispPayrollCardDeductionSub: document.getElementById('dispPayrollCardDeductionSub'),
+  dispCurrentPayrollTitle: document.getElementById('dispCurrentPayrollTitle'),
+  dispPayrollWorkPeriodBadge: document.getElementById('dispPayrollWorkPeriodBadge'),
+  payrollHistoryTableBody: document.getElementById('payrollHistoryTableBody'),
+
+  // 育児休業コントロール
+  checkPayIsChildcare: document.getElementById('checkPayIsChildcare'),
+  checkPayExemptSocial: document.getElementById('checkPayExemptSocial'),
+  selectPayDailyWageType: document.getElementById('selectPayDailyWageType'),
+  inputPayDailyWageUnit: document.getElementById('inputPayDailyWageUnit'),
+  wrapperPayDailyWageUnit: document.getElementById('wrapperPayDailyWageUnit'),
+  badgeChildcarePeriodStatus: document.getElementById('badgeChildcarePeriodStatus'),
+  settingPayChildcareStart: document.getElementById('settingPayChildcareStart'),
+  settingPayChildcareEnd: document.getElementById('settingPayChildcareEnd'),
+  dispSettingChildcarePeriod: document.getElementById('dispSettingChildcarePeriod'),
+  settingPayEmploymentType: document.getElementById('settingPayEmploymentType'),
+  settingPayEmploymentRate: document.getElementById('settingPayEmploymentRate'),
+
+  // A4給与支給明細書モーダル
+  payrollSheetModal: document.getElementById('payrollSheetModal'),
+  btnClosePayrollSheetModal: document.getElementById('btnClosePayrollSheetModal'),
+  btnClosePayrollSheetModal2: document.getElementById('btnClosePayrollSheetModal2'),
+  btnPrintPayrollSheet: document.getElementById('btnPrintPayrollSheet'),
+  dispModalPayrollSubTitle: document.getElementById('dispModalPayrollSubTitle'),
+  printPayPeriod: document.getElementById('printPayPeriod'),
+
+  // 前年所得・住民税法定計算
+  btnPayrollTogglePrevYear: document.getElementById('btnPayrollTogglePrevYear'),
+  payrollPrevYearCard: document.getElementById('payrollPrevYearCard'),
+  btnClosePayrollPrevYear: document.getElementById('btnClosePayrollPrevYear'),
+  prevYearTarget: document.getElementById('prevYearTarget'),
+  prevYearGrossSalary: document.getElementById('prevYearGrossSalary'),
+  prevYearSocialDeduction: document.getElementById('prevYearSocialDeduction'),
+  prevYearDependents: document.getElementById('prevYearDependents'),
+  dispPrevYearAnnualTax: document.getElementById('dispPrevYearAnnualTax'),
+  dispPrevYearTaxJune: document.getElementById('dispPrevYearTaxJune'),
+  dispPrevYearTaxRegular: document.getElementById('dispPrevYearTaxRegular'),
+  dispPrevYearTaxMessage: document.getElementById('dispPrevYearTaxMessage'),
+  btnCalcPrevYearTax: document.getElementById('btnCalcPrevYearTax'),
+  btnSavePrevYearIncome: document.getElementById('btnSavePrevYearIncome'),
+  btnApplyResidentTaxToSettings: document.getElementById('btnApplyResidentTaxToSettings')
 };
 
 // ==========================================================================
@@ -569,17 +704,17 @@ function initApp() {
     updateClientMasterDatalist();
     updateAttendanceUI(); // サーバーから同期された勤怠情報をUIに反映
 
-    // サーバーファイル（data/company/issuer_profile.json）から最新の振込先情報を確実に復元・反映
+    // サーバーファイル（data/company/issuer_profile.json）から最新の自社プロファイル（振込先・社名・住所・印鑑）を確実に復元・反映
     const syncedProfile = loadIssuerProfile();
-    if (syncedProfile && syncedProfile.bankInfo) {
+    if (syncedProfile) {
       if (!currentDoc.issuer) currentDoc.issuer = {};
-      if (!currentDoc.issuer.bankInfo || currentDoc.issuer.bankInfo.trim() === '') {
+      currentDoc.issuer = { ...syncedProfile, ...currentDoc.issuer };
+      if (syncedProfile.bankInfo) {
         currentDoc.issuer.bankInfo = syncedProfile.bankInfo;
       }
-      if (DOM.inputBankInfo && !DOM.inputBankInfo.value) {
-        DOM.inputBankInfo.value = currentDoc.issuer.bankInfo;
-      }
+      populateFormFromDoc();
       renderAll();
+      updatePortalInfo();
     }
 
     if (result && (result.rescuedItems > 0 || result.rescuedClients > 0)) {
@@ -662,6 +797,7 @@ function switchAppView(viewName) {
         DOM.accountingModal.classList.add('active');
       }
       initAccountingMonthSelector();
+      applyAccGlobalPeriod(currentAccGlobalPeriod.preset);
       switchAccountingTab('acc-tab-dashboard');
       break;
 
@@ -670,8 +806,9 @@ function switchAppView(viewName) {
       if (DOM.expensesViewScreen) {
         DOM.expensesViewScreen.classList.add('active');
       }
+      setActiveExpenseClaimant(activeExpenseClaimant);
       populateExpenseInventoryDropdown();
-      renderAccountingExpenses();
+      renderAccountingExpenses(currentAccGlobalPeriod);
       break;
 
     case 'attendance':
@@ -682,6 +819,15 @@ function switchAppView(viewName) {
         DOM.attendanceModal.classList.add('active');
       }
       openAttendanceModal();
+      break;
+
+    case 'payroll':
+      // 給与計算専用画面（月給制・勤怠連動・支給控除集計）
+      if (DOM.payrollView) {
+        DOM.payrollView.classList.add('active');
+        DOM.payrollView.style.display = 'block';
+      }
+      initPayroll();
       break;
   }
 }
@@ -768,8 +914,19 @@ function populateFormFromDoc() {
 // ==========================================================================
 // 全体レンダリング（プレビュー更新 & 計算）
 // ==========================================================================
+function updateItemCountBadge() {
+  const count = (currentDoc && currentDoc.items && Array.isArray(currentDoc.items)) ? currentDoc.items.length : 0;
+  const countBadge = DOM.itemCountBadge || document.getElementById('itemCountBadge');
+  if (countBadge) {
+    countBadge.textContent = count;
+  }
+}
+
 function renderAll() {
   const meta = DOC_TYPES[currentDoc.docType] || DOC_TYPES.invoice;
+
+  // 明細件数バッジの更新
+  updateItemCountBadge();
 
   // ラベル文言の更新
   DOM.labelIssueDate.textContent = meta.dateLabel;
@@ -1132,6 +1289,7 @@ function renderSheetItemsTable(items = []) {
 // ==========================================================================
 function renderItemInputCards() {
   DOM.itemsContainer.innerHTML = '';
+  updateItemCountBadge();
 
   currentDoc.items.forEach((item, index) => {
     const isDiscount = Number(item.unitPrice) < 0;
@@ -1547,21 +1705,36 @@ function setupEventListeners() {
   bindInput(DOM.inputClientAddress, val => currentDoc.client.address = val);
   bindInput(DOM.inputClientContact, val => currentDoc.client.contactPerson = val);
 
-  bindInput(DOM.inputIssuerName, val => currentDoc.issuer.name = val);
-  bindInput(DOM.inputIssuerInvoiceNo, val => currentDoc.issuer.invoiceNumber = val);
-  bindInput(DOM.inputIssuerZip, val => currentDoc.issuer.zip = val);
-  bindInput(DOM.inputIssuerTel, val => currentDoc.issuer.tel = val);
-  bindInput(DOM.inputIssuerFax, val => currentDoc.issuer.fax = val);
-  bindInput(DOM.inputIssuerAddress, val => currentDoc.issuer.address = val);
-  bindInput(DOM.inputIssuerEmail, val => currentDoc.issuer.email = val);
+  // 自社情報入力の永続化同期ヘルパー（変更した瞬間にdata/company/issuer_profile.jsonへ即時保存）
+  const syncIssuerProfileFromCurrentDoc = () => {
+    if (!currentDoc.issuer) currentDoc.issuer = {};
+    const updatedProfile = {
+      ...loadIssuerProfile(),
+      name: currentDoc.issuer.name || '',
+      invoiceNumber: currentDoc.issuer.invoiceNumber || '',
+      zip: currentDoc.issuer.zip || '',
+      tel: currentDoc.issuer.tel || '',
+      fax: currentDoc.issuer.fax || '',
+      address: currentDoc.issuer.address || '',
+      email: currentDoc.issuer.email || '',
+      bankInfo: currentDoc.issuer.bankInfo || '',
+      showStamp: currentDoc.issuer.showStamp !== undefined ? currentDoc.issuer.showStamp : true,
+      stampDataUrl: currentDoc.issuer.stampDataUrl || ''
+    };
+    saveIssuerProfile(updatedProfile);
+  };
+
+  bindInput(DOM.inputIssuerName, val => { currentDoc.issuer.name = val; syncIssuerProfileFromCurrentDoc(); });
+  bindInput(DOM.inputIssuerInvoiceNo, val => { currentDoc.issuer.invoiceNumber = val; syncIssuerProfileFromCurrentDoc(); });
+  bindInput(DOM.inputIssuerZip, val => { currentDoc.issuer.zip = val; syncIssuerProfileFromCurrentDoc(); });
+  bindInput(DOM.inputIssuerTel, val => { currentDoc.issuer.tel = val; syncIssuerProfileFromCurrentDoc(); });
+  bindInput(DOM.inputIssuerFax, val => { currentDoc.issuer.fax = val; syncIssuerProfileFromCurrentDoc(); });
+  bindInput(DOM.inputIssuerAddress, val => { currentDoc.issuer.address = val; syncIssuerProfileFromCurrentDoc(); });
+  bindInput(DOM.inputIssuerEmail, val => { currentDoc.issuer.email = val; syncIssuerProfileFromCurrentDoc(); });
   bindInput(DOM.inputBankInfo, val => {
     if (!currentDoc.issuer) currentDoc.issuer = {};
     currentDoc.issuer.bankInfo = val;
-    saveIssuerProfile({
-      ...loadIssuerProfile(),
-      ...currentDoc.issuer,
-      bankInfo: val
-    });
+    syncIssuerProfileFromCurrentDoc();
   });
   bindInput(DOM.inputNotes, val => currentDoc.notes = val);
 
@@ -1605,6 +1778,7 @@ function setupEventListeners() {
   if (DOM.checkShowStamp) {
     DOM.checkShowStamp.addEventListener('change', e => {
       currentDoc.issuer.showStamp = e.target.checked;
+      syncIssuerProfileFromCurrentDoc();
       renderAll();
     });
   }
@@ -1618,6 +1792,7 @@ function setupEventListeners() {
       currentDoc.issuer.showStamp = true;
       if (DOM.checkShowStamp) DOM.checkShowStamp.checked = true;
       updateStampThumbnail(stampUrl);
+      syncIssuerProfileFromCurrentDoc();
       renderAll();
       showToast(`「${name}」の角印スタンプを生成しました！`, 'success');
     });
@@ -1635,6 +1810,7 @@ function setupEventListeners() {
         currentDoc.issuer.showStamp = true;
         if (DOM.checkShowStamp) DOM.checkShowStamp.checked = true;
         updateStampThumbnail(dataUrl);
+        syncIssuerProfileFromCurrentDoc();
         renderAll();
         showToast('印鑑画像をアップロードしました', 'success');
       };
@@ -1722,6 +1898,30 @@ function setupEventListeners() {
   // 履歴モーダル制御
   if (DOM.btnOpenHistory) {
     DOM.btnOpenHistory.addEventListener('click', openHistoryModal);
+  }
+  if (DOM.btnOpenHistorySidebar) {
+    DOM.btnOpenHistorySidebar.addEventListener('click', openHistoryModal);
+  }
+  if (DOM.historySearchProduct) {
+    DOM.historySearchProduct.addEventListener('input', () => filterAndRenderHistoryList());
+  }
+  if (DOM.historySearchClient) {
+    DOM.historySearchClient.addEventListener('input', () => filterAndRenderHistoryList());
+  }
+  if (DOM.historySearchMonth) {
+    DOM.historySearchMonth.addEventListener('change', () => filterAndRenderHistoryList());
+  }
+  if (DOM.historySearchDocType) {
+    DOM.historySearchDocType.addEventListener('change', () => filterAndRenderHistoryList());
+  }
+  if (DOM.btnResetHistoryFilters) {
+    DOM.btnResetHistoryFilters.addEventListener('click', () => {
+      if (DOM.historySearchProduct) DOM.historySearchProduct.value = '';
+      if (DOM.historySearchClient) DOM.historySearchClient.value = '';
+      if (DOM.historySearchMonth) DOM.historySearchMonth.value = '';
+      if (DOM.historySearchDocType) DOM.historySearchDocType.value = '';
+      filterAndRenderHistoryList();
+    });
   }
   if (DOM.btnCloseHistoryModal) {
     DOM.btnCloseHistoryModal.addEventListener('click', closeHistoryModal);
@@ -2050,12 +2250,46 @@ function setupEventListeners() {
     });
   }
 
-  // 会計期間（月）切り替え
-  if (DOM.accSelectMonth) {
-    DOM.accSelectMonth.addEventListener('change', () => {
-      renderAccountingDashboard(DOM.accSelectMonth.value);
-      renderAccountingJournals();
+  // 会計共通集計期間セレクター＆カレンダー期間モーダル連携
+  if (DOM.accGlobalPeriodPreset) {
+    DOM.accGlobalPeriodPreset.addEventListener('change', (e) => {
+      const val = e.target.value;
+      if (val === 'custom') {
+        openAccDateRangeModal();
+      } else {
+        applyAccGlobalPeriod(val);
+      }
     });
+  }
+  if (DOM.badgeAccActivePeriod) {
+    DOM.badgeAccActivePeriod.addEventListener('click', (e) => {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      openAccDateRangeModal();
+    });
+  }
+  if (DOM.modalAccDateStart) {
+    DOM.modalAccDateStart.addEventListener('input', updateAccDateRangeModalPreview);
+    DOM.modalAccDateStart.addEventListener('change', updateAccDateRangeModalPreview);
+    DOM.modalAccDateStart.addEventListener('click', () => {
+      if (typeof DOM.modalAccDateStart.showPicker === 'function') {
+        try { DOM.modalAccDateStart.showPicker(); } catch (err) {}
+      }
+    });
+  }
+  if (DOM.modalAccDateEnd) {
+    DOM.modalAccDateEnd.addEventListener('input', updateAccDateRangeModalPreview);
+    DOM.modalAccDateEnd.addEventListener('change', updateAccDateRangeModalPreview);
+    DOM.modalAccDateEnd.addEventListener('click', () => {
+      if (typeof DOM.modalAccDateEnd.showPicker === 'function') {
+        try { DOM.modalAccDateEnd.showPicker(); } catch (err) {}
+      }
+    });
+  }
+  if (DOM.btnConfirmAccDateRange) {
+    DOM.btnConfirmAccDateRange.addEventListener('click', confirmAccDateRangeFromModal);
   }
 
   // 売上消込フィルター
@@ -2067,6 +2301,58 @@ function setupEventListeners() {
   }
   if (DOM.btnFilterPaidInvoices) {
     DOM.btnFilterPaidInvoices.addEventListener('click', () => filterSalesTable('paid'));
+  }
+
+  // 経費一覧テーブルの絞り込み（立替者・未精算）
+  if (DOM.expenseFilterClaimant) {
+    DOM.expenseFilterClaimant.addEventListener('change', () => {
+      renderAccountingExpenses(currentAccGlobalPeriod);
+    });
+  }
+  if (DOM.expenseFilterUnsettledOnly) {
+    DOM.expenseFilterUnsettledOnly.addEventListener('change', () => {
+      renderAccountingExpenses(currentAccGlobalPeriod);
+    });
+  }
+
+  // 経費精算書発行モーダル制御
+  if (DOM.btnOpenExpenseSettlementModal) {
+    DOM.btnOpenExpenseSettlementModal.addEventListener('click', () => openExpenseSettlementModal());
+  }
+  if (DOM.btnOpenExpenseSettlementModalAcc) {
+    DOM.btnOpenExpenseSettlementModalAcc.addEventListener('click', () => openExpenseSettlementModal());
+  }
+  if (DOM.btnCloseExpenseSettlementModal) {
+    DOM.btnCloseExpenseSettlementModal.addEventListener('click', closeExpenseSettlementModal);
+  }
+  if (DOM.btnCloseExpenseSettlementModal2) {
+    DOM.btnCloseExpenseSettlementModal2.addEventListener('click', closeExpenseSettlementModal);
+  }
+  if (DOM.btnApplySettlementFilter) {
+    DOM.btnApplySettlementFilter.addEventListener('click', renderExpenseSettlementSheet);
+  }
+  if (DOM.settlementModalClaimant) {
+    DOM.settlementModalClaimant.addEventListener('change', renderExpenseSettlementSheet);
+  }
+  if (DOM.settlementModalPeriodStart) {
+    DOM.settlementModalPeriodStart.addEventListener('change', renderExpenseSettlementSheet);
+  }
+  if (DOM.settlementModalPeriodEnd) {
+    DOM.settlementModalPeriodEnd.addEventListener('change', renderExpenseSettlementSheet);
+  }
+  if (DOM.settlementModalUnsettledOnly) {
+    DOM.settlementModalUnsettledOnly.addEventListener('change', renderExpenseSettlementSheet);
+  }
+  if (DOM.btnPrintExpenseSettlement) {
+    DOM.btnPrintExpenseSettlement.addEventListener('click', handlePrintExpenseSettlement);
+  }
+  if (DOM.btnMarkExpensesSettled) {
+    DOM.btnMarkExpensesSettled.addEventListener('click', handleMarkExpensesSettled);
+  }
+  if (DOM.expenseSettlementModal) {
+    DOM.expenseSettlementModal.addEventListener('click', (e) => {
+      if (e.target === DOM.expenseSettlementModal) closeExpenseSettlementModal();
+    });
   }
 
   // 請求書詳細・直接編集モーダル制御
@@ -2307,131 +2593,404 @@ function updateStampThumbnail(dataUrl) {
 }
 
 // ==========================================================================
-// 履歴モーダル表示
+// 履歴モーダル表示 ＆ 高度複合検索（商品同時購入・取引先・年月・種別）
 // ==========================================================================
 function openHistoryModal() {
+  const modal = DOM.historyModal || document.getElementById('historyModal');
+  if (!modal) return;
+
   const list = getHistoryList();
-  DOM.historyListContainer.innerHTML = '';
+  
+  if (DOM.historyTotalCountBadge) {
+    DOM.historyTotalCountBadge.textContent = `全 ${list.length} 件`;
+  }
 
-  if (list.length === 0) {
-    DOM.historyListContainer.innerHTML = `
-      <div style="text-align: center; color: var(--text-muted); padding: 40px 0;">
-        <p>保存された履歴はありません。</p>
-        <p style="font-size: 0.8rem; margin-top: 6px;">編集画面の「履歴に保存」ボタンを押すとここに記録されます。</p>
-      </div>
-    `;
-  } else {
+  // 1. 年月セレクター（historySearchMonth）の動的構築
+  if (DOM.historySearchMonth) {
+    const currentSelectedMonth = DOM.historySearchMonth.value;
+    const monthsSet = new Set();
     list.forEach(item => {
-      const typeMeta = DOC_TYPES[item.docType] || DOC_TYPES.invoice;
-      const isIssued = !!(item.isIssued && !item.isCancelled);
-      const card = document.createElement('div');
-      card.style.cssText = `
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 12px 16px;
-        margin-bottom: 10px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background: #ffffff;
-        transition: background 0.15s;
-      `;
+      if (item.issueDate && item.issueDate.length >= 7) {
+        monthsSet.add(item.issueDate.substring(0, 7)); // YYYY-MM
+      }
+    });
+    const sortedMonths = Array.from(monthsSet).sort().reverse();
+    
+    let monthOptsHtml = '<option value="">すべての年月</option>';
+    sortedMonths.forEach(ym => {
+      const [y, m] = ym.split('-');
+      monthOptsHtml += `<option value="${ym}">${y}年${parseInt(m, 10)}月度</option>`;
+    });
+    DOM.historySearchMonth.innerHTML = monthOptsHtml;
+    if (currentSelectedMonth && sortedMonths.includes(currentSelectedMonth)) {
+      DOM.historySearchMonth.value = currentSelectedMonth;
+    }
+  }
 
-      const statusBadge = isIssued
-        ? `<span style="background: #dcfce7; color: #166534; font-weight: 700; font-size: 0.725rem; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;" title="財務会計（売上・売掛金消込・仕訳帳）に反映中"><span style="font-size: 7px;">●</span> 確定発行済</span>`
-        : `<span style="background: #f1f5f9; color: #64748b; font-weight: 600; font-size: 0.725rem; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;" title="未確定（下書き）のため財務会計には未反映です"><span style="font-size: 7px;">●</span> 下書き</span>`;
+  // 2. 取引先データリスト（historyClientDatalist）の構築
+  if (DOM.historyClientDatalist) {
+    const clientSet = new Set();
+    list.forEach(item => {
+      const name = item.clientName || item.client?.name;
+      if (name && name.trim()) clientSet.add(name.trim());
+    });
+    // 取引先マスタからも追加
+    const masterClients = typeof getClientMaster === 'function' ? getClientMaster() : [];
+    masterClients.forEach(c => {
+      if (c.name && c.name.trim()) clientSet.add(c.name.trim());
+    });
 
-      const cancelIssueBtnHtml = isIssued
-        ? `<button type="button" class="btn btn-outline-danger btn-sm btn-cancel-issue" style="color: #ef4444; border-color: #fca5a5; font-size: 0.775rem; padding: 4px 9px;" title="確定発行を取り消し、財務会計から除外して下書きに戻します">確定取消</button>`
-        : '';
+    let clientOptsHtml = '';
+    Array.from(clientSet).sort().forEach(name => {
+      clientOptsHtml += `<option value="${escapeHtml(name)}">`;
+    });
+    DOM.historyClientDatalist.innerHTML = clientOptsHtml;
+  }
 
-      card.innerHTML = `
-        <div>
-          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
-            <span style="background: var(--theme-primary-light); color: var(--theme-primary-dark); font-weight: 700; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px;">
-              ${typeMeta.label}
-            </span>
-            ${statusBadge}
-            <span style="font-weight: 700; font-size: 0.9rem;">${escapeHtml(item.clientName)}</span>
-            <span style="font-size: 0.8rem; color: var(--text-muted); font-family: monospace;">${escapeHtml(item.docNumber)}</span>
-          </div>
-          <div style="font-size: 0.8rem; color: var(--text-secondary);">
-            件名: ${escapeHtml(item.title || '無題')} / 発行日: ${item.issueDate || '-'} / 金額: <strong>${formatCurrency(item.grandTotal || 0)}</strong>
-          </div>
-        </div>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          ${cancelIssueBtnHtml}
-          <button type="button" class="btn btn-outline-primary btn-sm btn-load-doc">読み込む</button>
-          <button type="button" class="btn-icon-danger btn-delete-doc" title="削除">✕</button>
-        </div>
-      `;
-
-      // 確定取消ボタンのイベント
-      const cancelBtn = card.querySelector('.btn-cancel-issue');
-      if (cancelBtn) {
-        cancelBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const docNo = item.docNumber || 'この書類';
-          if (confirm(`「${typeMeta.label} (${docNo})」の確定発行を取り消しますか？\n\n【取り消しの効果】\n・財務会計（売上高・売掛金消込・仕訳帳）から即座に除外されます。\n・書類データは削除されず、下書き状態に戻ります。`)) {
-            cancelDocIssue(item.id);
-
-            // もし現在編集中書類が同一なら currentDoc も同期
-            if (currentDoc && currentDoc.id === item.id) {
-              currentDoc.isIssued = false;
-              currentDoc.isCancelled = true;
-              currentDoc.issuedAt = null;
-              saveActiveDoc(currentDoc);
-              renderAll();
-            }
-
-            // 財務会計を再同期
-            initAccountingMonthSelector();
-            const currentMonth = DOM.accSelectMonth ? DOM.accSelectMonth.value : '';
-            renderAccountingDashboard(currentMonth);
-            renderAccountingSales(currentSalesFilter);
-            renderAccountingJournals();
-
-            openHistoryModal(); // 履歴一覧を再描画
-            showToast(`「${typeMeta.label}」の確定発行を取り消しました（財務会計から除外されました）`, 'warning');
-          }
+  // 3. 商品クイック選択チップの構築（よく登場する商品をワンクリックでAND検索窓へ投入）
+  if (DOM.historyProductQuickChips) {
+    const productFrequency = {};
+    list.forEach(item => {
+      if (Array.isArray(item.items)) {
+        item.items.forEach(it => {
+          const n = (it.name || '').trim();
+          if (n) productFrequency[n] = (productFrequency[n] || 0) + 1;
         });
       }
+    });
+    // 商品マスタからも補完
+    const masterItems = typeof getItemMaster === 'function' ? getItemMaster() : [];
+    masterItems.forEach(it => {
+      const n = (it.name || '').trim();
+      if (n && !productFrequency[n]) productFrequency[n] = 0;
+    });
 
-      card.querySelector('.btn-load-doc').addEventListener('click', () => {
-        const full = getDocFromHistory(item.id);
-        if (full) {
-          currentDoc = full;
-          populateFormFromDoc();
-          updateThemeColor(currentDoc.themeColor || 'indigo');
-          renderAll();
-          closeHistoryModal();
-          showToast(`「${item.clientName}」の書類を読み込みました`);
+    // 頻度上位の商品をチップ表示
+    const topProducts = Object.keys(productFrequency)
+      .sort((a, b) => productFrequency[b] - productFrequency[a])
+      .slice(0, 10);
+
+    let chipsHtml = '';
+    topProducts.forEach(prodName => {
+      chipsHtml += `<button type="button" class="history-quick-chip-btn" data-prod="${escapeHtml(prodName)}">+ ${escapeHtml(prodName)}</button>`;
+    });
+    DOM.historyProductQuickChips.innerHTML = chipsHtml;
+
+    // チップクリックで検索ワードに追加
+    DOM.historyProductQuickChips.querySelectorAll('.history-quick-chip-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const p = btn.dataset.prod;
+        if (!DOM.historySearchProduct) return;
+        const currentVal = DOM.historySearchProduct.value.trim();
+        if (!currentVal) {
+          DOM.historySearchProduct.value = p;
+        } else if (!currentVal.includes(p)) {
+          DOM.historySearchProduct.value = `${currentVal} ${p}`;
         }
+        filterAndRenderHistoryList();
       });
-
-      card.querySelector('.btn-delete-doc').addEventListener('click', () => {
-        if (confirm(`「${item.docNumber}」の履歴を削除しますか？`)) {
-          deleteDocFromHistory(item.id);
-          // 財務会計も再同期
-          initAccountingMonthSelector();
-          const currentMonth = DOM.accSelectMonth ? DOM.accSelectMonth.value : '';
-          renderAccountingDashboard(currentMonth);
-          renderAccountingSales(currentSalesFilter);
-          renderAccountingJournals();
-          openHistoryModal(); // 再描画
-          showToast('履歴から削除しました');
-        }
-      });
-
-      DOM.historyListContainer.appendChild(card);
     });
   }
 
-  DOM.historyModal.classList.add('active');
+  // 4. モーダルを表示
+  modal.classList.add('active');
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+
+  // 5. 検索＆描画実行
+  filterAndRenderHistoryList();
 }
 
 function closeHistoryModal() {
-  DOM.historyModal.classList.remove('active');
+  const modal = DOM.historyModal || document.getElementById('historyModal');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+  }
+  document.body.style.overflow = '';
+}
+
+window.openHistoryModal = openHistoryModal;
+window.closeHistoryModal = closeHistoryModal;
+
+/**
+ * 複合検索フィルター実行 ＆ 履歴カードレンダリング
+ */
+function filterAndRenderHistoryList() {
+  const container = DOM.historyListContainer || document.getElementById('historyListContainer');
+  if (!container) return;
+
+  const list = getHistoryList();
+  
+  // 検索条件の取得
+  const productQuery = (DOM.historySearchProduct?.value || '').trim();
+  const clientQuery = (DOM.historySearchClient?.value || '').trim().toLowerCase();
+  const monthQuery = (DOM.historySearchMonth?.value || '').trim();
+  const docTypeQuery = (DOM.historySearchDocType?.value || '').trim();
+
+  // 商品名キーワード（全角・半角スペースで複数キーワードに分割して小文字化）
+  const productKeywords = productQuery
+    ? productQuery.split(/[\s　]+/).filter(w => w.length > 0).map(w => w.toLowerCase())
+    : [];
+
+  // フィルタリング実行
+  let filtered = list.filter(item => {
+    // 1. 対象年月
+    if (monthQuery) {
+      if (!item.issueDate || !item.issueDate.startsWith(monthQuery)) {
+        return false;
+      }
+    }
+
+    // 2. 書類種別
+    if (docTypeQuery) {
+      if (item.docType !== docTypeQuery) {
+        return false;
+      }
+    }
+
+    // 3. 取引先
+    if (clientQuery) {
+      const cName = (item.clientName || item.client?.name || '').toLowerCase();
+      if (!cName.includes(clientQuery)) {
+        return false;
+      }
+    }
+
+    // 4. 商品（単品または「何と何が同時に買われたか」の複数商品AND検索）
+    if (productKeywords.length > 0) {
+      const docItems = Array.isArray(item.items) ? item.items : [];
+      if (docItems.length === 0) return false;
+
+      // 伝票内の全明細商品のテキスト群
+      const itemTexts = docItems.map(it => {
+        return `${it.name || ''} ${it.description || ''} ${it.note || ''}`.toLowerCase();
+      });
+
+      // 入力されたすべての商品キーワードが、伝票内のいずれかの明細に含まれているか（AND検索）
+      const matchesAllKeywords = productKeywords.every(kw => {
+        return itemTexts.some(text => text.includes(kw));
+      });
+
+      if (!matchesAllKeywords) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  // サマリー表示の更新
+  const matchedCount = filtered.length;
+  const matchedTotal = filtered.reduce((sum, it) => sum + (Number(it.grandTotal) || 0), 0);
+
+  if (DOM.historyMatchCount) {
+    DOM.historyMatchCount.textContent = matchedCount;
+  }
+  if (DOM.historyMatchTotalAmount) {
+    DOM.historyMatchTotalAmount.textContent = formatCurrency(matchedTotal);
+  }
+
+  container.innerHTML = '';
+
+  if (filtered.length === 0) {
+    const hasFilter = productKeywords.length > 0 || clientQuery || monthQuery || docTypeQuery;
+    container.innerHTML = `
+      <div style="text-align: center; color: var(--text-muted); padding: 48px 16px; background: #ffffff; border-radius: 8px; border: 1px dashed #cbd5e1;">
+        <div style="font-size: 2rem; margin-bottom: 8px;">🔍</div>
+        <p style="font-weight: 700; color: #334155; margin-bottom: 6px;">条件に一致する書類は見つかりませんでした</p>
+        <p style="font-size: 0.8rem; color: #64748b; margin: 0;">
+          ${hasFilter ? '検索キーワードや対象年月、取引先の絞り込み条件を変更してお試しください。' : '保存された書類履歴がまだありません。エディタの「履歴に保存」で保存できます。'}
+        </p>
+      </div>
+    `;
+    return;
+  }
+
+  // 伝票カードの一覧描画
+  filtered.forEach(item => {
+    const typeMeta = DOC_TYPES[item.docType] || DOC_TYPES.invoice;
+    const isIssued = !!(item.isIssued && !item.isCancelled);
+
+    const card = document.createElement('div');
+    card.className = 'history-card-row';
+
+    const statusBadge = isIssued
+      ? `<span style="background: #dcfce7; color: #166534; font-weight: 700; font-size: 0.725rem; padding: 2px 7px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;" title="財務会計（売上・売掛金消込・仕訳帳）に反映中"><span style="font-size: 7px; color: #15803d;">●</span> 確定発行済</span>`
+      : `<span style="background: #f1f5f9; color: #64748b; font-weight: 600; font-size: 0.725rem; padding: 2px 7px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;" title="下書き状態（財務会計には未反映）"><span style="font-size: 7px; color: #94a3b8;">●</span> 下書き</span>`;
+
+    const cancelIssueBtnHtml = isIssued
+      ? `<button type="button" class="btn btn-outline-danger btn-sm btn-cancel-issue" style="color: #ef4444; border-color: #fca5a5; font-size: 0.75rem; padding: 4px 9px;" title="確定発行を取り消し、財務会計から除外して下書きに戻します">確定取消</button>`
+      : '';
+
+    // 伝票に含まれる明細商品チップの生成（マッチしたキーワードはハイライト）
+    let itemsChipsHtml = '';
+    const docItems = Array.isArray(item.items) ? item.items : [];
+    if (docItems.length > 0) {
+      const chips = docItems.map(it => {
+        const itName = it.name || '名称未設定';
+        const itText = `${itName} ${it.description || ''}`.toLowerCase();
+        // 検索キーワードにマッチするか判定
+        const isMatched = productKeywords.some(kw => itText.includes(kw));
+        const qtyStr = it.quantity ? ` ×${it.quantity}` : '';
+        return `<span class="history-item-chip ${isMatched ? 'is-match' : ''}">📦 ${escapeHtml(itName)}${qtyStr}</span>`;
+      });
+      itemsChipsHtml = `
+        <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #f1f5f9;">
+          ${chips.join('')}
+        </div>
+      `;
+    }
+
+    card.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap;">
+        
+        <!-- 左側：書類基本情報 ＆ 明細商品チップ -->
+        <div style="flex: 1; min-width: 280px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
+            <span style="background: var(--theme-primary-light); color: var(--theme-primary-dark); font-weight: 700; font-size: 0.75rem; padding: 2px 7px; border-radius: 4px;">
+              ${typeMeta.label}
+            </span>
+            ${statusBadge}
+            <span style="font-weight: 800; font-size: 0.95rem; color: #0f172a;">${escapeHtml(item.clientName || item.client?.name || '名称未設定')}</span>
+            <span style="font-size: 0.8rem; color: #64748b; font-family: monospace; background: #f1f5f9; padding: 1px 6px; border-radius: 4px;">${escapeHtml(item.docNumber || '-')}</span>
+          </div>
+          
+          <div style="font-size: 0.8rem; color: #475569; display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+            <span>件名: <strong style="color: #1e293b;">${escapeHtml(item.title || '無題')}</strong></span>
+            <span>発行日: ${escapeHtml(item.issueDate || '-')}</span>
+            <span>明細: <strong>${docItems.length}</strong> 件</span>
+          </div>
+
+          <!-- 商品一覧チップ -->
+          ${itemsChipsHtml}
+        </div>
+
+        <!-- 右側：金額 ＆ 操作アクションボタン -->
+        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 190px;">
+          <div style="text-align: right;">
+            <span style="font-size: 0.7rem; color: #64748b; display: block;">税込合計金額</span>
+            <span style="font-size: 1.25rem; font-weight: 900; color: #0f172a; font-family: monospace;">${formatCurrency(item.grandTotal || 0)}</span>
+          </div>
+
+          <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
+            ${cancelIssueBtnHtml}
+            <button type="button" class="btn btn-secondary btn-sm btn-duplicate-doc" style="font-size: 0.75rem; padding: 4px 10px; display: inline-flex; align-items: center; gap: 4px;" title="この伝票の取引先・明細を引き継いで新規作成">
+              <span>📑</span> 複製して新規
+            </button>
+            <button type="button" class="btn btn-primary btn-sm btn-load-doc" style="font-size: 0.75rem; padding: 4px 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;" title="この書類をエディタで開いて編集">
+              <span>📂</span> 開く
+            </button>
+            <button type="button" class="btn-icon-danger btn-delete-doc" style="border: none; background: #fee2e2; color: #ef4444; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px;" title="履歴から削除">🗑️</button>
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    // 1. 確定取消ボタンのイベント
+    const cancelBtn = card.querySelector('.btn-cancel-issue');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const docNo = item.docNumber || 'この書類';
+        if (confirm(`「${typeMeta.label} (${docNo})」の確定発行を取り消しますか？\n\n【取り消しの効果】\n・財務会計（売上高・売掛金消込・仕訳帳）から即座に除外されます。\n・書類データは削除されず、下書き状態に戻ります。`)) {
+          cancelDocIssue(item.id);
+
+          // もし現在編集中書類が同一なら currentDoc も同期
+          if (currentDoc && currentDoc.id === item.id) {
+            currentDoc.isIssued = false;
+            currentDoc.isCancelled = true;
+            currentDoc.issuedAt = null;
+            saveActiveDoc(currentDoc);
+            renderAll();
+          }
+
+          // 財務会計を再同期
+          if (typeof initAccountingMonthSelector === 'function') initAccountingMonthSelector();
+          const currentMonth = DOM.accSelectMonth ? DOM.accSelectMonth.value : '';
+          if (typeof renderAccountingDashboard === 'function') renderAccountingDashboard(currentMonth);
+          if (typeof renderAccountingSales === 'function') renderAccountingSales(currentSalesFilter);
+          if (typeof renderAccountingJournals === 'function') renderAccountingJournals();
+
+          filterAndRenderHistoryList(); // 再描画
+          showToast(`「${typeMeta.label}」の確定発行を取り消しました（財務会計から除外されました）`, 'warning');
+        }
+      });
+    }
+
+    // 2. 「開く」ボタンのイベント
+    card.querySelector('.btn-load-doc').addEventListener('click', () => {
+      const full = getDocFromHistory(item.id);
+      if (full) {
+        currentDoc = full;
+        populateFormFromDoc();
+        updateThemeColor(currentDoc.themeColor || 'indigo');
+        renderAll();
+        closeHistoryModal();
+        showToast(`「${item.clientName || '取引先'}」の書類を読み込みました`, 'success');
+      }
+    });
+
+    // 3. 「複製して新規作成」ボタンのイベント
+    card.querySelector('.btn-duplicate-doc').addEventListener('click', () => {
+      duplicateDocFromHistory(item.id);
+    });
+
+    // 4. 「削除」ボタンのイベント
+    card.querySelector('.btn-delete-doc').addEventListener('click', () => {
+      if (confirm(`「${item.docNumber || '書類'}」の履歴を削除しますか？`)) {
+        deleteDocFromHistory(item.id);
+        // 財務会計も再同期
+        if (typeof initAccountingMonthSelector === 'function') initAccountingMonthSelector();
+        const currentMonth = DOM.accSelectMonth ? DOM.accSelectMonth.value : '';
+        if (typeof renderAccountingDashboard === 'function') renderAccountingDashboard(currentMonth);
+        if (typeof renderAccountingSales === 'function') renderAccountingSales(currentSalesFilter);
+        if (typeof renderAccountingJournals === 'function') renderAccountingJournals();
+
+        filterAndRenderHistoryList(); // 再描画
+        showToast('履歴から削除しました', 'info');
+      }
+    });
+
+    container.appendChild(card);
+  });
+}
+
+/**
+ * 過去の履歴書類から明細・取引先を引き継いで新規書類を作成（複製）
+ */
+function duplicateDocFromHistory(id) {
+  const orig = getDocFromHistory(id);
+  if (!orig) return;
+
+  const newDoc = JSON.parse(JSON.stringify(orig));
+  newDoc.id = `doc_${Date.now()}`;
+  newDoc.docNumber = generateDocNumber(newDoc.docType || 'invoice');
+  
+  // 発行日を当日にセット
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  newDoc.issueDate = todayStr;
+
+  // 支払期日を翌月末にセット
+  const nextMonthLast = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+  newDoc.dueDate = `${nextMonthLast.getFullYear()}-${String(nextMonthLast.getMonth() + 1).padStart(2, '0')}-${String(nextMonthLast.getDate()).padStart(2, '0')}`;
+
+  // 確定発行フラグを初期化（下書き）
+  newDoc.isIssued = false;
+  newDoc.isCancelled = false;
+  newDoc.issuedAt = null;
+  newDoc.isPaid = false;
+  newDoc.paymentStatus = 'unpaid';
+
+  currentDoc = newDoc;
+  populateFormFromDoc();
+  updateThemeColor(currentDoc.themeColor || 'indigo');
+  renderAll();
+  closeHistoryModal();
+  showToast(`「${orig.clientName || '取引先'}」の明細構成を引き継いで新規作成しました！`, 'success');
 }
 
 function openBackupModal() {
@@ -3865,17 +4424,278 @@ function switchAccountingTab(tabKey) {
     p.style.display = isActive ? 'block' : 'none';
   });
 
-  const month = DOM.accSelectMonth ? DOM.accSelectMonth.value : '';
   if (fullId === 'acc-tab-dashboard') {
-    renderAccountingDashboard(month);
+    renderAccountingDashboard(currentAccGlobalPeriod);
   } else if (fullId === 'acc-tab-sales') {
-    renderAccountingSales(currentSalesFilter);
+    renderAccountingSales(currentSalesFilter, currentAccGlobalPeriod);
   } else if (fullId === 'acc-tab-expenses') {
-    renderAccountingExpenses();
+    renderAccountingExpenses(currentAccGlobalPeriod);
   } else if (fullId === 'acc-tab-journals') {
-    renderAccountingJournals();
+    renderAccountingJournals(currentAccGlobalPeriod);
   }
 }
+
+// ==========================================================================
+// 財務会計・全ペイン共通集計対象期間マネージャー
+// ==========================================================================
+let currentAccGlobalPeriod = {
+  preset: 'thisMonth',
+  start: '',
+  end: ''
+};
+
+/**
+ * プリセット名から開始日・終了日（YYYY-MM-DD）を算出
+ * @param {string} preset 'all' | 'thisMonth' | 'lastMonth' | 'last3Months' | 'thisYear' | 'lastYear' | 'custom'
+ * @returns {{start: string, end: string}}
+ */
+function getPresetPeriodRange(preset) {
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = today.getMonth(); // 0-indexed (0=1月, 8=9月)
+
+  if (preset === 'all') {
+    return { start: '', end: '' };
+  } else if (preset === 'thisMonth' || preset === 'current_month') {
+    const start = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+    const lastDay = new Date(y, m + 1, 0).getDate();
+    const end = `${y}-${String(m + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    return { start, end };
+  } else if (preset === 'lastMonth' || preset === 'prev_month') {
+    const prevDate = new Date(y, m - 1, 1);
+    const py = prevDate.getFullYear();
+    const pm = prevDate.getMonth();
+    const start = `${py}-${String(pm + 1).padStart(2, '0')}-01`;
+    const lastDay = new Date(py, pm + 1, 0).getDate();
+    const end = `${py}-${String(pm + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    return { start, end };
+  } else if (preset === 'last3Months') {
+    // 直近3ヶ月（2ヶ月前の1日〜当月末）
+    const startDate = new Date(y, m - 2, 1);
+    const sy = startDate.getFullYear();
+    const sm = startDate.getMonth();
+    const start = `${sy}-${String(sm + 1).padStart(2, '0')}-01`;
+    const lastDay = new Date(y, m + 1, 0).getDate();
+    const end = `${y}-${String(m + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    return { start, end };
+  } else if (preset === 'thisYear' || preset === 'thisFiscalYear') {
+    // 日本の会計年度: 4月1日〜翌年3月31日
+    const fiscalYear = m >= 3 ? y : y - 1;
+    const start = `${fiscalYear}-04-01`;
+    const end = `${fiscalYear + 1}-03-31`;
+    return { start, end };
+  } else if (preset === 'lastYear' || preset === 'lastFiscalYear') {
+    const fiscalYear = (m >= 3 ? y : y - 1) - 1;
+    const start = `${fiscalYear}-04-01`;
+    const end = `${fiscalYear + 1}-03-31`;
+    return { start, end };
+  } else if (preset === 'custom') {
+    return {
+      start: currentAccGlobalPeriod.start || '',
+      end: currentAccGlobalPeriod.end || ''
+    };
+  }
+  return { start: '', end: '' };
+}
+
+/**
+ * 財務会計：任意期間指定モーダルを開く
+ */
+function openAccDateRangeModal() {
+  const modal = DOM.accDateRangeModal || document.getElementById('accDateRangeModal');
+  if (!modal) return;
+
+  const startInput = DOM.modalAccDateStart || document.getElementById('modalAccDateStart');
+  const endInput = DOM.modalAccDateEnd || document.getElementById('modalAccDateEnd');
+
+  if (startInput) {
+    startInput.value = currentAccGlobalPeriod.start || '';
+  }
+  if (endInput) {
+    endInput.value = currentAccGlobalPeriod.end || '';
+  }
+
+  updateAccDateRangeModalPreview();
+
+  // モーダルを確実にアクティブ化（.active クラス ＋ 各種表示プロパティ）
+  modal.classList.add('active');
+  modal.style.display = 'flex';
+  modal.style.opacity = '1';
+  modal.style.pointerEvents = 'auto';
+  modal.style.visibility = 'visible';
+
+  // 開始日入力欄にフォーカス
+  setTimeout(() => {
+    if (startInput) {
+      startInput.focus();
+    }
+  }, 100);
+}
+
+/**
+ * 財務会計：任意期間指定モーダルを閉じる
+ */
+function closeAccDateRangeModal() {
+  const modal = DOM.accDateRangeModal || document.getElementById('accDateRangeModal');
+  if (!modal) return;
+  modal.classList.remove('active');
+  modal.style.display = 'none';
+  modal.style.opacity = '';
+  modal.style.pointerEvents = '';
+  modal.style.visibility = '';
+}
+
+/**
+ * 財務会計：任意期間指定モーダル内のクイックプリセット選択
+ * @param {string} preset
+ */
+function setAccDateRangeModalPreset(preset) {
+  const range = getPresetPeriodRange(preset);
+  const startInput = DOM.modalAccDateStart || document.getElementById('modalAccDateStart');
+  const endInput = DOM.modalAccDateEnd || document.getElementById('modalAccDateEnd');
+
+  if (startInput) startInput.value = range.start || '';
+  if (endInput) endInput.value = range.end || '';
+
+  updateAccDateRangeModalPreview();
+}
+
+/**
+ * 財務会計：任意期間指定モーダルのサマリープレビュー表示更新
+ */
+function updateAccDateRangeModalPreview() {
+  const preview = DOM.modalAccDateRangePreview || document.getElementById('modalAccDateRangePreview');
+  const startInput = DOM.modalAccDateStart || document.getElementById('modalAccDateStart');
+  const endInput = DOM.modalAccDateEnd || document.getElementById('modalAccDateEnd');
+  if (!preview) return;
+
+  const s = startInput ? startInput.value : '';
+  const e = endInput ? endInput.value : '';
+
+  if (!s && !e) {
+    preview.textContent = '選択中: 全期間（すべての伝票・経費を集計）';
+    preview.style.background = '#f1f5f9';
+    preview.style.color = '#475569';
+    preview.style.borderColor = '#cbd5e1';
+  } else {
+    const sText = s ? s.replace(/-/g, '/') : '過去すべて';
+    const eText = e ? e.replace(/-/g, '/') : '現在まで';
+    let daysDiffText = '';
+    if (s && e) {
+      const d1 = new Date(s);
+      const d2 = new Date(e);
+      const diffTime = d2.getTime() - d1.getTime();
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      if (diffDays > 0) {
+        daysDiffText = ` (${diffDays}日間)`;
+      }
+    }
+    preview.textContent = `選択中: ${sText} 〜 ${eText}${daysDiffText}`;
+    preview.style.background = '#e0f2fe';
+    preview.style.color = '#0369a1';
+    preview.style.borderColor = '#bae6fd';
+  }
+}
+
+/**
+ * 財務会計：任意期間指定モーダルから決定して期間適用
+ */
+function confirmAccDateRangeFromModal() {
+  const startInput = DOM.modalAccDateStart || document.getElementById('modalAccDateStart');
+  const endInput = DOM.modalAccDateEnd || document.getElementById('modalAccDateEnd');
+  const s = startInput ? startInput.value.trim() : '';
+  const e = endInput ? endInput.value.trim() : '';
+
+  closeAccDateRangeModal();
+
+  if (!s && !e) {
+    applyAccGlobalPeriod('all');
+  } else {
+    applyAccGlobalPeriod('custom', s, e);
+  }
+}
+
+/**
+ * 財務会計の集計対象期間を適用し、下の全4画面（損益、売上消込、経費、仕訳）を一括再描画
+ * @param {string} preset 
+ * @param {string|null} customStart 
+ * @param {string|null} customEnd 
+ */
+function applyAccGlobalPeriod(preset = 'thisMonth', customStart = null, customEnd = null) {
+  currentAccGlobalPeriod.preset = preset;
+
+  if (preset === 'custom') {
+    currentAccGlobalPeriod.start = customStart !== null ? customStart : (currentAccGlobalPeriod.start || '');
+    currentAccGlobalPeriod.end = customEnd !== null ? customEnd : (currentAccGlobalPeriod.end || '');
+  } else {
+    const range = getPresetPeriodRange(preset);
+    currentAccGlobalPeriod.start = range.start;
+    currentAccGlobalPeriod.end = range.end;
+  }
+
+  // 入力フォームの同期
+  if (DOM.accGlobalPeriodPreset) {
+    DOM.accGlobalPeriodPreset.value = preset;
+  }
+
+  // アクティブ期間バッジ表示（#dispAccActivePeriodText / #badgeAccActivePeriod）の更新
+  const dispText = DOM.dispAccActivePeriodText || document.getElementById('dispAccActivePeriodText');
+  const badgeBtn = DOM.badgeAccActivePeriod || document.getElementById('badgeAccActivePeriod');
+
+  if (dispText || badgeBtn) {
+    const s = currentAccGlobalPeriod.start;
+    const e = currentAccGlobalPeriod.end;
+    let label = '';
+
+    if (preset === 'all' || (!s && !e)) {
+      label = '全期間（累計）';
+      if (badgeBtn) {
+        badgeBtn.style.background = '#f1f5f9';
+        badgeBtn.style.color = '#475569';
+        badgeBtn.style.borderColor = '#cbd5e1';
+      }
+    } else {
+      const sFormatted = s ? s.replace(/-/g, '/') : '〜';
+      const eFormatted = e ? e.replace(/-/g, '/') : '現在';
+      let daysCount = '';
+      if (s && e) {
+        const d1 = new Date(s);
+        const d2 = new Date(e);
+        const diffTime = d2.getTime() - d1.getTime();
+        const diff = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        if (diff > 0) {
+          daysCount = ` (${diff}日間)`;
+        }
+      }
+      label = `${sFormatted} 〜 ${eFormatted}${daysCount}`;
+      if (badgeBtn) {
+        badgeBtn.style.background = '#e0f2fe';
+        badgeBtn.style.color = '#0369a1';
+        badgeBtn.style.borderColor = '#7dd3fc';
+      }
+    }
+
+    if (dispText) {
+      dispText.textContent = label;
+    } else if (badgeBtn) {
+      badgeBtn.textContent = label;
+    }
+  }
+
+  // 下の全4画面（損益計算書・売上消込・経費・仕訳帳）を一斉再描画！
+  renderAccountingDashboard(currentAccGlobalPeriod);
+  renderAccountingSales(currentSalesFilter, currentAccGlobalPeriod);
+  renderAccountingExpenses(currentAccGlobalPeriod);
+  renderAccountingJournals(currentAccGlobalPeriod);
+}
+
+// グローバルスコープへの公開（HTMLインラインonclick等からの呼び出し対応）
+window.openAccDateRangeModal = openAccDateRangeModal;
+window.closeAccDateRangeModal = closeAccDateRangeModal;
+window.setAccDateRangeModalPreset = setAccDateRangeModalPreset;
+window.updateAccDateRangeModalPreview = updateAccDateRangeModalPreview;
+window.confirmAccDateRangeFromModal = confirmAccDateRangeFromModal;
+window.applyAccGlobalPeriod = applyAccGlobalPeriod;
 
 function initAccountingMonthSelector() {
   if (!DOM.accSelectMonth) return;
@@ -3910,10 +4730,10 @@ function initAccountingMonthSelector() {
   DOM.accSelectMonth.innerHTML = html;
 }
 
-function renderAccountingDashboard(targetMonth = '') {
+function renderAccountingDashboard(periodFilter = currentAccGlobalPeriod) {
   const invoices = getHistoryList();
   const expenses = getExpenseList();
-  const pnl = calculateProfitAndLoss(invoices, expenses, targetMonth || 'all');
+  const pnl = calculateProfitAndLoss(invoices, expenses, periodFilter || 'all');
 
   // KPI表示更新
   if (DOM.kpiTotalSales) DOM.kpiTotalSales.textContent = formatCurrency(pnl.totalSales);
@@ -3922,7 +4742,7 @@ function renderAccountingDashboard(targetMonth = '') {
   if (DOM.kpiGrossMargin) DOM.kpiGrossMargin.textContent = `粗利率: ${(pnl.grossProfitMargin || 0).toFixed(1)}%`;
   if (DOM.kpiTotalExpenses) DOM.kpiTotalExpenses.textContent = formatCurrency(pnl.totalOperatingExpenses || 0);
 
-  const monthExpenseCount = expenses.filter(e => !targetMonth || (e.date && e.date.startsWith(targetMonth))).length;
+  const monthExpenseCount = expenses.filter(e => isDateInPeriod(e.date, periodFilter)).length;
   if (DOM.kpiExpenseItemsCount) DOM.kpiExpenseItemsCount.textContent = `${monthExpenseCount}件の経費支出`;
 
   if (DOM.kpiOperatingProfit) {
@@ -4095,17 +4915,17 @@ function filterSalesTable(filter) {
   if (DOM.btnFilterAllInvoices) DOM.btnFilterAllInvoices.classList.toggle('active', filter === 'all');
   if (DOM.btnFilterUnpaidInvoices) DOM.btnFilterUnpaidInvoices.classList.toggle('active', filter === 'unpaid');
   if (DOM.btnFilterPaidInvoices) DOM.btnFilterPaidInvoices.classList.toggle('active', filter === 'paid');
-  renderAccountingSales(filter);
+  renderAccountingSales(filter, currentAccGlobalPeriod);
 }
 
-function renderAccountingSales(filter = 'all') {
+function renderAccountingSales(filter = 'all', periodFilter = currentAccGlobalPeriod) {
   if (!DOM.accSalesTableBody) return;
   const history = getHistoryList();
   
-  // 見積書以外の確定発行伝票（請求書、納品書、領収書）を正規化
+  // 見積書以外の確定発行伝票（請求書、納品書、領収書）を正規化し、期間フィルターを適用
   let invoices = history
     .map(raw => normalizeInvoiceDoc(raw))
-    .filter(doc => doc && doc.docType !== 'estimate' && doc.isIssued && !doc.isCancelled);
+    .filter(doc => doc && doc.docType !== 'estimate' && doc.isIssued && !doc.isCancelled && isDateInPeriod(doc.issueDate, periodFilter));
 
   if (filter === 'unpaid') {
     invoices = invoices.filter(doc => !doc.isPaid);
@@ -4118,7 +4938,7 @@ function renderAccountingSales(filter = 'all') {
       <tr>
         <td colspan="7" style="text-align: center; color: var(--slate-400); padding: 36px 16px;">
           <p style="margin: 0; font-size: 0.9rem;">対象の確定発行伝票はありません。</p>
-          <p style="margin: 6px 0 0 0; font-size: 0.775rem;">納品・請求書画面で「確定発行」を行うとここに自動反映されます。</p>
+          <p style="margin: 6px 0 0 0; font-size: 0.775rem;">期間設定を変更するか、納品・請求書画面で「確定発行」を行うとここに自動反映されます。</p>
         </td>
       </tr>
     `;
@@ -4171,9 +4991,7 @@ window.__toggleInvoicePayment = function(id, newStatus) {
   const success = updateDocPaymentStatus(id, newStatus);
   if (success) {
     showToast(newStatus ? '入金消込を完了しました！仕訳帳にも自動連動されます。' : '未入金ステータスに戻しました。', 'success');
-    renderAccountingSales(currentSalesFilter);
-    renderAccountingDashboard(DOM.accSelectMonth ? DOM.accSelectMonth.value : '');
-    renderAccountingJournals();
+    applyAccGlobalPeriod(currentAccGlobalPeriod.preset);
   }
 };
 
@@ -4423,10 +5241,51 @@ function saveInvoiceQuickEditHandler() {
 // ==========================================================================
 // 経費・レシート画像OCR コントローラー
 // ==========================================================================
+let activeExpenseClaimant = (function() {
+  try {
+    return localStorage.getItem('alva_active_expense_claimant') || '小林俊介';
+  } catch (e) {
+    return '小林俊介';
+  }
+})();
+
+function setActiveExpenseClaimant(claimant) {
+  if (!claimant) claimant = '小林俊介';
+  activeExpenseClaimant = claimant;
+  try {
+    localStorage.setItem('alva_active_expense_claimant', claimant);
+  } catch (e) {}
+
+  if (DOM.btnClaimantKobayashi) DOM.btnClaimantKobayashi.classList.toggle('active', claimant === '小林俊介');
+  if (DOM.btnClaimantMiyazaki) DOM.btnClaimantMiyazaki.classList.toggle('active', claimant === '宮崎真輔');
+  if (DOM.btnClaimantCompany) DOM.btnClaimantCompany.classList.toggle('active', claimant === '会社立替/その他');
+
+  if (DOM.expenseInputClaimant && DOM.expenseInputClaimant.value !== claimant) {
+    DOM.expenseInputClaimant.value = claimant;
+  }
+}
+
 function initReceiptUploadHandlers() {
   const dropZone = DOM.receiptDropZone;
   const fileInput = DOM.receiptFileInput;
   if (!dropZone || !fileInput) return;
+
+  // 立替者初期値の同期
+  setActiveExpenseClaimant(activeExpenseClaimant);
+
+  // ピルバーのクリックイベント
+  if (DOM.btnClaimantKobayashi) {
+    DOM.btnClaimantKobayashi.addEventListener('click', () => setActiveExpenseClaimant('小林俊介'));
+  }
+  if (DOM.btnClaimantMiyazaki) {
+    DOM.btnClaimantMiyazaki.addEventListener('click', () => setActiveExpenseClaimant('宮崎真輔'));
+  }
+  if (DOM.btnClaimantCompany) {
+    DOM.btnClaimantCompany.addEventListener('click', () => setActiveExpenseClaimant('会社立替/その他'));
+  }
+  if (DOM.expenseInputClaimant) {
+    DOM.expenseInputClaimant.addEventListener('change', (e) => setActiveExpenseClaimant(e.target.value));
+  }
 
   // ローカルサーバーの Gemini API 連携状態をチェック
   if (typeof window !== 'undefined' && window.location) {
@@ -4469,16 +5328,104 @@ function initReceiptUploadHandlers() {
   dropZone.addEventListener('drop', (e) => {
     e.preventDefault();
     dropZone.classList.remove('dragover');
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleReceiptFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleReceiptFiles(e.dataTransfer.files);
     }
   });
 
   fileInput.addEventListener('change', (e) => {
-    if (e.target.files && e.target.files[0]) {
-      handleReceiptFile(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      handleReceiptFiles(e.target.files);
     }
   });
+}
+
+/**
+ * 複数レシートファイルの一括・順次解析＆自動登録
+ * @param {FileList|Array<File>} fileList 
+ */
+async function handleReceiptFiles(fileList) {
+  if (!fileList || fileList.length === 0) return;
+  const files = Array.from(fileList).filter(f => {
+    return (f.type && f.type.startsWith('image/')) || /\.(jpe?g|png|webp|gif|heic|bmp|tiff)$/i.test(f.name || '');
+  });
+
+  if (files.length === 0) {
+    alert('画像ファイル（JPEG, PNG, WEBP等）を選択してください。');
+    return;
+  }
+
+  // 1ファイルのみの場合は通常のフォーム投入モード
+  if (files.length === 1) {
+    return handleReceiptFile(files[0]);
+  }
+
+  // 2ファイル以上の場合は、設定中の社員で一括読み込み・登録！
+  const currentClaimant = activeExpenseClaimant || '小林俊介';
+  if (!confirm(`選択された ${files.length} 件のレシート写真を、【${currentClaimant}】様の経費として一括自動読み込み・登録しますか？\n\n・選択された設定（立替者: ${currentClaimant}）のまま自動登録されます。\n・登録後、経費一覧から確認・修正・精算書発行が可能です。`)) {
+    return;
+  }
+
+  if (DOM.receiptOcrStatus) {
+    DOM.receiptOcrStatus.style.display = 'flex';
+  }
+
+  let successCount = 0;
+  const expenseHistory = typeof getExpenseList === 'function' ? getExpenseList() : [];
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (DOM.receiptOcrStatusText) {
+      DOM.receiptOcrStatusText.textContent = `[${i + 1}/${files.length}] レシート「${file.name}」をAI解析中...`;
+    }
+
+    try {
+      const compressedDataUrl = await compressReceiptImage(file);
+      const parsed = await analyzeReceiptImage(file, (msg) => {
+        if (DOM.receiptOcrStatusText) DOM.receiptOcrStatusText.textContent = `[${i + 1}/${files.length}] ${msg}`;
+      }, expenseHistory);
+
+      const expItem = {
+        date: (parsed && parsed.date) || getTodayDateString(),
+        category: (parsed && parsed.category) || '消耗品費',
+        amount: (parsed && parsed.amount) || 0,
+        taxRate: (parsed && parsed.taxRate !== undefined) ? Number(parsed.taxRate) : 10,
+        payee: (parsed && parsed.payee) || file.name.replace(/\.[^/.]+$/, ""),
+        invoiceNumber: (parsed && parsed.invoiceNumber) || '',
+        note: (parsed && parsed.note) || `一括読み込み (${file.name})`,
+        claimant: currentClaimant,
+        isSettled: false,
+        receiptImage: compressedDataUrl,
+        receiptDataUrl: compressedDataUrl
+      };
+
+      const savedExp = saveExpense(expItem);
+      if (savedExp && typeof fetch !== 'undefined' && compressedDataUrl.startsWith('data:image/')) {
+        fetch('/api/save-receipt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: savedExp.id, image: compressedDataUrl })
+        }).then(res => res.json()).then(data => {
+          if (data && data.url) {
+            savedExp.receiptImage = data.url;
+            savedExp.receiptDataUrl = data.url;
+          }
+        }).catch(() => {});
+      }
+
+      successCount++;
+    } catch (err) {
+      console.warn(`Failed to process ${file.name}:`, err);
+    }
+  }
+
+  if (DOM.receiptOcrStatus) {
+    DOM.receiptOcrStatus.style.display = 'none';
+  }
+
+  clearReceiptImage();
+  applyAccGlobalPeriod(currentAccGlobalPeriod.preset);
+  showToast(`🎉 ${successCount} 件のレシートを【${currentClaimant}】様の経費として一括登録しました！`, 'success');
 }
 
 async function handleReceiptFile(file) {
@@ -4678,8 +5625,14 @@ function resetExpenseForm() {
   if (DOM.expenseInputInvoiceNum) DOM.expenseInputInvoiceNum.value = '';
   if (DOM.expenseInputNote) DOM.expenseInputNote.value = '';
   if (DOM.expenseInputInQty) DOM.expenseInputInQty.value = '1';
+  // 立替者設定を維持
+  if (DOM.expenseInputClaimant) DOM.expenseInputClaimant.value = activeExpenseClaimant;
+  setActiveExpenseClaimant(activeExpenseClaimant);
   clearReceiptImage();
   switchExpenseEntryType('expense'); // デフォルトは経費として読み込み・登録
+  if (DOM.btnSaveExpense) {
+    DOM.btnSaveExpense.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> 経費を保存する`;
+  }
 }
 
 function handleSaveExpense() {
@@ -4691,6 +5644,7 @@ function handleSaveExpense() {
   const invoiceNumber = DOM.expenseInputInvoiceNum ? DOM.expenseInputInvoiceNum.value.trim() : '';
   const note = DOM.expenseInputNote.value.trim();
   const id = DOM.expenseEditId.value || undefined;
+  const claimant = (DOM.expenseInputClaimant ? DOM.expenseInputClaimant.value : activeExpenseClaimant) || '小林俊介';
 
   if (!date) {
     alert('日付を入力してください。');
@@ -4725,6 +5679,8 @@ function handleSaveExpense() {
     payee,
     invoiceNumber,
     note,
+    claimant,
+    isSettled: false,
     isCost: isPurchase, // 損益計算書の売上原価へ算入
     isPurchase: isPurchase,
     linkedInventoryId: isPurchase ? linkedInventoryId : undefined,
@@ -4780,10 +5736,7 @@ function handleSaveExpense() {
   }
 
   resetExpenseForm();
-  renderAccountingExpenses();
-  renderAccountingDashboard(DOM.accSelectMonth ? DOM.accSelectMonth.value : '');
-  renderAccountingJournals();
-  initAccountingMonthSelector();
+  applyAccGlobalPeriod(currentAccGlobalPeriod.preset);
   
   if (isPurchase) {
     showToast(`仕入データを登録し、在庫を +${linkedInventoryQty} 反映しました！`, 'success');
@@ -4825,7 +5778,7 @@ function syncReceiptStorageWithExpenses() {
   }
 }
 
-function renderAccountingExpenses() {
+function renderAccountingExpenses(periodFilter = currentAccGlobalPeriod) {
   if (!DOM.expenseTableBody) return;
 
   // 初回表示時にサーバー上の孤立写真を自動クリーンアップして1対1整合性を確保
@@ -4834,73 +5787,111 @@ function renderAccountingExpenses() {
     syncReceiptStorageWithExpenses();
   }
 
-  const expenses = getExpenseList();
+  const allExpenses = getExpenseList();
 
-  const total = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+  // 1. 集計対象期間によるフィルタリング
+  let filtered = allExpenses.filter(exp => isDateInPeriod(exp.date, periodFilter));
+
+  // 2. 社員（立替者）による絞り込み
+  const claimantFilter = DOM.expenseFilterClaimant ? DOM.expenseFilterClaimant.value : 'all';
+  if (claimantFilter && claimantFilter !== 'all') {
+    filtered = filtered.filter(exp => (exp.claimant || '小林俊介') === claimantFilter);
+  }
+
+  // 3. 未精算のみ絞り込み
+  const unsettledOnly = DOM.expenseFilterUnsettledOnly && DOM.expenseFilterUnsettledOnly.checked;
+  if (unsettledOnly) {
+    filtered = filtered.filter(exp => !exp.isSettled);
+  }
+
+  const total = filtered.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
   if (DOM.expenseListTotalAmount) {
-    DOM.expenseListTotalAmount.textContent = `合計: ${formatCurrency(total)}`;
+    DOM.expenseListTotalAmount.textContent = `合計: ${formatCurrency(total)} (${filtered.length}件)`;
   }
 
-  if (expenses.length === 0) {
-    DOM.expenseTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--slate-400); padding: 32px;">登録された経費はありません。レシート画像をアップロードするか手入力してください。</td></tr>`;
-    return;
-  }
+  if (filtered.length === 0) {
+    DOM.expenseTableBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--slate-400); padding: 32px;">対象の経費データはありません。期間や絞り込み条件を変更するか、レシートを読み込んでください。</td></tr>`;
+  } else {
+    let html = '';
+    filtered.forEach(exp => {
+      const catName = ACCOUNT_CATEGORIES[exp.category]?.name || exp.category;
+      const receiptImg = exp.receiptImage || exp.receiptDataUrl || '';
+      const hasReceipt = !!receiptImg;
+      const receiptBadge = hasReceipt
+        ? `<div style="display: flex; flex-direction: column; align-items: center; gap: 3px;">
+             <button type="button" class="btn btn-outline btn-xs" style="background: #eef2ff; color: #4338ca; border-color: #c7d2fe; font-weight: 700; padding: 3px 8px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 3px;" onclick="window.__previewExpenseReceipt('${exp.id}')">
+               🔍 写真
+             </button>
+             <span style="font-size: 9px; color: #059669; font-weight: 600;">✓ 電帳法保存</span>
+           </div>`
+        : `<span style="color: var(--slate-400); font-size: 11px;">なし</span>`;
 
-  let html = '';
-  expenses.forEach(exp => {
-    const catName = ACCOUNT_CATEGORIES[exp.category]?.name || exp.category;
-    const receiptImg = exp.receiptImage || exp.receiptDataUrl || '';
-    const hasReceipt = !!receiptImg;
-    const receiptBadge = hasReceipt
-      ? `<div style="display: flex; flex-direction: column; align-items: center; gap: 3px;">
-           <button type="button" class="btn btn-outline btn-xs" style="background: #eef2ff; color: #4338ca; border-color: #c7d2fe; font-weight: 700; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" onclick="window.__previewExpenseReceipt('${exp.id}')">
-             🔍 写真を見る
-           </button>
-           <span style="font-size: 9px; color: #059669; font-weight: 600; display: inline-flex; align-items: center; gap: 2px;">✓ 電帳法保存</span>
-         </div>`
-      : `<span style="color: var(--slate-400); font-size: 11px;">なし</span>`;
+      // 立替者バッジ
+      const claimant = exp.claimant || '小林俊介';
+      let claimantBadge = `<span class="badge" style="background: #e0f2fe; color: #0369a1; font-weight: 700; font-size: 11px;">👤 小林俊介</span>`;
+      if (claimant === '宮崎真輔') {
+        claimantBadge = `<span class="badge" style="background: #fef3c7; color: #92400e; font-weight: 700; font-size: 11px;">👤 宮崎真輔</span>`;
+      } else if (claimant === '会社立替/その他') {
+        claimantBadge = `<span class="badge" style="background: #f1f5f9; color: #475569; font-size: 11px;">🏢 会社直接</span>`;
+      }
 
-    html += `
-      <tr>
-        <td>${escapeHtml(exp.date)}</td>
-        <td><span class="badge badge-primary">${escapeHtml(catName)}</span></td>
-        <td>
-          <div style="font-weight: 600; color: var(--slate-800);">${escapeHtml(exp.payee || '-')}</div>
-          ${exp.note ? `<div style="font-size: 11px; color: var(--slate-500); margin-top: 2px;">${escapeHtml(exp.note)}</div>` : ''}
-        </td>
-        <td style="text-align: right; font-weight: 700; font-family: monospace;">${formatCurrency(exp.amount)}</td>
-        <td style="text-align: center; font-size: 11px;">${exp.taxRate}%</td>
-        <td style="text-align: center;">${receiptBadge}</td>
-        <td style="text-align: center;">
-          <div style="display: flex; gap: 4px; justify-content: center;">
-            <button class="btn btn-outline btn-xs" onclick="window.__editExpense('${exp.id}')">編集</button>
-            <button class="btn btn-outline btn-xs btn-danger" onclick="window.__deleteExpense('${exp.id}')">削除</button>
-          </div>
-        </td>
-      </tr>
-    `;
-  });
-  if (DOM.expenseTableBody) {
+      // 精算ステータス（クリックで未精算 ⇄ 精算済切替）
+      const isSettled = !!exp.isSettled;
+      const settledBtn = isSettled
+        ? `<button type="button" class="btn btn-outline btn-xs" style="background: #dcfce7; color: #15803d; border-color: #86efac; font-weight: 700; font-size: 11px; padding: 2px 8px;" onclick="window.__toggleExpenseSettled('${exp.id}', false)" title="クリックして未精算に戻す">✓ 精算済</button>`
+        : `<button type="button" class="btn btn-warning btn-xs" style="background: #fef08a; color: #854d0e; border-color: #fde047; font-weight: 700; font-size: 11px; padding: 2px 8px;" onclick="window.__toggleExpenseSettled('${exp.id}', true)" title="クリックして精算済みにする">⏳ 未精算</button>`;
+
+      html += `
+        <tr>
+          <td>${escapeHtml(exp.date)}</td>
+          <td>${claimantBadge}</td>
+          <td><span class="badge badge-primary">${escapeHtml(catName)}</span></td>
+          <td>
+            <div style="font-weight: 600; color: var(--slate-800);">${escapeHtml(exp.payee || '-')}</div>
+            ${exp.note ? `<div style="font-size: 11px; color: var(--slate-500); margin-top: 2px;">${escapeHtml(exp.note)}</div>` : ''}
+          </td>
+          <td style="text-align: right; font-weight: 700; font-family: monospace;">${formatCurrency(exp.amount)}</td>
+          <td style="text-align: center; font-size: 11px;">${exp.taxRate}%</td>
+          <td style="text-align: center;">${receiptBadge}</td>
+          <td style="text-align: center;">${settledBtn}</td>
+          <td style="text-align: center;">
+            <div style="display: flex; gap: 4px; justify-content: center;">
+              <button class="btn btn-outline btn-xs" onclick="window.__editExpense('${exp.id}')">編集</button>
+              <button class="btn btn-outline btn-xs btn-danger" onclick="window.__deleteExpense('${exp.id}')">削除</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    });
     DOM.expenseTableBody.innerHTML = html;
   }
 
-  // 財務会計タブ内の経費一覧サマリー台帳も描画
+  // 財務会計タブ内の経費一覧サマリー台帳も描画（期間フィルター連動）
   const accSummaryBody = document.getElementById('accExpensesSummaryTableBody');
   if (accSummaryBody) {
-    if (expenses.length === 0) {
-      accSummaryBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--slate-400); padding: 32px;">登録された経費はありません。「AIレシート読み込み・経費登録画面を開く」からレシートを解析・登録できます。</td></tr>`;
+    const accExpenses = allExpenses.filter(exp => isDateInPeriod(exp.date, periodFilter));
+    if (accExpenses.length === 0) {
+      accSummaryBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--slate-400); padding: 32px;">対象期間の経費データはありません。「AIレシート読み込み・経費登録画面を開く」からレシートを解析・登録できます。</td></tr>`;
     } else {
       let sumHtml = '';
-      expenses.forEach(exp => {
+      accExpenses.forEach(exp => {
         const catName = ACCOUNT_CATEGORIES[exp.category]?.name || exp.category;
         const receiptImg = exp.receiptImage || exp.receiptDataUrl || '';
         const hasReceipt = !!receiptImg;
         const receiptBadge = hasReceipt
           ? `<button type="button" class="btn btn-outline btn-xs" style="background: #eef2ff; color: #4338ca; border-color: #c7d2fe; font-weight: 700; padding: 2px 8px; border-radius: 4px; cursor: pointer;" onclick="window.__previewExpenseReceipt('${exp.id}')">🔍 写真</button>`
           : `<span style="color: var(--slate-400); font-size: 11px;">なし</span>`;
+        
+        const claimant = exp.claimant || '小林俊介';
+        let clBadge = `<span class="badge" style="background: #e0f2fe; color: #0369a1; font-size: 10px;">${escapeHtml(claimant)}</span>`;
+        if (claimant === '宮崎真輔') {
+          clBadge = `<span class="badge" style="background: #fef3c7; color: #92400e; font-size: 10px;">${escapeHtml(claimant)}</span>`;
+        }
+
         sumHtml += `
           <tr>
             <td style="padding: 8px 12px;">${escapeHtml(exp.date)}</td>
+            <td style="padding: 8px 12px;">${clBadge}</td>
             <td style="padding: 8px 12px; font-weight: 600; color: #1e293b;">${escapeHtml(exp.payee || '-')}</td>
             <td style="padding: 8px 12px;"><span class="badge" style="background: #eff6ff; color: #1d4ed8; font-size: 11px;">${escapeHtml(catName)}</span></td>
             <td style="padding: 8px 12px; text-align: right; font-weight: 700; font-family: monospace;">${formatCurrency(exp.amount)}</td>
@@ -4913,6 +5904,17 @@ function renderAccountingExpenses() {
     }
   }
 }
+
+window.__toggleExpenseSettled = function(id, newStatus) {
+  const expenses = getExpenseList();
+  const target = expenses.find(e => e.id === id);
+  if (!target) return;
+  target.isSettled = !!newStatus;
+  target.settledDate = newStatus ? new Date().toISOString().split('T')[0] : null;
+  saveExpense(target);
+  applyAccGlobalPeriod(currentAccGlobalPeriod.preset);
+  showToast(newStatus ? '経費を【精算済み】に更新しました' : '未精算に戻しました', 'info');
+};
 
 window.__editExpense = function(id) {
   const expenses = getExpenseList();
@@ -4927,6 +5929,10 @@ window.__editExpense = function(id) {
   DOM.expenseInputPayee.value = target.payee || '';
   if (DOM.expenseInputInvoiceNum) DOM.expenseInputInvoiceNum.value = target.invoiceNumber || '';
   DOM.expenseInputNote.value = target.note || '';
+
+  if (target.claimant) {
+    setActiveExpenseClaimant(target.claimant);
+  }
 
   const rImg = target.receiptImage || target.receiptDataUrl || '';
   if (rImg) {
@@ -4961,9 +5967,7 @@ window.__deleteExpense = function(id) {
       }).catch(e => console.warn('Failed to delete receipt photo from server:', e));
     }
 
-    renderAccountingExpenses();
-    renderAccountingDashboard(DOM.accSelectMonth ? DOM.accSelectMonth.value : '');
-    renderAccountingJournals();
+    applyAccGlobalPeriod(currentAccGlobalPeriod.preset);
     showToast('経費データと領収書写真を削除しました');
   }
 };
@@ -4986,16 +5990,11 @@ window.__previewExpenseReceipt = function(id) {
 // ==========================================================================
 // 複式簿記仕訳帳 コントローラー
 // ==========================================================================
-function renderAccountingJournals() {
+function renderAccountingJournals(periodFilter = currentAccGlobalPeriod) {
   if (!DOM.accJournalTableBody) return;
-  const month = DOM.accSelectMonth ? DOM.accSelectMonth.value : '';
   const invoices = getHistoryList();
   const expenses = getExpenseList();
-  let entries = generateJournalEntries(invoices, expenses);
-
-  if (month) {
-    entries = entries.filter(e => e.date && e.date.startsWith(month));
-  }
+  const entries = generateJournalEntries(invoices, expenses, periodFilter);
 
   if (entries.length === 0) {
     DOM.accJournalTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--slate-400); padding: 32px;">仕訳データはありません</td></tr>`;
@@ -5027,31 +6026,240 @@ function renderAccountingJournals() {
 }
 
 function handleExportJournalCSV() {
-  const month = DOM.accSelectMonth ? DOM.accSelectMonth.value : '';
   const invoices = getHistoryList();
   const expenses = getExpenseList();
-  let entries = generateJournalEntries(invoices, expenses);
-
-  if (month) {
-    entries = entries.filter(e => e.date && e.date.startsWith(month));
-  }
+  const entries = generateJournalEntries(invoices, expenses, currentAccGlobalPeriod);
 
   if (entries.length === 0) {
     alert('出力対象の仕訳データがありません。');
     return;
   }
 
+  const periodLabel = currentAccGlobalPeriod.preset === 'all'
+    ? '全期間'
+    : (currentAccGlobalPeriod.start && currentAccGlobalPeriod.end
+        ? `${currentAccGlobalPeriod.start}_${currentAccGlobalPeriod.end}`
+        : currentAccGlobalPeriod.preset);
+
   const csvContent = exportJournalsToCSV(entries);
   const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `仕訳帳_${month || '全期間'}_${new Date().toISOString().split('T')[0]}.csv`;
+  a.download = `仕訳帳_${periodLabel}_${new Date().toISOString().split('T')[0]}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   showToast('仕訳帳CSVをダウンロードしました！', 'success');
+}
+
+// ==========================================================================
+// 経費立替精算書（A4帳票）発行コントローラー
+// ==========================================================================
+function openExpenseSettlementModal(initialClaimant = '') {
+  const modal = DOM.expenseSettlementModal || document.getElementById('expenseSettlementModal');
+  if (!modal) {
+    console.error('expenseSettlementModal element not found');
+    return;
+  }
+
+  // まず確実にモーダルを表示する（先行表示）
+  modal.classList.add('active');
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+
+  const claimantSelect = DOM.settlementModalClaimant || document.getElementById('settlementModalClaimant');
+  const targetClaimant = initialClaimant || (typeof activeExpenseClaimant !== 'undefined' ? activeExpenseClaimant : '') || '小林俊介';
+  if (claimantSelect) {
+    claimantSelect.value = targetClaimant;
+  }
+
+  // 財務会計の現在の集計期間または当月を初期セット
+  let range = { start: '', end: '' };
+  if (typeof currentAccGlobalPeriod !== 'undefined' && currentAccGlobalPeriod && currentAccGlobalPeriod.start && currentAccGlobalPeriod.end) {
+    range = { start: currentAccGlobalPeriod.start, end: currentAccGlobalPeriod.end };
+  } else if (typeof getPresetPeriodRange === 'function') {
+    range = getPresetPeriodRange('thisMonth');
+  }
+
+  const startInput = DOM.settlementModalPeriodStart || document.getElementById('settlementModalPeriodStart');
+  const endInput = DOM.settlementModalPeriodEnd || document.getElementById('settlementModalPeriodEnd');
+  const unsettledCheck = DOM.settlementModalUnsettledOnly || document.getElementById('settlementModalUnsettledOnly');
+
+  if (startInput) startInput.value = range.start || '';
+  if (endInput) endInput.value = range.end || '';
+  if (unsettledCheck) unsettledCheck.checked = true;
+
+  try {
+    renderExpenseSettlementSheet();
+  } catch (err) {
+    console.error('Error rendering expense settlement sheet:', err);
+  }
+}
+
+function closeExpenseSettlementModal() {
+  const modal = DOM.expenseSettlementModal || document.getElementById('expenseSettlementModal');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+  }
+  document.body.style.overflow = '';
+}
+
+window.openExpenseSettlementModal = openExpenseSettlementModal;
+window.closeExpenseSettlementModal = closeExpenseSettlementModal;
+
+function renderExpenseSettlementSheet() {
+  const claimantSelect = DOM.settlementModalClaimant || document.getElementById('settlementModalClaimant');
+  const claimant = claimantSelect ? claimantSelect.value : '小林俊介';
+  const startInput = DOM.settlementModalPeriodStart || document.getElementById('settlementModalPeriodStart');
+  const start = startInput ? startInput.value : '';
+  const endInput = DOM.settlementModalPeriodEnd || document.getElementById('settlementModalPeriodEnd');
+  const end = endInput ? endInput.value : '';
+  const unsettledCheck = DOM.settlementModalUnsettledOnly || document.getElementById('settlementModalUnsettledOnly');
+  const unsettledOnly = unsettledCheck ? unsettledCheck.checked : false;
+
+  const allExpenses = typeof getExpenseList === 'function' ? getExpenseList() : [];
+  let items = allExpenses.filter(exp => {
+    if (typeof isDateInPeriod === 'function') {
+      return isDateInPeriod(exp.date, { start, end });
+    }
+    return true;
+  });
+
+  if (claimant && claimant !== 'all') {
+    items = items.filter(exp => (exp.claimant || '小林俊介') === claimant);
+  }
+
+  if (unsettledOnly) {
+    items = items.filter(exp => !exp.isSettled);
+  }
+
+  // 日付昇順ソート
+  items.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+  // 申請日・期間・氏名のセット
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}年${String(today.getMonth() + 1).padStart(2, '0')}月${String(today.getDate()).padStart(2, '0')}日`;
+  const applyDateEl = DOM.settlementSheetApplyDate || document.getElementById('settlementSheetApplyDate');
+  if (applyDateEl) {
+    applyDateEl.textContent = todayStr;
+  }
+  const periodEl = DOM.settlementSheetPeriod || document.getElementById('settlementSheetPeriod');
+  if (periodEl) {
+    const s = start ? start.replace(/-/g, '/') : '〜';
+    const e = end ? end.replace(/-/g, '/') : '現在';
+    periodEl.textContent = `${s} 〜 ${e}`;
+  }
+  const claimantNameEl = DOM.settlementSheetClaimantName || document.getElementById('settlementSheetClaimantName');
+  if (claimantNameEl) {
+    claimantNameEl.textContent = claimant === 'all' ? '全社員（一覧）' : claimant;
+  }
+
+  // 金額集計
+  let grandTotal = 0;
+  let tax10Subtotal = 0;
+  let tax8Subtotal = 0;
+
+  items.forEach(it => {
+    const amt = Number(it.amount) || 0;
+    const rate = Number(it.taxRate !== undefined ? it.taxRate : 10);
+    grandTotal += amt;
+    if (rate === 8) {
+      tax8Subtotal += amt;
+    } else {
+      tax10Subtotal += amt;
+    }
+  });
+
+  const itemCountEl = DOM.settlementSheetItemCount || document.getElementById('settlementSheetItemCount');
+  if (itemCountEl) {
+    itemCountEl.textContent = items.length;
+  }
+  const tax10El = DOM.settlementSheetTax10Subtotal || document.getElementById('settlementSheetTax10Subtotal');
+  if (tax10El) {
+    tax10El.textContent = typeof formatCurrency === 'function' ? formatCurrency(tax10Subtotal) : `¥${tax10Subtotal.toLocaleString()}`;
+  }
+  const tax8El = DOM.settlementSheetTax8Subtotal || document.getElementById('settlementSheetTax8Subtotal');
+  if (tax8El) {
+    tax8El.textContent = typeof formatCurrency === 'function' ? formatCurrency(tax8Subtotal) : `¥${tax8Subtotal.toLocaleString()}`;
+  }
+  const grandTotalEl = DOM.settlementSheetGrandTotal || document.getElementById('settlementSheetGrandTotal');
+  if (grandTotalEl) {
+    grandTotalEl.textContent = typeof formatCurrency === 'function' ? formatCurrency(grandTotal) : `¥${grandTotal.toLocaleString()}`;
+  }
+
+  // 明細テーブル描画
+  const tableBody = DOM.settlementSheetTableBody || document.getElementById('settlementSheetTableBody');
+  if (tableBody) {
+    if (items.length === 0) {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="8" style="text-align: center; color: #94a3b8; padding: 32px 16px;">
+            対象となる経費明細がありません。対象期間や申請者の絞り込み条件をご確認ください。
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    let rowsHtml = '';
+    items.forEach((it, idx) => {
+      const catName = ACCOUNT_CATEGORIES[it.category]?.name || it.category || '経費';
+      const isSettled = !!it.isSettled;
+      const statusText = isSettled
+        ? '<span style="color: #15803d; font-weight: 700;">精算済</span>'
+        : '<span style="color: #b45309; font-weight: 700;">未精算</span>';
+
+      rowsHtml += `
+        <tr style="border-bottom: 1px solid #e2e8f0;">
+          <td style="padding: 6px 4px; text-align: center; color: #64748b;">${idx + 1}</td>
+          <td style="padding: 6px 6px;">${escapeHtml(it.date || '-')}</td>
+          <td style="padding: 6px 6px; font-weight: 600;">${escapeHtml(catName)}</td>
+          <td style="padding: 6px 6px;">${escapeHtml(it.payee || '-')}</td>
+          <td style="padding: 6px 6px; color: #475569;">${escapeHtml(it.note || '-')}</td>
+          <td style="padding: 6px 4px; text-align: center;">${it.taxRate}%</td>
+          <td style="padding: 6px 6px; text-align: right; font-weight: 700; font-family: monospace;">${formatCurrency(it.amount)}</td>
+          <td style="padding: 6px 4px; text-align: center; font-size: 11px;">${statusText}</td>
+        </tr>
+      `;
+    });
+    tableBody.innerHTML = rowsHtml;
+  }
+}
+
+function handlePrintExpenseSettlement() {
+  window.print();
+}
+
+function handleMarkExpensesSettled() {
+  const claimant = DOM.settlementModalClaimant ? DOM.settlementModalClaimant.value : '小林俊介';
+  const start = DOM.settlementModalPeriodStart ? DOM.settlementModalPeriodStart.value : '';
+  const end = DOM.settlementModalPeriodEnd ? DOM.settlementModalPeriodEnd.value : '';
+
+  const allExpenses = getExpenseList();
+  let unsettledItems = allExpenses.filter(exp => !exp.isSettled && isDateInPeriod(exp.date, { start, end }));
+
+  if (claimant && claimant !== 'all') {
+    unsettledItems = unsettledItems.filter(exp => (exp.claimant || '小林俊介') === claimant);
+  }
+
+  if (unsettledItems.length === 0) {
+    alert('精算対象の未精算経費がありません。');
+    return;
+  }
+
+  const targetLabel = claimant === 'all' ? '全員' : claimant;
+  if (!confirm(`【${targetLabel}】様の未精算経費 ${unsettledItems.length} 件を一括で「精算済み」に更新しますか？`)) {
+    return;
+  }
+
+  const ids = unsettledItems.map(i => i.id);
+  const count = markExpensesSettled(ids);
+  renderExpenseSettlementSheet();
+  applyAccGlobalPeriod(currentAccGlobalPeriod.preset);
+  showToast(`🎉 ${count} 件の経費を一括精算済みに更新しました！`, 'success');
 }
 
 // ==========================================================================
@@ -5201,8 +6409,8 @@ function renderAttendanceHistoryTable() {
   let html = '';
   sorted.forEach(item => {
     const duration = calculateWorkDuration(item.clockIn, item.clockOut);
-    const workHours = item.clockIn && item.clockOut ? formatMinutesToHours(duration.workMinutes) : '-';
-    const overtimeHours = item.clockIn && item.clockOut && duration.overtimeMinutes > 0 ? formatMinutesToHours(duration.overtimeMinutes) : '-';
+    const workHours = item.clockIn && item.clockOut ? formatMinutesToDecimalHours(duration.workMinutes, true) : '-';
+    const overtimeHours = item.clockIn && item.clockOut ? (duration.overtimeMinutes > 0 ? formatMinutesToDecimalHours(duration.overtimeMinutes, true) : '0.00時間') : '-';
 
     html += `
       <tr>
@@ -5326,7 +6534,7 @@ function openAttendanceSheetModal(targetYM = '') {
   
   // 社員番号・氏名の初期反映
   const emp = getAttendanceEmployee();
-  if (DOM.inputSheetEmpNo) DOM.inputSheetEmpNo.value = emp.empNo || '1111';
+  if (DOM.inputSheetEmpNo) DOM.inputSheetEmpNo.value = emp.empNo || '2';
   if (DOM.inputSheetEmpName) DOM.inputSheetEmpName.value = emp.empName || '宮崎真輔';
 
   renderAttendanceCalendarSheet(currentSheetYM);
@@ -5383,8 +6591,8 @@ function renderAttendanceCalendarSheet(ymStr) {
 
     const inText = day.clockInParts.text || (day.isWeekend ? '' : ':');
     const outText = day.clockOutParts.text || (day.isWeekend ? '' : ':');
-    const regText = day.regularParts.text || (day.isWeekend ? '' : ':');
-    const otText = day.overtimeParts.text || (day.isWeekend ? '' : ':');
+    const regText = day.regularDecimal || (day.clockIn && day.clockOut ? '0.00' : (day.isWeekend ? '' : '-'));
+    const otText = day.overtimeDecimal || (day.clockIn && day.clockOut ? '0.00' : (day.isWeekend ? '' : '-'));
 
     html += `
       <tr class="${rowClass}" data-date="${day.date}" title="クリックしてこの日の勤怠を修正・入力">
@@ -5392,8 +6600,8 @@ function renderAttendanceCalendarSheet(ymStr) {
         <td style="text-align: center; font-weight: 600;">${day.weekday}</td>
         <td class="att-time-cell" onclick="window.__quickEditAttendanceDate('${day.date}')">${escapeHtml(inText)}</td>
         <td class="att-time-cell" onclick="window.__quickEditAttendanceDate('${day.date}')">${escapeHtml(outText)}</td>
-        <td class="att-time-cell" onclick="window.__quickEditAttendanceDate('${day.date}')">${escapeHtml(regText)}</td>
-        <td class="att-time-cell" onclick="window.__quickEditAttendanceDate('${day.date}')">${escapeHtml(otText)}</td>
+        <td class="att-time-cell" onclick="window.__quickEditAttendanceDate('${day.date}')" style="font-weight: 600; font-family: monospace;">${escapeHtml(regText)}</td>
+        <td class="att-time-cell" onclick="window.__quickEditAttendanceDate('${day.date}')" style="font-weight: 600; font-family: monospace; color: ${day.overtimeMinutes > 0 ? '#e11d48' : 'inherit'};">${escapeHtml(otText)}</td>
         <td class="att-note-cell" onclick="window.__quickEditAttendanceDate('${day.date}')">${escapeHtml(day.note)}</td>
       </tr>
     `;
@@ -5401,10 +6609,10 @@ function renderAttendanceCalendarSheet(ymStr) {
 
   DOM.attCalendarTableBody.innerHTML = html;
 
-  // サマリー合計更新
+  // サマリー合計更新（時間単位・小数点以下10進法換算表示）
   if (DOM.dispSheetSummaryDays) DOM.dispSheetSummaryDays.textContent = String(sheetData.summary.workDays);
-  if (DOM.dispSheetSummaryRegular) DOM.dispSheetSummaryRegular.textContent = formatMinutesToHM(sheetData.summary.totalRegularMinutes).text || '0 : 00';
-  if (DOM.dispSheetSummaryOvertime) DOM.dispSheetSummaryOvertime.textContent = formatMinutesToHM(sheetData.summary.totalOvertimeMinutes).text || '0 : 00';
+  if (DOM.dispSheetSummaryRegular) DOM.dispSheetSummaryRegular.textContent = `${sheetData.summary.totalRegularDecimalText} 時間`;
+  if (DOM.dispSheetSummaryOvertime) DOM.dispSheetSummaryOvertime.textContent = `${sheetData.summary.totalOvertimeDecimalText} 時間`;
   if (DOM.dispSheetSummaryTotal) {
     DOM.dispSheetSummaryTotal.textContent = `総実働: ${sheetData.summary.totalWorkHoursText}`;
   }
@@ -5429,6 +6637,900 @@ function handlePrintAttendanceSheet() {
     document.body.classList.remove('printing-attendance-sheet');
   }, 1000);
 }
+
+// ==========================================================================
+// 給与計算アプリ コントローラー
+// （宮崎真輔様・社員番号2・月給制20万円・勤怠連動・手動微調整・A4明細印刷）
+// ==========================================================================
+
+let currentPayrollMonth = '2026-09';
+let currentPayrollRecord = null;
+let payrollListenersInitialized = false;
+
+function initPayroll() {
+  // 1. 年月セレクターの初期化（勤怠打刻がある最新月、または当月を最優先）
+  if (!DOM.payrollMonthSelector) return;
+
+  const todayYm = getTodayDateString().substring(0, 7) || '2026-09';
+  const attList = getAttendanceList();
+  const latestAttDate = (attList && attList.length > 0) ? attList[0].date : '';
+  const latestAttYm = latestAttDate ? latestAttDate.substring(0, 7) : todayYm;
+
+  if (!DOM.payrollMonthSelector.value) {
+    currentPayrollMonth = latestAttYm || todayYm;
+    DOM.payrollMonthSelector.value = currentPayrollMonth;
+  } else {
+    currentPayrollMonth = DOM.payrollMonthSelector.value;
+  }
+
+  // 2. イベントリスナーの接続（初回のみ）
+  if (!payrollListenersInitialized) {
+    setupPayrollEventListeners();
+    payrollListenersInitialized = true;
+  }
+
+  // 3. 設定値のフォーム反映
+  populatePayrollSettingsToForm();
+
+  // 3-2. 前年所得データのフォーム反映と住民税試算
+  populatePreviousYearIncomeToForm();
+
+  // 4. 当月給与データのロード＆描画
+  loadPayrollRecordForMonth(currentPayrollMonth);
+
+  // 5. 履歴一覧の描画
+  renderPayrollHistoryTable();
+}
+
+function setupPayrollEventListeners() {
+  // 年月セレクター変更
+  DOM.payrollMonthSelector?.addEventListener('change', (e) => {
+    currentPayrollMonth = e.target.value;
+    loadPayrollRecordForMonth(currentPayrollMonth);
+  });
+
+  // 前月 / 次月 ボタン
+  DOM.btnPayrollPrevMonth?.addEventListener('click', () => changePayrollMonth(-1));
+  DOM.btnPayrollNextMonth?.addEventListener('click', () => changePayrollMonth(1));
+
+  // 勤怠から自動読込
+  DOM.btnPayrollImportAttendance?.addEventListener('click', handleImportAttendanceToPayroll);
+
+  // 育児休業コントロールのイベントリスナー
+  DOM.checkPayIsChildcare?.addEventListener('change', () => {
+    recalculatePayrollWithChildcareRules();
+  });
+  DOM.checkPayExemptSocial?.addEventListener('change', () => {
+    recalculatePayrollWithChildcareRules();
+  });
+  DOM.selectPayDailyWageType?.addEventListener('change', (e) => {
+    if (DOM.wrapperPayDailyWageUnit) {
+      DOM.wrapperPayDailyWageUnit.style.display = e.target.value === 'fixedDaily' ? 'inline-flex' : 'none';
+    }
+    recalculatePayrollWithChildcareRules();
+  });
+  DOM.inputPayDailyWageUnit?.addEventListener('input', () => {
+    recalculatePayrollWithChildcareRules();
+  });
+
+  // 保存ボタン
+  DOM.btnPayrollSave?.addEventListener('click', handleSavePayrollRecord);
+
+  // 設定パネルトグル
+  DOM.btnPayrollToggleSettings?.addEventListener('click', () => {
+    if (!DOM.payrollSettingsCard) return;
+    const isHidden = DOM.payrollSettingsCard.style.display === 'none';
+    DOM.payrollSettingsCard.style.display = isHidden ? 'block' : 'none';
+  });
+  DOM.btnClosePayrollSettings?.addEventListener('click', () => {
+    if (DOM.payrollSettingsCard) DOM.payrollSettingsCard.style.display = 'none';
+  });
+  DOM.btnSavePayrollSettings?.addEventListener('click', handleSavePayrollSettingsFromForm);
+  DOM.settingPayEmploymentType?.addEventListener('change', (e) => {
+    if (e.target.value === 'rate') {
+      if (DOM.settingPayEmploymentRate) DOM.settingPayEmploymentRate.value = 0.0055;
+    } else if (e.target.value === 'rate_standard') {
+      if (DOM.settingPayEmploymentRate) DOM.settingPayEmploymentRate.value = 0.006;
+    }
+  });
+
+  // 前年所得・住民税パネルトグル
+  DOM.btnPayrollTogglePrevYear?.addEventListener('click', () => {
+    if (!DOM.payrollPrevYearCard) return;
+    const isHidden = DOM.payrollPrevYearCard.style.display === 'none';
+    DOM.payrollPrevYearCard.style.display = isHidden ? 'block' : 'none';
+    if (isHidden) {
+      populatePreviousYearIncomeToForm();
+    }
+  });
+  DOM.btnClosePayrollPrevYear?.addEventListener('click', () => {
+    if (DOM.payrollPrevYearCard) DOM.payrollPrevYearCard.style.display = 'none';
+  });
+  DOM.btnCalcPrevYearTax?.addEventListener('click', handleCalcPrevYearTax);
+  DOM.btnSavePrevYearIncome?.addEventListener('click', handleSavePreviousYearIncomeFromForm);
+  DOM.btnApplyResidentTaxToSettings?.addEventListener('click', handleApplyResidentTaxToSettings);
+
+  // A4給与明細書モーダル開閉
+  DOM.btnPayrollOpenSheetModal?.addEventListener('click', openPayrollSheetModal);
+  DOM.btnClosePayrollSheetModal?.addEventListener('click', closePayrollSheetModal);
+  DOM.btnClosePayrollSheetModal2?.addEventListener('click', closePayrollSheetModal);
+  DOM.btnPrintPayrollSheet?.addEventListener('click', handlePrintPayrollSheet);
+
+  // 会計連携ボタン
+  DOM.btnPayrollSyncToAccounting?.addEventListener('click', handleSyncPayrollToAccounting);
+
+  // 表内inputの変更イベント（リアルタイム再計算）
+  const payrollInputs = [
+    'payWorkDaysStandard', 'payWorkDaysActual', 'payWorkHoursStandard', 'payAbsenceDays',
+    'payHolidayWorkDays', 'payPaidLeaveDays', 'payOvertimeHours', 'payMidnightOvertimeHours',
+    'payLateEarlyHours', 'payPaidLeaveRemaining', 'payBaseSalary', 'payAllowanceExecutive',
+    'payAllowanceQualification', 'payAllowanceHousing', 'payAllowanceFamily', 'payOvertimePay',
+    'payAllowanceCommuteNonTax', 'payAllowanceNonTaxOther', 'payMidnightPay', 'payHolidayPay',
+    'payHealthInsurance', 'payWelfarePension', 'payWelfarePensionFund', 'payNursingInsurance',
+    'payEmploymentInsurance', 'payIncomeTax', 'payResidentTax', 'payMutualAid'
+  ];
+
+  payrollInputs.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', (e) => {
+        // 出勤日数または遅刻早退時間が変更された場合、労働時間（出勤日数×7 - 遅刻早退時間）を自動連動再計算
+        if (id === 'payWorkDaysActual' || id === 'payLateEarlyHours') {
+          syncWorkHoursFromDaysAndLateEarly();
+        }
+        // 出勤日数が変更され、育休モードの場合は日割り基本給を自動連動再計算
+        if (id === 'payWorkDaysActual' && DOM.checkPayIsChildcare?.checked) {
+          syncBaseSalaryFromWorkDays();
+        }
+        handlePayrollFormInputChange();
+      });
+    }
+  });
+}
+
+/**
+ * 労働時間を出勤日数と遅刻早退時間から自動算出（所定7時間/日: 出勤日数 × 7 - 遅刻早退時間）
+ */
+function syncWorkHoursFromDaysAndLateEarly() {
+  const actualDays = Number(document.getElementById('payWorkDaysActual')?.value) || 0;
+  const lateEarlyHours = Number(document.getElementById('payLateEarlyHours')?.value) || 0;
+  const settings = getPayrollSettings();
+  const dailyHours = (Number(settings.monthlyStandardHours) || 140) / (Number(settings.monthlyStandardDays) || 20); // 7.0時間
+  const calculatedHours = Math.max(0, Math.round((actualDays * dailyHours - lateEarlyHours) * 100) / 100);
+  const el = document.getElementById('payWorkHoursStandard');
+  if (el) el.value = calculatedHours;
+  return calculatedHours;
+}
+
+function syncBaseSalaryFromWorkDays() {
+  const actualDays = Number(document.getElementById('payWorkDaysActual')?.value) || 0;
+  const stdDays = Number(document.getElementById('payWorkDaysStandard')?.value) || 20;
+  const settings = getPayrollSettings();
+  const baseSalarySetting = settings.baseSalary || 200000;
+  const wageType = DOM.selectPayDailyWageType?.value || 'proRata';
+
+  let newBaseSalary = 0;
+  if (wageType === 'fixedDaily') {
+    const unit = Number(DOM.inputPayDailyWageUnit?.value) || Number(settings.dailyWageUnit) || 10000;
+    newBaseSalary = Math.round(actualDays * unit);
+  } else if (wageType === 'hourly') {
+    const hours = Number(document.getElementById('payWorkHoursStandard')?.value) || (actualDays * 7);
+    const hUnit = baseSalarySetting / 140;
+    newBaseSalary = Math.round(hours * hUnit);
+  } else {
+    // proRata
+    const dailyRate = baseSalarySetting / (stdDays || 20);
+    newBaseSalary = Math.round(actualDays * dailyRate);
+  }
+
+  const el = document.getElementById('payBaseSalary');
+  if (el) el.value = newBaseSalary;
+}
+
+function recalculatePayrollWithChildcareRules() {
+  const isChildcare = Boolean(DOM.checkPayIsChildcare?.checked);
+  const exemptSocial = Boolean(DOM.checkPayExemptSocial?.checked);
+  const settings = getPayrollSettings();
+
+  // 1. 基本給の再計算（育休時日割り vs 通常時月給）
+  if (isChildcare) {
+    syncBaseSalaryFromWorkDays();
+  } else {
+    const el = document.getElementById('payBaseSalary');
+    if (el) el.value = settings.baseSalary || 200000;
+  }
+
+  // 2. 社会保険料の免除切替
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.value = val;
+  };
+
+  if (exemptSocial) {
+    setVal('payHealthInsurance', 0);
+    setVal('payWelfarePension', 0);
+    setVal('payNursingInsurance', 0);
+    setVal('payWelfarePensionFund', 0);
+  } else {
+    setVal('payHealthInsurance', settings.healthInsurance || 9970);
+    setVal('payWelfarePension', settings.welfarePension || 18300);
+    setVal('payNursingInsurance', settings.nursingInsurance || 1590);
+    setVal('payWelfarePensionFund', 0);
+  }
+
+  // 3. 雇用保険料の自動計算（総支給額連動）
+  const getNum = (id) => Number(document.getElementById(id)?.value) || 0;
+  const taxable = getNum('payBaseSalary') + getNum('payOvertimePay') + getNum('payAllowanceExecutive')
+    + getNum('payAllowanceQualification') + getNum('payAllowanceHousing') + getNum('payAllowanceFamily')
+    + getNum('payMidnightPay') + getNum('payHolidayPay');
+  const gross = taxable + getNum('payAllowanceCommuteNonTax') + getNum('payAllowanceNonTaxOther');
+
+  const empType = DOM.settingPayEmploymentType?.value || (settings.useFixedEmploymentInsurance ? 'fixed' : 'rate');
+  if (empType === 'fixed') {
+    setVal('payEmploymentInsurance', settings.employmentInsuranceFixed || 1156);
+  } else {
+    const rate = Number(DOM.settingPayEmploymentRate?.value) || settings.employmentInsuranceRate || 0.0055;
+    // 50銭超過切り上げ（通貨の単位及び貨幣の発行等に関する法律第3条）
+    setVal('payEmploymentInsurance', Math.round(gross * rate));
+  }
+
+  // 4. 全体再計算
+  currentPayrollRecord = getPayrollRecordFromForm();
+  // 所得税を自動算出
+  setVal('payIncomeTax', currentPayrollRecord.incomeTax);
+  currentPayrollRecord = getPayrollRecordFromForm();
+  updatePayrollSummaryDisplays(currentPayrollRecord);
+}
+
+function changePayrollMonth(diff) {
+  const [yStr, mStr] = currentPayrollMonth.split('-');
+  let y = parseInt(yStr, 10);
+  let m = parseInt(mStr, 10) + diff;
+  if (m < 1) {
+    m = 12;
+    y -= 1;
+  } else if (m > 12) {
+    m = 1;
+    y += 1;
+  }
+  currentPayrollMonth = `${y}-${String(m).padStart(2, '0')}`;
+  if (DOM.payrollMonthSelector) {
+    DOM.payrollMonthSelector.value = currentPayrollMonth;
+  }
+  loadPayrollRecordForMonth(currentPayrollMonth);
+}
+
+function loadPayrollRecordForMonth(ymStr) {
+  if (!ymStr) return;
+  currentPayrollMonth = ymStr;
+
+  const settings = getPayrollSettings();
+  let existing = getPayrollRecordByMonth(ymStr);
+
+  if (existing) {
+    currentPayrollRecord = { ...existing };
+  } else {
+    // 既存レコードがない場合は、勤怠データと設定から自動算出
+    const attList = getAttendanceList();
+    const attSummary = extractAttendanceForPayroll(attList, ymStr);
+    currentPayrollRecord = calculatePayrollRecord({
+      targetMonth: ymStr,
+      ...attSummary
+    }, settings);
+  }
+
+  // UIフォームへセット
+  populatePayrollRecordToForm(currentPayrollRecord);
+  updatePayrollSummaryDisplays(currentPayrollRecord);
+}
+
+function populatePayrollRecordToForm(r) {
+  if (!r) return;
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.value = val !== undefined && val !== null ? val : 0;
+  };
+
+  const targetYm = r.targetMonth || currentPayrollMonth;
+  if (DOM.dispCurrentPayrollTitle) {
+    const [y, m] = targetYm.split('-');
+    DOM.dispCurrentPayrollTitle.textContent = `${y}年${parseInt(m, 10)}月度 （${r.empName || '宮崎真輔'} 様）`;
+  }
+  if (DOM.dispPayrollWorkPeriodBadge) {
+    const periodInfo = getWorkPeriodLabel(targetYm);
+    DOM.dispPayrollWorkPeriodBadge.textContent = `📅 発行月: ${periodInfo.issueLabel}（対象: ${periodInfo.workMonthLabel}）`;
+  }
+
+  // 育休中・社保免除コントロールの同期（2026年3月14日〜2027年3月31日 ➜ 2026年4月度〜2027年4月度支給分が育休免除対象）
+  const payrollSettings = getPayrollSettings();
+  const isChildcarePeriod = isChildcareMonthForPayroll(targetYm, payrollSettings);
+  const isLeaveActive = r.isChildcareLeave !== undefined ? Boolean(r.isChildcareLeave) : isChildcarePeriod;
+  const isExemptActive = r.childcareExemptSocialInsurance !== undefined ? Boolean(r.childcareExemptSocialInsurance) : isChildcarePeriod;
+
+  if (DOM.checkPayIsChildcare) {
+    DOM.checkPayIsChildcare.checked = isLeaveActive;
+  }
+  if (DOM.checkPayExemptSocial) {
+    DOM.checkPayExemptSocial.checked = isExemptActive;
+  }
+  if (DOM.badgeChildcarePeriodStatus) {
+    if (isLeaveActive) {
+      DOM.badgeChildcarePeriodStatus.textContent = `👶 育休期間中 (${payrollSettings.childcareStartDate || '2026-03-14'} 〜 ${payrollSettings.childcareEndDate || '2027-03-31'})`;
+      DOM.badgeChildcarePeriodStatus.style.background = '#fef3c7';
+      DOM.badgeChildcarePeriodStatus.style.color = '#92400e';
+      DOM.badgeChildcarePeriodStatus.style.borderColor = '#fde68a';
+    } else {
+      DOM.badgeChildcarePeriodStatus.textContent = '🏢 通常勤務月（社会保険料控除）';
+      DOM.badgeChildcarePeriodStatus.style.background = '#f1f5f9';
+      DOM.badgeChildcarePeriodStatus.style.color = '#475569';
+      DOM.badgeChildcarePeriodStatus.style.borderColor = '#cbd5e1';
+    }
+  }
+
+  // 勤怠
+  setVal('payWorkDaysStandard', r.workDaysStandard);
+  setVal('payWorkDaysActual', r.workDaysActual);
+  setVal('payLateEarlyHours', r.lateEarlyHours);
+
+  // 労働時間は出勤日数と遅刻早退時間から算出（所定7時間/日: 出勤日数 × 7 - 遅刻早退時間）
+  const actualDays = Number(r.workDaysActual) || 0;
+  const lateEarlyHours = Number(r.lateEarlyHours) || 0;
+  const dailyHours = (Number(payrollSettings.monthlyStandardHours) || 140) / (Number(payrollSettings.monthlyStandardDays) || 20);
+  const calcWorkHours = Math.max(0, Math.round((actualDays * dailyHours - lateEarlyHours) * 100) / 100);
+  setVal('payWorkHoursStandard', calcWorkHours);
+
+  setVal('payAbsenceDays', r.absenceDays);
+  setVal('payHolidayWorkDays', r.holidayWorkDays);
+  setVal('payPaidLeaveDays', r.paidLeaveDays);
+  setVal('payOvertimeHours', r.overtimeHours);
+  setVal('payMidnightOvertimeHours', r.midnightOvertimeHours);
+  setVal('payPaidLeaveRemaining', r.paidLeaveRemaining);
+
+  // 支給
+  setVal('payBaseSalary', r.baseSalary);
+  setVal('payAllowanceExecutive', r.allowanceExecutive);
+  setVal('payAllowanceQualification', r.allowanceQualification);
+  setVal('payAllowanceHousing', r.allowanceHousing);
+  setVal('payAllowanceFamily', r.allowanceFamily);
+  setVal('payOvertimePay', r.overtimePay);
+  setVal('payAllowanceCommuteNonTax', r.allowanceCommuteNonTax);
+  setVal('payAllowanceNonTaxOther', r.allowanceNonTaxOther);
+  setVal('payMidnightPay', r.midnightPay);
+  setVal('payHolidayPay', r.holidayPay);
+
+  // 控除
+  setVal('payHealthInsurance', r.healthInsurance);
+  setVal('payWelfarePension', r.welfarePension);
+  setVal('payWelfarePensionFund', r.welfarePensionFund);
+  setVal('payNursingInsurance', r.nursingInsurance);
+  setVal('payEmploymentInsurance', r.employmentInsurance);
+  setVal('payIncomeTax', r.incomeTax);
+  setVal('payResidentTax', r.residentTax);
+  setVal('payMutualAid', r.mutualAid);
+}
+
+function getPayrollRecordFromForm() {
+  const getNum = (id) => {
+    const el = document.getElementById(id);
+    return el ? Number(el.value) || 0 : 0;
+  };
+
+  const settings = getPayrollSettings();
+  const rawRecord = {
+    id: currentPayrollRecord?.id || `pay_${currentPayrollMonth}`,
+    targetMonth: currentPayrollMonth,
+    empNo: settings.empNo || '2',
+    empName: settings.empName || '宮崎真輔',
+    companyName: settings.companyName || '株式会社アルバワークス',
+
+    isChildcareLeave: Boolean(DOM.checkPayIsChildcare?.checked),
+    childcareExemptSocialInsurance: Boolean(DOM.checkPayExemptSocial?.checked),
+
+    workDaysStandard: getNum('payWorkDaysStandard'),
+    workDaysActual: getNum('payWorkDaysActual'),
+    workHoursStandard: getNum('payWorkHoursStandard'),
+    absenceDays: getNum('payAbsenceDays'),
+    holidayWorkDays: getNum('payHolidayWorkDays'),
+    paidLeaveDays: getNum('payPaidLeaveDays'),
+    overtimeHours: getNum('payOvertimeHours'),
+    midnightOvertimeHours: getNum('payMidnightOvertimeHours'),
+    lateEarlyHours: getNum('payLateEarlyHours'),
+    paidLeaveRemaining: getNum('payPaidLeaveRemaining'),
+
+    baseSalary: getNum('payBaseSalary'),
+    allowanceExecutive: getNum('payAllowanceExecutive'),
+    allowanceQualification: getNum('payAllowanceQualification'),
+    allowanceHousing: getNum('payAllowanceHousing'),
+    allowanceFamily: getNum('payAllowanceFamily'),
+    overtimePay: getNum('payOvertimePay'),
+    allowanceCommuteNonTax: getNum('payAllowanceCommuteNonTax'),
+    allowanceNonTaxOther: getNum('payAllowanceNonTaxOther'),
+    midnightPay: getNum('payMidnightPay'),
+    holidayPay: getNum('payHolidayPay'),
+
+    healthInsurance: getNum('payHealthInsurance'),
+    welfarePension: getNum('payWelfarePension'),
+    welfarePensionFund: getNum('payWelfarePensionFund'),
+    nursingInsurance: getNum('payNursingInsurance'),
+    employmentInsurance: getNum('payEmploymentInsurance'),
+    incomeTax: getNum('payIncomeTax'),
+    residentTax: getNum('payResidentTax'),
+    mutualAid: getNum('payMutualAid'),
+  };
+
+  // 合計・税額・手取り額を再計算
+  return calculatePayrollRecord(rawRecord, settings);
+}
+
+function handlePayrollFormInputChange() {
+  currentPayrollRecord = getPayrollRecordFromForm();
+  updatePayrollSummaryDisplays(currentPayrollRecord);
+}
+
+function updatePayrollSummaryDisplays(r) {
+  if (!r) return;
+  const setText = (id, text) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  };
+
+  // 支給ブロック合計
+  setText('dispPayTotalNonTax', formatPayrollCurrency(r.totalNonTax));
+  setText('dispPayTotalTaxable', formatPayrollCurrency(r.totalTaxable));
+  setText('dispPayTotalGross', formatPayrollCurrency(r.totalGross));
+
+  // 控除ブロック合計
+  setText('dispPayTotalSocialInsurance', formatPayrollCurrency(r.totalSocialInsurance));
+  setText('dispPayTaxableIncome', formatPayrollCurrency(r.taxableIncome));
+  setText('dispPayTotalTax', formatPayrollCurrency(r.totalTax));
+  setText('dispPayTotalDeductions', formatPayrollCurrency(r.totalDeductions));
+
+  // 最下部合計ブロック
+  setText('dispSummaryTotalGross', formatPayrollCurrency(r.totalGross));
+  setText('dispSummaryTotalDeductions', formatPayrollCurrency(r.totalDeductions));
+  setText('dispSummaryNetPay', `${formatPayrollCurrency(r.netPay)} 円`);
+
+  // 最上部3大サマリーカード
+  if (DOM.payrollCardTotalGross) DOM.payrollCardTotalGross.textContent = `¥${formatPayrollCurrency(r.totalGross)}`;
+  if (DOM.payrollCardTotalDeductions) DOM.payrollCardTotalDeductions.textContent = `¥${formatPayrollCurrency(r.totalDeductions)}`;
+  if (DOM.payrollCardNetPay) DOM.payrollCardNetPay.textContent = `¥${formatPayrollCurrency(r.netPay)}`;
+
+  if (DOM.dispPayrollCardGrossSub) {
+    if (r.isChildcareLeave) {
+      DOM.dispPayrollCardGrossSub.textContent = `育休日割り給料 ¥${formatPayrollCurrency(r.baseSalary)} ＋ 残業手当等`;
+    } else {
+      DOM.dispPayrollCardGrossSub.textContent = `月給 ¥${formatPayrollCurrency(r.baseSalary)} ＋ 残業手当等`;
+    }
+  }
+
+  if (DOM.dispPayrollCardDeductionSub) {
+    if (r.childcareExemptSocialInsurance) {
+      DOM.dispPayrollCardDeductionSub.textContent = `社保免除 ¥0 ＋ 雇用保険 ¥${formatPayrollCurrency(r.employmentInsurance)}・所得税等`;
+    } else {
+      DOM.dispPayrollCardDeductionSub.textContent = `社保計 ¥${formatPayrollCurrency(r.totalSocialInsurance)} ＋ 所得税・住民税`;
+    }
+  }
+}
+
+function handleImportAttendanceToPayroll() {
+  const attList = getAttendanceList();
+  // 当給与明細（発行月）に対応する「前月勤務分」の勤怠を集計（末日締め翌月10日払い）
+  const workMonth = getPreviousMonthStr(currentPayrollMonth);
+  const summary = extractAttendanceForPayroll(attList, workMonth);
+
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.value = val;
+  };
+
+  setVal('payWorkDaysStandard', summary.workDaysStandard);
+  setVal('payWorkDaysActual', summary.workDaysActual);
+  setVal('payWorkHoursStandard', summary.workHoursStandard);
+  setVal('payOvertimeHours', summary.overtimeHours);
+
+  // 残業代を新残業時間で再計算
+  const settings = getPayrollSettings();
+  const unit = Number(settings.overtimeUnitHourly) || (settings.baseSalary / (settings.monthlyStandardHours || 140) * (settings.overtimeRate || 1.25));
+  const newOtPay = Math.round(summary.overtimeHours * unit);
+  setVal('payOvertimePay', newOtPay);
+
+  // 育児休業（日割り＆社保免除）ルールを適用して再計算
+  recalculatePayrollWithChildcareRules();
+
+  const [pyStr, pmStr] = workMonth.split('-');
+  const [cyStr, cmStr] = currentPayrollMonth.split('-');
+  if (summary.workDaysActual > 0) {
+    showToast(`前月（${pyStr}年${parseInt(pmStr, 10)}月勤務分）の出勤 ${summary.workDaysActual}日・普通残業 ${summary.overtimeHours}時間を読み込み、${cyStr}年${parseInt(cmStr, 10)}月度給与を自動計算しました！`, 'success');
+  } else {
+    showToast(`前月（${pyStr}年${parseInt(pmStr, 10)}月）の打刻データは0件でした。当明細は前月勤務分を反映します。`, 'info');
+  }
+}
+
+function handleSavePayrollRecord() {
+  currentPayrollRecord = getPayrollRecordFromForm();
+  const saved = savePayrollRecord(currentPayrollRecord);
+  if (saved) {
+    showToast(`${currentPayrollMonth} の給与明細データを保存しました（ファイル同期完了）`, 'success');
+    renderPayrollHistoryTable();
+  } else {
+    alert('給与データの保存に失敗しました。');
+  }
+}
+
+function populatePayrollSettingsToForm() {
+  const s = getPayrollSettings();
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.value = val;
+  };
+  setVal('settingPayBaseSalary', s.baseSalary || 200000);
+  setVal('settingPayOvertimeUnit', s.overtimeUnitHourly || 1785.456);
+  setVal('settingPayHealth', s.healthInsurance || 9970);
+  setVal('settingPayWelfare', s.welfarePension || 18300);
+  setVal('settingPayNursing', s.nursingInsurance || 1590);
+  setVal('settingPayDependents', s.dependentsCount || 0);
+  setVal('settingPayResidentTax', s.residentTax || 0);
+  setVal('settingPayAllowanceNonTaxOther', s.allowanceNonTaxOther !== undefined ? s.allowanceNonTaxOther : 10000);
+  setVal('settingPayChildcareStart', s.childcareStartDate || '2026-03-14');
+  setVal('settingPayChildcareEnd', s.childcareEndDate || '2027-03-31');
+  const dispPeriodEl = document.getElementById('dispSettingChildcarePeriod');
+  if (dispPeriodEl) {
+    dispPeriodEl.textContent = `${s.childcareStartDate || '2026-03-14'} 〜 ${s.childcareEndDate || '2027-03-31'}（社保免除対象）`;
+  }
+
+  if (DOM.settingPayEmploymentType) {
+    DOM.settingPayEmploymentType.value = s.useFixedEmploymentInsurance ? 'fixed' : 'rate';
+  }
+  if (DOM.settingPayEmploymentRate) {
+    DOM.settingPayEmploymentRate.value = s.employmentInsuranceRate || 0.0055;
+  }
+  if (DOM.selectPayDailyWageType) {
+    DOM.selectPayDailyWageType.value = s.dailyWageCalculationType || 'proRata';
+  }
+  if (DOM.inputPayDailyWageUnit) {
+    DOM.inputPayDailyWageUnit.value = s.dailyWageUnit || 10000;
+  }
+  if (DOM.wrapperPayDailyWageUnit) {
+    DOM.wrapperPayDailyWageUnit.style.display = s.dailyWageCalculationType === 'fixedDaily' ? 'inline-flex' : 'none';
+  }
+}
+
+function handleSavePayrollSettingsFromForm() {
+  const getNum = (id) => Number(document.getElementById(id)?.value) || 0;
+  const current = getPayrollSettings();
+  const updated = {
+    ...current,
+    baseSalary: getNum('settingPayBaseSalary') || 200000,
+    overtimeUnitHourly: Number(document.getElementById('settingPayOvertimeUnit')?.value) || 1785.456,
+    healthInsurance: getNum('settingPayHealth') || 9970,
+    welfarePension: getNum('settingPayWelfare') || 18300,
+    nursingInsurance: getNum('settingPayNursing') || 1590,
+    dependentsCount: getNum('settingPayDependents'),
+    residentTax: getNum('settingPayResidentTax'),
+    allowanceNonTaxOther: getNum('settingPayAllowanceNonTaxOther'),
+    childcareStartDate: document.getElementById('settingPayChildcareStart')?.value || '2026-03-14',
+    childcareEndDate: document.getElementById('settingPayChildcareEnd')?.value || '2027-03-31',
+    useFixedEmploymentInsurance: DOM.settingPayEmploymentType?.value === 'fixed',
+    employmentInsuranceRate: Number(DOM.settingPayEmploymentRate?.value) || 0.0055,
+    dailyWageCalculationType: DOM.selectPayDailyWageType?.value || 'proRata',
+    dailyWageUnit: Number(DOM.inputPayDailyWageUnit?.value) || 10000,
+    isChildcareLeave: Boolean(DOM.checkPayIsChildcare?.checked),
+    childcareExemptSocialInsurance: Boolean(DOM.checkPayExemptSocial?.checked)
+  };
+
+  savePayrollSettings(updated);
+  showToast('給与・保険料の基本設定を保存しました！', 'success');
+  if (DOM.payrollSettingsCard) DOM.payrollSettingsCard.style.display = 'none';
+
+  // 現在の明細に設定値を反映して再計算
+  loadPayrollRecordForMonth(currentPayrollMonth);
+}
+
+/**
+ * 前年所得データをフォームに読み込み、法定住民税を試算して表示
+ */
+function populatePreviousYearIncomeToForm() {
+  const data = getPreviousYearIncome();
+  if (DOM.prevYearTarget) DOM.prevYearTarget.value = data.targetYear || 2025;
+  if (DOM.prevYearGrossSalary) DOM.prevYearGrossSalary.value = data.annualGrossSalary || 2400000;
+  if (DOM.prevYearSocialDeduction) DOM.prevYearSocialDeduction.value = data.socialInsuranceDeduction || 0;
+  if (DOM.prevYearDependents) DOM.prevYearDependents.value = data.dependentsDeduction ? Math.round(data.dependentsDeduction / 330000) : 0;
+
+  handleCalcPrevYearTax();
+}
+
+/**
+ * フォームの入力値から法定住民税を再試算
+ */
+function handleCalcPrevYearTax() {
+  const gross = Number(DOM.prevYearGrossSalary?.value) || 0;
+  const social = Number(DOM.prevYearSocialDeduction?.value) || 0;
+  const deps = Number(DOM.prevYearDependents?.value) || 0;
+
+  const result = calculateResidentTaxFromAnnualIncome({
+    annualGrossSalary: gross,
+    socialInsuranceDeduction: social,
+    dependentsDeduction: deps * 330000
+  });
+
+  if (DOM.dispPrevYearAnnualTax) {
+    DOM.dispPrevYearAnnualTax.textContent = `¥${result.annualTotal.toLocaleString()}`;
+  }
+  if (DOM.dispPrevYearTaxJune) {
+    DOM.dispPrevYearTaxJune.textContent = `¥${result.monthlyJune.toLocaleString()}`;
+  }
+  if (DOM.dispPrevYearTaxRegular) {
+    DOM.dispPrevYearTaxRegular.textContent = `¥${result.monthlyRegular.toLocaleString()}`;
+  }
+  if (DOM.dispPrevYearTaxMessage) {
+    DOM.dispPrevYearTaxMessage.textContent = result.message;
+  }
+
+  return result;
+}
+
+/**
+ * 前年所得データを保存
+ */
+function handleSavePreviousYearIncomeFromForm() {
+  const result = handleCalcPrevYearTax();
+  const toSave = {
+    targetYear: Number(DOM.prevYearTarget?.value) || 2025,
+    annualGrossSalary: Number(DOM.prevYearGrossSalary?.value) || 0,
+    socialInsuranceDeduction: Number(DOM.prevYearSocialDeduction?.value) || 0,
+    dependentsDeduction: (Number(DOM.prevYearDependents?.value) || 0) * 330000,
+    residentTaxMonthlyJune: result.monthlyJune,
+    residentTaxMonthlyRegular: result.monthlyRegular,
+    annualResidentTaxTotal: result.annualTotal,
+    notes: '前年給与所得・明細データ'
+  };
+
+  savePreviousYearIncome(toSave);
+  showToast('前年の所得データと住民税試算結果を安全に保存しました！', 'success');
+}
+
+/**
+ * 試算された住民税月額を給与設定および当月明細に反映
+ */
+function handleApplyResidentTaxToSettings() {
+  const result = handleCalcPrevYearTax();
+  const taxMonthly = result.monthlyRegular;
+
+  // 1. 基本設定の住民税月額に反映
+  const currentSettings = getPayrollSettings();
+  const updatedSettings = {
+    ...currentSettings,
+    residentTax: taxMonthly
+  };
+  savePayrollSettings(updatedSettings);
+
+  // 2. フォームUIにも反映
+  if (DOM.settingPayResidentTax) {
+    DOM.settingPayResidentTax.value = taxMonthly;
+  }
+  const payResidentInput = document.getElementById('payResidentTax');
+  if (payResidentInput) {
+    payResidentInput.value = taxMonthly;
+    handlePayrollFormInputChange();
+  }
+
+  showToast(`前年所得からの試算住民税（月額: ¥${taxMonthly.toLocaleString()}）を設定に反映しました！`, 'success');
+}
+
+// ==========================================================================
+// A4給与支給明細書 印刷・プレビュー
+// ==========================================================================
+function openPayrollSheetModal() {
+  currentPayrollRecord = getPayrollRecordFromForm();
+  const r = currentPayrollRecord;
+  if (!r) return;
+
+  const [y, m] = (r.targetMonth || currentPayrollMonth).split('-');
+  const ymText = `${y}年${parseInt(m, 10)}月度`;
+
+  if (DOM.dispModalPayrollSubTitle) {
+    DOM.dispModalPayrollSubTitle.textContent = `${ymText} ${r.empName || '宮崎真輔'} 様`;
+  }
+
+  // 帳票用紙への転記
+  const setText = (id, text) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text !== undefined && text !== null ? text : '';
+  };
+  const setMoney = (id, num) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = num ? formatPayrollCurrency(num) : '';
+  };
+
+  const targetYm = r.targetMonth || currentPayrollMonth;
+  const periodInfo = getWorkPeriodLabel(targetYm);
+  const pSettings = getPayrollSettings();
+  const isChildcarePeriod = isChildcareMonthForPayroll(targetYm, pSettings) || Boolean(r.isChildcareLeave);
+  const childcareNote = isChildcarePeriod ? ' 【育児休業中・社保免除】' : '';
+
+  setText('printPayCompany', r.companyName || '株式会社アルバワークス');
+  setText('printPayMonth', periodInfo.issueLabel);
+  setText('printPayPeriod', `支給日: ${periodInfo.payDateLabel}（対象: ${periodInfo.workMonthLabel}）${childcareNote}`);
+  setText('printPayEmpNo', r.empNo || '2');
+  setText('printPayEmpName', r.empName || '宮崎 真輔');
+
+  // 勤怠
+  setText('pSheetWorkDaysStandard', r.workDaysStandard);
+  setText('pSheetWorkDaysActual', r.workDaysActual);
+  setText('pSheetWorkHoursStandard', r.workHoursStandard);
+  setText('pSheetAbsenceDays', r.absenceDays);
+  setText('pSheetHolidayWorkDays', r.holidayWorkDays);
+  setText('pSheetPaidLeaveDays', r.paidLeaveDays);
+  setText('pSheetOvertimeHours', r.overtimeHours);
+  setText('pSheetMidnightOvertimeHours', r.midnightOvertimeHours);
+  setText('pSheetLateEarlyHours', r.lateEarlyHours);
+  setText('pSheetPaidLeaveRemaining', r.paidLeaveRemaining);
+
+  // 支給
+  setMoney('pSheetBaseSalary', r.baseSalary);
+  setMoney('pSheetAllowanceExecutive', r.allowanceExecutive);
+  setMoney('pSheetAllowanceQualification', r.allowanceQualification);
+  setMoney('pSheetAllowanceHousing', r.allowanceHousing);
+  setMoney('pSheetAllowanceFamily', r.allowanceFamily);
+  setMoney('pSheetOvertimePay', r.overtimePay);
+  setText('pSheetAllowanceCommuteNonTax', r.allowanceCommuteNonTax ? formatPayrollCurrency(r.allowanceCommuteNonTax) : '0');
+  setMoney('pSheetAllowanceNonTaxOther', r.allowanceNonTaxOther);
+  setMoney('pSheetMidnightPay', r.midnightPay);
+  setMoney('pSheetHolidayPay', r.holidayPay);
+  setText('pSheetTotalNonTax', formatPayrollCurrency(r.totalNonTax));
+  setText('pSheetTotalTaxable', formatPayrollCurrency(r.totalTaxable));
+  setText('pSheetTotalGross', formatPayrollCurrency(r.totalGross));
+
+  // 控除
+  setMoney('pSheetHealthInsurance', r.healthInsurance);
+  setMoney('pSheetWelfarePension', r.welfarePension);
+  setMoney('pSheetWelfarePensionFund', r.welfarePensionFund);
+  setMoney('pSheetNursingInsurance', r.nursingInsurance);
+  setMoney('pSheetEmploymentInsurance', r.employmentInsurance);
+  setText('pSheetTotalSocialInsurance', formatPayrollCurrency(r.totalSocialInsurance));
+  setText('pSheetTaxableIncome', formatPayrollCurrency(r.taxableIncome));
+  setMoney('pSheetIncomeTax', r.incomeTax);
+  setMoney('pSheetResidentTax', r.residentTax);
+  setText('pSheetTotalTax', formatPayrollCurrency(r.totalTax));
+  setMoney('pSheetMutualAid', r.mutualAid);
+  setText('pSheetTotalDeductions', formatPayrollCurrency(r.totalDeductions));
+
+  // 最下部
+  setText('pSheetBottomGross', formatPayrollCurrency(r.totalGross));
+  setText('pSheetBottomDeductions', formatPayrollCurrency(r.totalDeductions));
+  setText('pSheetBottomNetPay', formatPayrollCurrency(r.netPay));
+
+  if (DOM.payrollSheetModal) {
+    DOM.payrollSheetModal.classList.add('active');
+  }
+  document.body.style.overflow = 'hidden';
+}
+
+function closePayrollSheetModal() {
+  if (DOM.payrollSheetModal) {
+    DOM.payrollSheetModal.classList.remove('active');
+  }
+  document.body.style.overflow = '';
+}
+
+function handlePrintPayrollSheet() {
+  document.body.classList.add('printing-payroll-sheet');
+  window.onafterprint = function() {
+    document.body.classList.remove('printing-payroll-sheet');
+  };
+  window.print();
+  setTimeout(() => {
+    document.body.classList.remove('printing-payroll-sheet');
+  }, 1000);
+}
+
+// ==========================================================================
+// 財務会計への給与仕訳連携
+// ==========================================================================
+function handleSyncPayrollToAccounting() {
+  currentPayrollRecord = getPayrollRecordFromForm();
+  const r = currentPayrollRecord;
+  if (!r) return;
+
+  const [y, m] = (r.targetMonth || currentPayrollMonth).split('-');
+  const ymText = `${y}年${parseInt(m, 10)}月度`;
+
+  // 会計の経費／支出として「給与手当」「法定福利費」の仕訳を自動生成・連携
+  if (confirm(`${ymText} の給与（支給総額 ¥${formatPayrollCurrency(r.totalGross)}）を財務会計に仕訳反映しますか？`)) {
+    // 1. 給与手当の経費データ
+    const payExpense = {
+      id: `exp_payroll_${r.targetMonth}`,
+      date: `${r.targetMonth}-25`, // 支給日
+      category: '役員報酬・給料手当',
+      amount: r.totalGross,
+      taxRate: 0, // 給与は不課税
+      payee: `${r.empName || '宮崎真輔'}（給与）`,
+      invoiceNumber: '',
+      note: `${ymText} 給与支給（差引手取 ¥${formatPayrollCurrency(r.netPay)}、社保預り ¥${formatPayrollCurrency(r.totalSocialInsurance)}、所得税預り ¥${formatPayrollCurrency(r.incomeTax)}）`
+    };
+    saveExpense(payExpense);
+
+    // 2. 会社負担法定福利費（社会保険料と同額相当を福利厚生・法定福利費として計上）
+    if (r.totalSocialInsurance > 0) {
+      const socialExpense = {
+        id: `exp_social_${r.targetMonth}`,
+        date: `${r.targetMonth}-25`,
+        category: '法定福利費',
+        amount: r.totalSocialInsurance,
+        taxRate: 0,
+        payee: '日本年金機構・協会けんぽ',
+        invoiceNumber: '',
+        note: `${ymText} 社会保険料 会社負担分（健保・厚年・雇用保険）`
+      };
+      saveExpense(socialExpense);
+    }
+
+    showToast(`${ymText} の給与・社会保険仕訳を財務会計へ反映しました！`, 'success');
+  }
+}
+
+// ==========================================================================
+// 履歴一覧テーブル描画
+// ==========================================================================
+function renderPayrollHistoryTable() {
+  if (!DOM.payrollHistoryTableBody) return;
+  const records = getPayrollRecords();
+
+  if (records.length === 0) {
+    DOM.payrollHistoryTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--slate-400); padding: 24px;">保存済みの給与明細データはありません</td></tr>`;
+    return;
+  }
+
+  const sorted = [...records].sort((a, b) => (b.targetMonth || '').localeCompare(a.targetMonth || ''));
+
+  let html = '';
+  sorted.forEach(item => {
+    const [y, m] = (item.targetMonth || '').split('-');
+    const ymDisplay = y && m ? `${y}年${parseInt(m, 10)}月度` : item.targetMonth;
+    const isCurrent = item.targetMonth === currentPayrollMonth;
+
+    html += `
+      <tr style="${isCurrent ? 'background: #f0fdf4;' : ''}">
+        <td style="font-weight: 700; color: #0f172a;">${escapeHtml(ymDisplay)}</td>
+        <td>${escapeHtml(item.empName || '宮崎真輔')} <span style="font-size: 11px; color: #64748b;">(No.${item.empNo || '2'})</span></td>
+        <td style="text-align: center;">${item.workDaysActual || 0}日 / <strong style="color: #0284c7;">${item.overtimeHours || 0}h</strong></td>
+        <td style="text-align: right; font-weight: 700;">¥${formatPayrollCurrency(item.totalGross)}</td>
+        <td style="text-align: right; color: #e11d48; font-weight: 700;">¥${formatPayrollCurrency(item.totalDeductions)}</td>
+        <td style="text-align: right; font-weight: 900; color: #0284c7; font-size: 0.95rem;">¥${formatPayrollCurrency(item.netPay)}</td>
+        <td style="text-align: center; white-space: nowrap;">
+          <button type="button" class="btn btn-secondary btn-xs" style="margin-right: 4px; padding: 2px 8px;" onclick="window.__loadPayrollRecord('${item.targetMonth}')">表示・編集</button>
+          <button type="button" class="btn btn-primary btn-xs" style="margin-right: 4px; padding: 2px 8px; background: #0284c7; border-color: #0284c7;" onclick="window.__printPayrollRecord('${item.targetMonth}')">明細印刷</button>
+          <button type="button" class="btn btn-outline btn-xs btn-danger" style="padding: 2px 6px;" onclick="window.__deletePayrollRecord('${item.targetMonth}')">削除</button>
+        </td>
+      </tr>
+    `;
+  });
+
+  DOM.payrollHistoryTableBody.innerHTML = html;
+}
+
+window.__loadPayrollRecord = function(targetMonth) {
+  if (DOM.payrollMonthSelector) {
+    DOM.payrollMonthSelector.value = targetMonth;
+  }
+  loadPayrollRecordForMonth(targetMonth);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+window.__printPayrollRecord = function(targetMonth) {
+  loadPayrollRecordForMonth(targetMonth);
+  setTimeout(() => {
+    openPayrollSheetModal();
+  }, 100);
+};
+
+window.__deletePayrollRecord = function(targetMonth) {
+  if (confirm(`${targetMonth} の給与明細データを削除しますか？`)) {
+    deletePayrollRecord(targetMonth);
+    showToast(`${targetMonth} の給与データを削除しました`, 'success');
+    renderPayrollHistoryTable();
+  }
+};
 
 // ==========================================================================
 // ユーティリティ

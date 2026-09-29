@@ -37,22 +37,43 @@ export function calculateMinutesDiff(startHHMM, endHHMM) {
 }
 
 /**
- * 分数を「〇時間〇分」形式でフォーマット
+ * 分数を「10進法時間（〇.〇〇時間）」形式でフォーマット
+ * @param {number} minutes 分数（例: 450）
+ * @param {boolean} withUnit '時間' を付けるか（デフォルト: true）
+ * @returns {string} 例: '7.50時間' または '7.50'
  */
-export function formatMinutesToHours(minutes = 0) {
-  const m = Math.max(0, Math.round(Number(minutes) || 0));
-  const h = Math.floor(m / 60);
-  const min = m % 60;
-  if (h === 0) return `${min}分`;
-  if (min === 0) return `${h}時間`;
-  return `${h}時間${min}分`;
+export function formatMinutesToDecimalHours(minutes = 0, withUnit = true) {
+  const m = Math.max(0, Number(minutes) || 0);
+  const decimal = (m / 60).toFixed(2);
+  return withUnit ? `${decimal}時間` : decimal;
 }
 
 /**
- * 勤務時間の計算（休憩1時間［60分］を自動控除）
- * @param {string} clockIn '09:00'
- * @param {string} clockOut '18:00'
- * @returns {object} { totalMinutes, breakMinutes: 60, workMinutes, overtimeMinutes }
+ * 分数を「〇.〇〇時間」形式でフォーマット（従来のフォーマッター互換）
+ */
+export function formatMinutesToHours(minutes = 0) {
+  return formatMinutesToDecimalHours(minutes, true);
+}
+
+/**
+ * 出勤簿シートセル用の10進法時間文字列（0や未入力は空文字）
+ */
+export function formatMinutesToSheetDecimal(minutes = 0) {
+  if (!minutes || minutes <= 0) return '';
+  return (minutes / 60).toFixed(2);
+}
+
+/**
+ * 勤務時間の計算
+ * ・定時は一日7時間（420分）
+ * ・出勤時間が15分まで早い場合（08:45〜09:00）は9時出勤扱い（※それ以前の早出も9時出勤扱い）
+ * ・休憩1時間（60分）自動控除
+ * ・17時以降は残業として扱い、1分単位で計算
+ * ・時間単位で表示、小数点以下は10進法に換算
+ * 
+ * @param {string} clockIn '08:56'
+ * @param {string} clockOut '17:04'
+ * @returns {object} { totalMinutes, breakMinutes: 60, workMinutes, regularMinutes, overtimeMinutes, workHoursDecimal, regularHoursDecimal, overtimeHoursDecimal }
  */
 export function calculateWorkDuration(clockIn, clockOut) {
   if (!clockIn || !clockOut) {
@@ -60,23 +81,50 @@ export function calculateWorkDuration(clockIn, clockOut) {
       totalMinutes: 0,
       breakMinutes: 0,
       workMinutes: 0,
-      overtimeMinutes: 0
+      regularMinutes: 0,
+      overtimeMinutes: 0,
+      workHoursDecimal: '0.00',
+      regularHoursDecimal: '0.00',
+      overtimeHoursDecimal: '0.00'
     };
   }
 
-  const totalMinutes = calculateMinutesDiff(clockIn, clockOut);
+  // 出勤時間が15分まで早い場合は9時出勤扱い（08:45〜09:00および08:45以前も9:00出勤扱い）
+  let effectiveIn = clockIn;
+  if (clockIn <= '09:00') {
+    effectiveIn = '09:00';
+  }
+
+  // 総滞在時間（有効始業時刻 〜 退勤時刻）
+  const totalMinutes = calculateMinutesDiff(effectiveIn, clockOut);
+
   // 休憩入力なしで1時間（60分）自動控除（※総滞在時間が60分以下の場合は実時間）
   const breakMinutes = totalMinutes > 60 ? 60 : 0;
   const workMinutes = Math.max(0, totalMinutes - breakMinutes);
 
-  // 所定8時間（480分）を超える分を残業時間として算出
-  const overtimeMinutes = Math.max(0, workMinutes - 480);
+  // 17時以降は残業として扱い、1分単位で計算
+  let overtimeMinutes = 0;
+  if (clockOut > '17:00') {
+    overtimeMinutes = calculateMinutesDiff('17:00', clockOut);
+  }
+
+  // 定時は一日7時間（420分）。所定内実働時間は最大420分（7時間）
+  const regularMinutes = Math.min(420, Math.max(0, workMinutes - overtimeMinutes));
+
+  // 小数点以下10進法換算（例: 7.00, 0.07, 7.55）
+  const workHoursDecimal = (workMinutes / 60).toFixed(2);
+  const regularHoursDecimal = (regularMinutes / 60).toFixed(2);
+  const overtimeHoursDecimal = (overtimeMinutes / 60).toFixed(2);
 
   return {
     totalMinutes,
     breakMinutes,
     workMinutes,
-    overtimeMinutes
+    regularMinutes,
+    overtimeMinutes,
+    workHoursDecimal,
+    regularHoursDecimal,
+    overtimeHoursDecimal
   };
 }
 
@@ -144,7 +192,7 @@ export function exportAttendanceToCSV(attendanceList = [], targetMonth = '') {
     .filter(att => att && (att.date || '').startsWith(currentYM))
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
-  const headers = ['日付', '出勤時刻', '退勤時刻', '自動休憩(分)', '実働時間', '実労働(分)', '残業(分)', '備考'];
+  const headers = ['日付', '出勤時刻', '退勤時刻', '自動休憩(分)', '実働時間(10進法)', '実労働(分)', '残業時間(10進法)', '残業(分)', '備考'];
   const rows = filtered.map(att => {
     const calc = calculateWorkDuration(att.clockIn, att.clockOut);
     return [
@@ -152,8 +200,9 @@ export function exportAttendanceToCSV(attendanceList = [], targetMonth = '') {
       att.clockIn || '',
       att.clockOut || '',
       calc.breakMinutes,
-      `"${formatMinutesToHours(calc.workMinutes)}"`,
+      `"${formatMinutesToDecimalHours(calc.workMinutes, true)}"`,
       calc.workMinutes,
+      `"${formatMinutesToDecimalHours(calc.overtimeMinutes, true)}"`,
       calc.overtimeMinutes,
       `"${(att.note || '').replace(/"/g, '""')}"`
     ];
@@ -247,8 +296,7 @@ export function generateMonthlyCalendarSheet(attendanceList = [], year, month) {
       const duration = calculateWorkDuration(clockIn, clockOut);
       workMinutes = duration.workMinutes;
       breakMinutes = duration.breakMinutes;
-      // 所定内（上限8時間）と時間外
-      regularMinutes = Math.min(480, workMinutes);
+      regularMinutes = duration.regularMinutes;
       overtimeMinutes = duration.overtimeMinutes;
 
       totalWorkMinutes += workMinutes;
@@ -273,8 +321,10 @@ export function generateMonthlyCalendarSheet(attendanceList = [], year, month) {
       breakMinutes,
       workMinutes,
       regularMinutes,
+      regularDecimal: formatMinutesToSheetDecimal(regularMinutes),
       regularParts: formatMinutesToHM(regularMinutes),
       overtimeMinutes,
+      overtimeDecimal: formatMinutesToSheetDecimal(overtimeMinutes),
       overtimeParts: formatMinutesToHM(overtimeMinutes),
       note
     });
@@ -291,9 +341,11 @@ export function generateMonthlyCalendarSheet(attendanceList = [], year, month) {
       totalWorkMinutes,
       totalRegularMinutes,
       totalOvertimeMinutes,
-      totalWorkHoursText: formatMinutesToHours(totalWorkMinutes),
-      totalRegularHoursText: formatMinutesToHours(totalRegularMinutes),
-      totalOvertimeHoursText: formatMinutesToHours(totalOvertimeMinutes)
+      totalWorkHoursText: formatMinutesToDecimalHours(totalWorkMinutes, true),
+      totalRegularHoursText: formatMinutesToDecimalHours(totalRegularMinutes, true),
+      totalOvertimeHoursText: formatMinutesToDecimalHours(totalOvertimeMinutes, true),
+      totalRegularDecimalText: formatMinutesToDecimalHours(totalRegularMinutes, false),
+      totalOvertimeDecimalText: formatMinutesToDecimalHours(totalOvertimeMinutes, false)
     }
   };
 }
