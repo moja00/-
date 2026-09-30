@@ -170,10 +170,8 @@ def call_gemini_vision_ocr(image_base64_data_url):
 
     # 現在のアカウントで動作確認済みの最新Flashモデル順に試行（複数モデルで無料枠を冗長化）
     candidate_models = [
-        'gemini-3.6-flash',
-        'gemini-flash-latest',
-        'gemini-flash-lite-latest',
-        'gemini-3.1-flash-lite'
+        'gemini-1.5-flash',
+        'gemini-1.5-flash-8b'
     ]
     last_err = None
 
@@ -387,190 +385,204 @@ DEFAULT_PAYROLL_RECORDS = [
 ]
 
 DEFAULT_ISSUER = {
-    "name": "株式会社サンプル商事",
-    "invoiceNumber": "T1234567890123",
-    "zip": "100-0001",
-    "address": "東京都千代田区千代田1-1 サンプルビル 5F",
-    "tel": "03-1234-5678",
-    "fax": "03-1234-5679",
-    "email": "info@sample.example.com",
-    "bankInfo": "みずほ銀行 東京中央支店 (店番: 001)\n普通預金 1234567\n口座名義: カ) サンプルショウジ",
+    "name": "株式会社アルバワークス",
+    "invoiceNumber": "T2070001004966",
+    "zip": "379-2144",
+    "address": "群馬県前橋市下川町63-7",
+    "tel": "027-289-0367",
+    "fax": "027-289-0368",
+    "email": "",
+    "bankInfo": "高崎信用金庫\n前橋南支店\n普通　012 2182393\nカ)　アルバワークス",
     "stampDataUrl": "",
     "showStamp": True
 }
 
 DEFAULT_ITEMS = [
     {
-        "id": "item_mst_1",
-        "name": "製品基本セット（一式）",
-        "unitPrice": 83333,
-        "userPrice": 110000,
+        "id": "prod_1790320521317_adue",
+        "name": "DP-MS　スプレッダー",
+        "unitPrice": 59612,
+        "userPrice": 80000,
+        "unit": "個",
+        "taxRate": 10,
+        "note": "",
+        "usageCount": 2,
+        "createdAt": "2026-09-25T07:15:21.317Z",
+        "updatedAt": "2026-09-28T04:09:29.451Z",
+        "lastUsedAt": "2026-09-28T04:09:29.445Z"
+    },
+    {
+        "id": "prod_1790319200414_10bm",
+        "name": "DP-MS　メカニカルスプレッダー",
+        "unitPrice": 73025,
+        "userPrice": 98000,
+        "unit": "個",
+        "taxRate": 10,
+        "note": "",
+        "usageCount": 1,
+        "createdAt": "2026-09-25T06:53:20.414Z",
+        "updatedAt": "2026-09-25T06:53:20.414Z",
+        "lastUsedAt": "2026-09-25T06:55:37.851Z"
+    },
+    {
+        "id": "prod_1790319164152_angp",
+        "name": "DP-EG　3点引きアタッチメント",
+        "unitPrice": 163934,
+        "userPrice": 220000,
+        "unit": "セット",
+        "taxRate": 10,
+        "note": "",
+        "usageCount": 1,
+        "createdAt": "2026-09-25T06:52:44.152Z",
+        "updatedAt": "2026-09-25T06:52:44.152Z",
+        "lastUsedAt": "2026-09-25T06:55:25.362Z"
+    },
+    {
+        "id": "prod_1790319113830_war6",
+        "name": "DP-AC　アクセサリーキット",
+        "unitPrice": 176602,
+        "userPrice": 237000,
+        "unit": "セット",
+        "taxRate": 10,
+        "note": "",
+        "usageCount": 2,
+        "createdAt": "2026-09-25T06:51:53.830Z",
+        "updatedAt": "2026-09-25T06:51:53.830Z",
+        "lastUsedAt": "2026-09-28T02:39:29.185Z"
+    },
+    {
+        "id": "prod_1790317962497_3xgg",
+        "name": "DP-5000　ベーシックセット　バッテリー２個",
+        "unitPrice": 268257,
+        "userPrice": 360000,
         "unit": "式",
         "taxRate": 10,
-        "note": "標準構成一式",
-        "usageCount": 10
-    },
-    {
-        "id": "item_mst_2",
-        "name": "システム導入・初期設定作業費",
-        "unitPrice": 37879,
-        "userPrice": 50000,
-        "unit": "回",
-        "taxRate": 10,
-        "note": "現地作業含む",
-        "usageCount": 7
-    },
-    {
-        "id": "item_mst_3",
-        "name": "月額保守サポート（1ヶ月）",
-        "unitPrice": 15152,
-        "userPrice": 20000,
-        "unit": "月",
-        "taxRate": 10,
-        "note": "リモート対応",
-        "usageCount": 5
-    },
-    {
-        "id": "item_mst_4",
-        "name": "交換用消耗部品セット",
-        "unitPrice": 7576,
-        "userPrice": 10000,
-        "unit": "組",
-        "taxRate": 10,
-        "note": "型番: SP-01",
-        "usageCount": 2
+        "note": "",
+        "usageCount": 7,
+        "createdAt": "2026-09-25T06:32:42.497Z",
+        "lastUsedAt": "2026-09-29T05:06:55.002Z",
+        "updatedAt": "2026-09-29T05:06:55.007Z"
     }
 ]
 
 DEFAULT_CLIENTS = [
     {
-        "id": "client_mst_1",
-        "name": "株式会社サンプル",
-        "code": "C001",
+        "id": "client_mst_4",
+        "name": "日本郵便株式会社 高崎郵便局",
+        "code": "V002",
         "honorific": "御中",
-        "zip": "100-0001",
-        "address": "東京都千代田区千代田1-1",
-        "contactPerson": "総務部 田中 様",
-        "tel": "03-1111-2222",
-        "email": "tanaka@sample.example.jp",
+        "zip": "370-8799",
+        "address": "群馬県高崎市高松町26-1",
+        "contactPerson": "",
+        "tel": "0570-007-889",
+        "email": "",
+        "invoiceNumber": "T1010001112577",
+        "category": "vendor",
+        "closingDay": "都度",
+        "paymentTerms": "即時現金・切手",
+        "note": "レターパック、書類郵送",
+        "usageCount": 5,
+        "createdAt": "2026-09-25T06:26:30.325Z"
+    },
+    {
+        "id": "client_1790317751749_imw2",
+        "name": "奥村塗料株式会社",
+        "code": "",
+        "honorific": "御中",
+        "zip": "501-6105",
+        "address": "岐阜県岐阜市柳津町梅松４丁目１４５番地",
+        "contactPerson": "",
+        "tel": "",
+        "email": "",
         "invoiceNumber": "",
         "category": "customer",
         "closingDay": "末日",
         "paymentTerms": "翌月末",
-        "note": "基本取引先。請求書は郵送およびPDF送付",
-        "usageCount": 12
-    },
-    {
-        "id": "client_mst_2",
-        "name": "株式会社テクノロジー",
-        "code": "C002",
-        "honorific": "御中",
-        "zip": "108-0075",
-        "address": "東京都港区港南2-15-1",
-        "contactPerson": "IT推進室 鈴木 様",
-        "tel": "03-3333-4444",
-        "email": "suzuki@tech.example.jp",
-        "invoiceNumber": "T2010001099887",
-        "category": "customer",
-        "closingDay": "20日",
-        "paymentTerms": "当月末",
-        "note": "システム開発関連プロジェクト",
-        "usageCount": 8
+        "note": "",
+        "usageCount": 10,
+        "createdAt": "2026-09-25T06:29:11.749Z",
+        "updatedAt": "2026-09-29T05:06:55.007Z",
+        "lastUsedAt": "2026-09-29T05:06:55.003Z"
     },
     {
         "id": "client_mst_3",
-        "name": "サンプル石油株式会社",
+        "name": "ENEOSウイング関東第1支店 EW 高崎インター東TS",
         "code": "V001",
         "honorific": "御中",
-        "zip": "100-0002",
-        "address": "東京都千代田区皇居外苑1-1",
+        "zip": "370-0015",
+        "address": "群馬県高崎市島野町890-1",
         "contactPerson": "",
-        "tel": "03-0000-0001",
+        "tel": "027-353-8181",
         "email": "",
-        "invoiceNumber": "T1000000000001",
+        "invoiceNumber": "T6180001016088",
         "category": "vendor",
         "closingDay": "都度",
         "paymentTerms": "即時（法人カード）",
-        "note": "社用車ガソリン給油",
-        "usageCount": 5
+        "note": "社用車ガソリン給油・洗車",
+        "usageCount": 5,
+        "createdAt": "2026-09-25T06:26:30.325Z"
     },
     {
-        "id": "client_mst_4",
-        "name": "サンプル運送株式会社",
-        "code": "V002",
-        "honorific": "御中",
-        "zip": "100-0003",
-        "address": "東京都千代田区霞が関1-1",
-        "contactPerson": "",
-        "tel": "03-0000-0002",
-        "email": "",
-        "invoiceNumber": "T1000000000002",
-        "category": "vendor",
-        "closingDay": "都度",
-        "paymentTerms": "即時決済",
-        "note": "書類・資材配送便",
-        "usageCount": 4
-    },
-    {
-        "id": "client_mst_5",
-        "name": "サンプルパーキング株式会社",
+        "id": "rescued_vendor_1790319015890_aoft",
+        "name": "タイムズ２４株式会社　高崎郵便局駐車場",
         "code": "V003",
         "honorific": "御中",
-        "zip": "100-0004",
-        "address": "東京都千代田区永田町1-1",
+        "zip": "141-8924",
+        "address": "東京都品川区西五反田2-27-2",
         "contactPerson": "",
-        "tel": "03-0000-0003",
+        "tel": "0120-31-8924",
         "email": "",
-        "invoiceNumber": "T1000000000003",
+        "invoiceNumber": "T4010001137274",
         "category": "vendor",
         "closingDay": "都度",
         "paymentTerms": "現地精算",
-        "note": "コインパーキング利用",
-        "usageCount": 3
+        "note": "コインパーキング利用（高崎郵便局駐車場）",
+        "usageCount": 3,
+        "createdAt": "2026-09-24",
+        "updatedAt": "2026-09-25T16:50:00.000Z"
     }
 ]
 
 DEFAULT_INVENTORY = [
     {
         "id": "inv_1",
-        "itemId": "item_mst_1",
-        "name": "製品基本セット（一式）",
-        "sku": "PRD-001",
-        "currentStock": 25,
-        "safetyStock": 5,
+        "itemId": "prod_1790317962497_3xgg",
+        "name": "DP-5000　ベーシックセット　バッテリー２個",
+        "sku": "DP-5000-B2",
+        "currentStock": 5,
+        "safetyStock": 2,
         "unit": "式",
-        "unitCost": 50000,
-        "unitPrice": 83333,
+        "unitCost": 180000,
+        "unitPrice": 268257,
         "location": "本社倉庫 A-1",
         "lastInDate": "2026-09-25",
         "note": "主力構成商品",
         "history": [
-            {"date": "2026-09-25", "type": "in", "qty": 25, "reason": "初期棚卸在庫登録", "currentStock": 25}
+            {"date": "2026-09-25", "type": "in", "qty": 5, "reason": "初期棚卸在庫登録", "currentStock": 5}
         ]
     },
     {
         "id": "inv_2",
-        "itemId": "item_mst_4",
-        "name": "交換用消耗部品セット",
-        "sku": "SP-01",
-        "currentStock": 12,
-        "safetyStock": 3,
-        "unit": "組",
-        "unitCost": 4500,
-        "unitPrice": 7576,
+        "itemId": "prod_1790320521317_adue",
+        "name": "DP-MS　スプレッダー",
+        "sku": "DP-MS-01",
+        "currentStock": 3,
+        "safetyStock": 1,
+        "unit": "個",
+        "unitCost": 40000,
+        "unitPrice": 59612,
         "location": "パーツ保管棚 B-2",
-        "lastInDate": "2026-09-20",
-        "note": "定期補充対象部品",
+        "lastInDate": "2026-09-25",
+        "note": "",
         "history": [
-            {"date": "2026-09-20", "type": "in", "qty": 12, "reason": "仕入入庫", "currentStock": 12}
+            {"date": "2026-09-25", "type": "in", "qty": 3, "reason": "初期棚卸在庫登録", "currentStock": 3}
         ]
     }
 ]
 
 DEFAULT_PURCHASE_MAPPINGS = {
-    "消耗部品まとめ": "inv_2",
-    "交換パーツ一式": "inv_2",
-    "基本パーツセット": "inv_1"
+    "スプレッダー": "inv_2",
+    "ベーシックセット": "inv_1"
 }
 
 def load_json_file(filepath, default_data):
@@ -616,6 +628,12 @@ class BillCraftHandler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_GET(self):
+        parsed_url = urllib.parse.urlparse(self.path)
+        if 'api.php' in parsed_url.path:
+            qs = urllib.parse.parse_qs(parsed_url.query)
+            if 'endpoint' in qs:
+                self.path = '/api/' + qs['endpoint'][0]
+
         if self.path == '/api/status':
             api_key = get_gemini_api_key()
             has_key = bool(api_key and len(api_key) > 5)
@@ -782,6 +800,12 @@ class BillCraftHandler(http.server.SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
+        parsed_url = urllib.parse.urlparse(self.path)
+        if 'api.php' in parsed_url.path:
+            qs = urllib.parse.parse_qs(parsed_url.query)
+            if 'endpoint' in qs:
+                self.path = '/api/' + qs['endpoint'][0]
+
         if self.path == '/api/ocr':
             content_length = int(self.headers.get('Content-Length', 0))
             post_data = self.rfile.read(content_length).decode('utf-8')
@@ -1179,14 +1203,21 @@ class BillCraftHandler(http.server.SimpleHTTPRequestHandler):
                 invoices = json.loads(post_data)
                 if not isinstance(invoices, list):
                     raise ValueError("データ形式が配列ではありません")
-                success, err = save_json_file_with_backup(INVOICES_HISTORY_FILE, invoices, "invoices_history")
+                # 既存データとIDスマートマージ
+                existing = load_json_file(INVOICES_HISTORY_FILE, [])
+                merged_map = {item.get('id'): item for item in existing if isinstance(item, dict) and item.get('id')}
+                for item in invoices:
+                    if isinstance(item, dict) and item.get('id'):
+                        merged_map[item.get('id')] = item
+                merged_list = sorted(list(merged_map.values()), key=lambda x: str(x.get('issueDate') or x.get('updatedAt') or ''), reverse=True)
+                success, err = save_json_file_with_backup(INVOICES_HISTORY_FILE, merged_list, "invoices_history")
                 if not success:
                     raise Exception(err)
-                print(f"[請求書履歴 保存成功] 件数: {len(invoices)}件 -> {INVOICES_HISTORY_FILE}")
+                print(f"[請求書履歴 保存成功] マージ後件数: {len(merged_list)}件 -> {INVOICES_HISTORY_FILE}")
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.end_headers()
-                self.wfile.write(json.dumps({"success": True}, ensure_ascii=False).encode('utf-8'))
+                self.wfile.write(json.dumps({"success": True, "count": len(merged_list)}, ensure_ascii=False).encode('utf-8'))
             except Exception as e:
                 self.send_response(500)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -1223,14 +1254,21 @@ class BillCraftHandler(http.server.SimpleHTTPRequestHandler):
                 expenses = json.loads(post_data)
                 if not isinstance(expenses, list):
                     raise ValueError("データ形式が配列ではありません")
-                success, err = save_json_file_with_backup(EXPENSES_FILE, expenses, "expenses")
+                # 既存データとIDスマートマージ
+                existing = load_json_file(EXPENSES_FILE, [])
+                merged_map = {item.get('id'): item for item in existing if isinstance(item, dict) and item.get('id')}
+                for item in expenses:
+                    if isinstance(item, dict) and item.get('id'):
+                        merged_map[item.get('id')] = item
+                merged_list = sorted(list(merged_map.values()), key=lambda x: str(x.get('date', '')), reverse=True)
+                success, err = save_json_file_with_backup(EXPENSES_FILE, merged_list, "expenses")
                 if not success:
                     raise Exception(err)
-                print(f"[経費データ 保存成功] 件数: {len(expenses)}件 -> {EXPENSES_FILE}")
+                print(f"[経費データ 保存成功] マージ後件数: {len(merged_list)}件 -> {EXPENSES_FILE}")
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.end_headers()
-                self.wfile.write(json.dumps({"success": True}, ensure_ascii=False).encode('utf-8'))
+                self.wfile.write(json.dumps({"success": True, "count": len(merged_list)}, ensure_ascii=False).encode('utf-8'))
             except Exception as e:
                 self.send_response(500)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')

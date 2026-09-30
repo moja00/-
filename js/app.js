@@ -662,30 +662,32 @@ const DOM = {
 function initApp() {
   // 保存されたアクティブドキュメントがあるか確認
   const saved = loadActiveDoc();
-  const profile = loadIssuerProfile();
+  const profile = loadIssuerProfile() || {};
 
   if (saved) {
     currentDoc = saved;
-    if (profile && profile.name && (!currentDoc.issuer || !currentDoc.issuer.name)) {
-      currentDoc.issuer = { ...currentDoc.issuer, ...profile };
+    if (!currentDoc.issuer) currentDoc.issuer = {};
+    // プロファイルの最新自社情報をベースに確実に補完
+    currentDoc.issuer = {
+      ...profile,
+      ...currentDoc.issuer
+    };
+    if (!currentDoc.issuer.name || currentDoc.issuer.name === '株式会社サンプル商事') {
+      currentDoc.issuer.name = profile.name || '株式会社アルバワークス';
     }
+    if (!currentDoc.issuer.invoiceNumber) currentDoc.issuer.invoiceNumber = profile.invoiceNumber || 'T2070001004966';
+    if (!currentDoc.issuer.bankInfo) currentDoc.issuer.bankInfo = profile.bankInfo || '高崎信用金庫\n前橋南支店\n普通　012 2182393\nカ)　アルバワークス';
+    if (!currentDoc.issuer.address) currentDoc.issuer.address = profile.address || '群馬県前橋市下川町63-7';
+    if (!currentDoc.issuer.zip) currentDoc.issuer.zip = profile.zip || '379-2144';
+    if (!currentDoc.issuer.tel) currentDoc.issuer.tel = profile.tel || '027-289-0367';
+    if (!currentDoc.issuer.stampDataUrl) currentDoc.issuer.stampDataUrl = profile.stampDataUrl || generateCompanyStamp(currentDoc.issuer.name);
   } else {
-    // 保存データがなければ白紙の新規書類を設定（件名・取引先・明細は空白）
+    // 保存データがなければ白紙の新規書類を設定
     currentDoc = createEmptyInvoice('invoice');
-    if (profile && profile.name) {
-      currentDoc.issuer = { ...currentDoc.issuer, ...profile };
-    }
-  }
-
-  // 振込先情報の消失防止・保存プロファイルからの復元
-  if (!currentDoc.issuer) currentDoc.issuer = {};
-  if ((!currentDoc.issuer.bankInfo || currentDoc.issuer.bankInfo.trim() === '') && profile && profile.bankInfo) {
-    currentDoc.issuer.bankInfo = profile.bankInfo;
-  }
-
-  // 印鑑が未生成の場合は自動生成
-  if (!currentDoc.issuer.stampDataUrl && currentDoc.issuer.name) {
-    currentDoc.issuer.stampDataUrl = generateCompanyStamp(currentDoc.issuer.name);
+    currentDoc.issuer = { ...profile };
+    if (!currentDoc.issuer.name) currentDoc.issuer.name = '株式会社アルバワークス';
+    if (!currentDoc.issuer.invoiceNumber) currentDoc.issuer.invoiceNumber = 'T2070001004966';
+    if (!currentDoc.issuer.stampDataUrl) currentDoc.issuer.stampDataUrl = generateCompanyStamp(currentDoc.issuer.name);
   }
 
   // UIへ反映
@@ -703,6 +705,10 @@ function initApp() {
   initMastersPersistence().then(result => {
     updateClientMasterDatalist();
     updateAttendanceUI(); // サーバーから同期された勤怠情報をUIに反映
+    if (typeof renderAccountingExpenses === 'function') {
+      const period = (typeof currentAccGlobalPeriod !== 'undefined') ? currentAccGlobalPeriod : { preset: 'all' };
+      renderAccountingExpenses(period);
+    }
 
     // サーバーファイル（data/company/issuer_profile.json）から最新の自社プロファイル（振込先・社名・住所・印鑑）を確実に復元・反映
     const syncedProfile = loadIssuerProfile();
@@ -740,95 +746,158 @@ function initApp() {
 }
 
 // ==========================================================================
-// 統合業務ポータル・各専用画面切替ロジック (AlbaCraft ERP)
+// 統合業務ポータル・各専用画面切替ロジック (AlvaCraft ERP)
 // ポップアップ（モーダル）ではなく独立した広大な専用ワークスペースとして切替
 // ==========================================================================
 let currentAppView = 'portal';
 
+function switchEditorTab(targetId) {
+  try {
+    const tabBtns = document.querySelectorAll('.editor-tab-btn');
+    const tabPanes = document.querySelectorAll('.tab-pane');
+    tabBtns.forEach(b => {
+      b.classList.toggle('active', b.dataset.tab === targetId);
+    });
+    tabPanes.forEach(p => {
+      const isActive = (p.id === targetId);
+      p.classList.toggle('active', isActive);
+      p.style.display = isActive ? 'block' : 'none';
+    });
+    if (targetId === 'tab-items' && typeof renderItemsEditor === 'function') {
+      renderItemsEditor();
+    }
+  } catch (err) {
+    console.error('switchEditorTab error:', err);
+  }
+}
+window.switchEditorTab = switchEditorTab;
+
 function switchAppView(viewName) {
-  currentAppView = viewName || 'portal';
+  try {
+    currentAppView = viewName || 'portal';
 
-  // 1. スイッチャーボタンのactive状態を更新
-  const switchBtns = document.querySelectorAll('.app-switch-btn');
-  switchBtns.forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.app === currentAppView);
-  });
+    // 1. スイッチャーボタンのactive状態を更新
+    const switchBtns = document.querySelectorAll('.app-switch-btn');
+    switchBtns.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.app === currentAppView);
+    });
 
-  // 2. 全ての専用フル画面から active を除去（ポップアップの重ね合わせを完全排除）
-  const allScreens = document.querySelectorAll('.app-view-screen');
-  allScreens.forEach(screen => {
-    screen.classList.remove('active');
-  });
+    // 2. 全ての専用フル画面から active を除去（ポップアップの重ね合わせを完全排除）
+    const allScreens = document.querySelectorAll('.app-view-screen');
+    allScreens.forEach(screen => {
+      screen.classList.remove('active');
+    });
 
-  // 3. 補助モーダル（出勤簿A4帳票、履歴、マスタなど）も画面切り替え時は閉じる
-  if (DOM.attendanceSheetModal) DOM.attendanceSheetModal.classList.remove('active');
-  if (DOM.historyModal) DOM.historyModal.classList.remove('active');
-  if (DOM.itemMasterModal) DOM.itemMasterModal.classList.remove('active');
-  if (DOM.clientMasterModal) DOM.clientMasterModal.classList.remove('active');
-  if (DOM.inventoryMasterModal) DOM.inventoryMasterModal.style.display = 'none';
-  if (DOM.inventoryAdjustModal) DOM.inventoryAdjustModal.style.display = 'none';
-  if (DOM.inventoryHistoryModal) DOM.inventoryHistoryModal.style.display = 'none';
-  if (DOM.backupModal) DOM.backupModal.classList.remove('active');
-  if (DOM.receiptZoomModal) DOM.receiptZoomModal.classList.remove('active');
-  document.body.style.overflow = '';
+    // 3. 補助モーダル（出勤簿A4帳票、履歴、マスタなど）も画面切り替え時は閉じる
+    if (DOM.attendanceSheetModal) DOM.attendanceSheetModal.classList.remove('active');
+    if (DOM.historyModal) DOM.historyModal.classList.remove('active');
+    if (DOM.itemMasterModal) DOM.itemMasterModal.classList.remove('active');
+    if (DOM.clientMasterModal) DOM.clientMasterModal.classList.remove('active');
+    if (DOM.inventoryMasterModal) DOM.inventoryMasterModal.style.display = 'none';
+    if (DOM.inventoryAdjustModal) DOM.inventoryAdjustModal.style.display = 'none';
+    if (DOM.inventoryHistoryModal) DOM.inventoryHistoryModal.style.display = 'none';
+    if (DOM.backupModal) DOM.backupModal.classList.remove('active');
+    if (DOM.receiptZoomModal) DOM.receiptZoomModal.classList.remove('active');
+    document.body.style.overflow = '';
 
-  // 4. 対象の専用画面をアクティブ化し、必要なデータ描画・初期化を行う
-  switch (currentAppView) {
-    case 'portal':
-      if (DOM.portalMenuScreen) {
-        DOM.portalMenuScreen.classList.add('active');
-        updatePortalInfo();
-      }
-      break;
+    // 4. 対象の専用画面をアクティブ化し、必要なデータ描画・初期化を行う
+    switch (currentAppView) {
+      case 'portal':
+        const portalScreen = document.getElementById('portalMenuScreen') || DOM.portalMenuScreen;
+        if (portalScreen) {
+          portalScreen.classList.add('active');
+          try { updatePortalInfo(); } catch (err) { console.error('Error updating portal info:', err); }
+        }
+        break;
 
-    case 'invoice':
-      // 納品・請求書専用画面（エディタ＋A4プレビューの左右分割レイアウト）
-      if (DOM.appLayoutInvoice) {
-        DOM.appLayoutInvoice.classList.add('active');
-      }
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      break;
+      case 'invoice':
+        // 納品・請求書専用画面（エディタ＋A4プレビューの左右分割レイアウト）
+        const invoiceScreen = document.getElementById('appLayoutInvoice') || DOM.appLayoutInvoice;
+        if (invoiceScreen) {
+          invoiceScreen.classList.add('active');
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        break;
 
-    case 'accounting':
-      // 財務会計専用画面（収支・P/L・入金消込・仕訳帳）
-      if (DOM.accountingViewScreen) {
-        DOM.accountingViewScreen.classList.add('active');
-      } else if (DOM.accountingModal) {
-        DOM.accountingModal.classList.add('active');
-      }
-      initAccountingMonthSelector();
-      applyAccGlobalPeriod(currentAccGlobalPeriod.preset);
-      switchAccountingTab('acc-tab-dashboard');
-      break;
+      case 'accounting':
+        // 財務会計専用画面（収支・P/L・入金消込・仕訳帳）
+        const accScreen = document.getElementById('accountingViewScreen') || DOM.accountingViewScreen || DOM.accountingModal;
+        if (accScreen) {
+          accScreen.classList.add('active');
+        }
+        try {
+          if (typeof initAccountingMonthSelector === 'function') initAccountingMonthSelector();
+          if (typeof applyAccGlobalPeriod === 'function' && typeof currentAccGlobalPeriod !== 'undefined') {
+            applyAccGlobalPeriod(currentAccGlobalPeriod.preset);
+          }
+          if (typeof switchAccountingTab === 'function') switchAccountingTab('acc-tab-dashboard');
+          // 財務会計画面表示時にサーバー最新経費を自動同期
+          if (typeof syncExpensesWithServer === 'function') {
+            syncExpensesWithServer().then(() => {
+              if (typeof renderAccountingExpenses === 'function') renderAccountingExpenses();
+            }).catch(() => {});
+          }
+        } catch (err) {
+          console.error('Error initializing accounting view:', err);
+        }
+        break;
 
-    case 'expenses':
-      // 経費読み込み専用画面（AI OCRレシート解析 ＆ 経費登録・明細管理）
-      if (DOM.expensesViewScreen) {
-        DOM.expensesViewScreen.classList.add('active');
-      }
-      setActiveExpenseClaimant(activeExpenseClaimant);
-      populateExpenseInventoryDropdown();
-      renderAccountingExpenses(currentAccGlobalPeriod);
-      break;
+      case 'expenses':
+        // 経費読み込み専用画面（AI OCRレシート解析 ＆ 経費登録・明細管理）
+        const expScreen = document.getElementById('expensesViewScreen') || DOM.expensesViewScreen;
+        if (expScreen) {
+          expScreen.classList.add('active');
+        }
+        try {
+          if (typeof setActiveExpenseClaimant === 'function') setActiveExpenseClaimant(activeExpenseClaimant);
+          if (typeof populateExpenseInventoryDropdown === 'function') populateExpenseInventoryDropdown();
+          if (typeof renderAccountingExpenses === 'function') {
+            const period = (typeof currentAccGlobalPeriod !== 'undefined') ? currentAccGlobalPeriod : { preset: 'all' };
+            renderAccountingExpenses(period);
+            // 経費画面表示時に即座にサーバーから最新経費を取得・マージして再描画
+            if (typeof syncExpensesWithServer === 'function') {
+              syncExpensesWithServer().then(() => {
+                renderAccountingExpenses(period);
+              }).catch(() => {});
+            }
+          }
+          if (typeof window.checkGeminiStatus === 'function') {
+            window.checkGeminiStatus();
+          }
+        } catch (err) {
+          console.error('Error initializing expenses view:', err);
+        }
+        break;
 
-    case 'attendance':
-      // 勤怠管理・退勤打刻専用画面（打刻パネル ＆ タイムカード履歴）
-      if (DOM.attendanceViewScreen) {
-        DOM.attendanceViewScreen.classList.add('active');
-      } else if (DOM.attendanceModal) {
-        DOM.attendanceModal.classList.add('active');
-      }
-      openAttendanceModal();
-      break;
+      case 'attendance':
+        // 勤怠管理・退勤打刻専用画面（打刻パネル ＆ タイムカード履歴）
+        const attScreen = document.getElementById('attendanceViewScreen') || DOM.attendanceViewScreen || DOM.attendanceModal;
+        if (attScreen) {
+          attScreen.classList.add('active');
+        }
+        try {
+          if (typeof openAttendanceModal === 'function') openAttendanceModal();
+        } catch (err) {
+          console.error('Error initializing attendance view:', err);
+        }
+        break;
 
-    case 'payroll':
-      // 給与計算専用画面（月給制・勤怠連動・支給控除集計）
-      if (DOM.payrollView) {
-        DOM.payrollView.classList.add('active');
-        DOM.payrollView.style.display = 'block';
-      }
-      initPayroll();
-      break;
+      case 'payroll':
+        // 給与計算専用画面（月給制・勤怠連動・支給控除集計）
+        const payScreen = document.getElementById('payrollView') || DOM.payrollView;
+        if (payScreen) {
+          payScreen.classList.add('active');
+          payScreen.style.display = 'flex';
+        }
+        try {
+          if (typeof initPayroll === 'function') initPayroll();
+        } catch (err) {
+          console.error('Error initializing payroll view:', err);
+        }
+        break;
+    }
+  } catch (globalErr) {
+    console.error('Fatal error in switchAppView:', globalErr);
   }
 }
 
@@ -889,20 +958,20 @@ function populateFormFromDoc() {
   DOM.inputClientAddress.value = currentDoc.client?.address || '';
   DOM.inputClientContact.value = currentDoc.client?.contactPerson || '';
 
-  // 自社情報
-  DOM.inputIssuerName.value = currentDoc.issuer?.name || '';
-  DOM.inputIssuerInvoiceNo.value = currentDoc.issuer?.invoiceNumber || '';
-  DOM.inputIssuerZip.value = currentDoc.issuer?.zip || '';
-  DOM.inputIssuerTel.value = currentDoc.issuer?.tel || '';
-  DOM.inputIssuerFax.value = currentDoc.issuer?.fax || '';
-  DOM.inputIssuerAddress.value = currentDoc.issuer?.address || '';
-  DOM.inputIssuerEmail.value = currentDoc.issuer?.email || '';
-  DOM.inputBankInfo.value = currentDoc.issuer?.bankInfo || '';
-  DOM.inputNotes.value = currentDoc.notes || '';
+  // 自社情報（自社情報設定モーダルで管理）
+  if (DOM.inputIssuerName) DOM.inputIssuerName.value = currentDoc.issuer?.name || '';
+  if (DOM.inputIssuerInvoiceNo) DOM.inputIssuerInvoiceNo.value = currentDoc.issuer?.invoiceNumber || '';
+  if (DOM.inputIssuerZip) DOM.inputIssuerZip.value = currentDoc.issuer?.zip || '';
+  if (DOM.inputIssuerTel) DOM.inputIssuerTel.value = currentDoc.issuer?.tel || '';
+  if (DOM.inputIssuerFax) DOM.inputIssuerFax.value = currentDoc.issuer?.fax || '';
+  if (DOM.inputIssuerAddress) DOM.inputIssuerAddress.value = currentDoc.issuer?.address || '';
+  if (DOM.inputIssuerEmail) DOM.inputIssuerEmail.value = currentDoc.issuer?.email || '';
+  if (DOM.inputBankInfo) DOM.inputBankInfo.value = currentDoc.issuer?.bankInfo || '';
+  if (DOM.inputNotes) DOM.inputNotes.value = currentDoc.notes || '';
 
   // 印鑑
-  DOM.checkShowStamp.checked = currentDoc.issuer?.showStamp !== false;
-  updateStampThumbnail(currentDoc.issuer?.stampDataUrl);
+  if (DOM.checkShowStamp) DOM.checkShowStamp.checked = currentDoc.issuer?.showStamp !== false;
+  if (typeof updateStampThumbnail === 'function') updateStampThumbnail(currentDoc.issuer?.stampDataUrl);
 
   // 端数処理
   DOM.selectFractionRule.value = currentDoc.taxFractionRule || 'floor';
@@ -999,6 +1068,18 @@ function renderAll() {
     DOM.sheetStampImg.src = currentDoc.issuer.stampDataUrl;
   } else {
     DOM.sheetStampWrapper.style.display = 'none';
+  }
+
+  // エディタ側：自社情報サマリーカードの更新
+  const editorCompName = document.getElementById('dispEditorCompanyName');
+  if (editorCompName) {
+    editorCompName.textContent = currentDoc.issuer?.name || '株式会社アルバワークス';
+  }
+  const editorCompMeta = document.getElementById('dispEditorCompanyMeta');
+  if (editorCompMeta) {
+    const inv = currentDoc.issuer?.invoiceNumber ? `登録番号: ${currentDoc.issuer.invoiceNumber}` : '';
+    const addr = currentDoc.issuer?.address || '';
+    editorCompMeta.textContent = [inv, addr].filter(Boolean).join(' ｜ ');
   }
 
   // 計算実行
@@ -1660,13 +1741,9 @@ function setupEventListeners() {
   });
 
   // エディタタブ切り替え
-  DOM.tabBtns.forEach(btn => {
+  document.querySelectorAll('.editor-tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const targetId = btn.dataset.tab;
-      DOM.tabBtns.forEach(b => b.classList.toggle('active', b === btn));
-      DOM.tabPanes.forEach(p => {
-        p.style.display = (p.id === targetId) ? 'block' : 'none';
-      });
+      switchEditorTab(btn.dataset.tab);
     });
   });
 
@@ -1982,6 +2059,184 @@ function setupEventListeners() {
       reader.readAsText(file);
     });
   }
+
+  // 自社情報設定モーダル制御
+  let tempSettingStampDataUrl = '';
+
+  const updateSettingStampThumbnail = (dataUrl) => {
+    const thumb = document.getElementById('settingStampPreviewThumb');
+    if (!thumb) return;
+    if (dataUrl) {
+      tempSettingStampDataUrl = dataUrl;
+      thumb.innerHTML = `<img src="${dataUrl}" alt="印鑑" style="width: 100%; height: 100%; object-fit: contain;">`;
+    } else {
+      tempSettingStampDataUrl = '';
+      thumb.innerHTML = '<span style="font-size: 0.7rem; color: var(--text-muted);">プレビュー</span>';
+    }
+  };
+
+  const openCompanyProfileModal = () => {
+    const modal = document.getElementById('companyProfileModal');
+    if (!modal) return;
+    const profile = loadIssuerProfile() || {};
+
+    const setVal = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.value = val || '';
+    };
+
+    setVal('settingIssuerName', profile.name || '株式会社アルバワークス');
+    setVal('settingIssuerInvoiceNo', profile.invoiceNumber || 'T2070001004966');
+    setVal('settingIssuerZip', profile.zip || '379-2144');
+    setVal('settingIssuerTel', profile.tel || '027-289-0367');
+    setVal('settingIssuerFax', profile.fax || '027-289-0368');
+    setVal('settingIssuerEmail', profile.email || '');
+    setVal('settingIssuerAddress', profile.address || '群馬県前橋市下川町63-7');
+    setVal('settingBankInfo', profile.bankInfo || '高崎信用金庫\n前橋南支店\n普通　012 2182393\nカ)　アルバワークス');
+
+    const chk = document.getElementById('settingCheckShowStamp');
+    if (chk) chk.checked = profile.showStamp !== false;
+
+    updateSettingStampThumbnail(profile.stampDataUrl);
+    modal.classList.add('active');
+  };
+
+  const closeCompanyProfileModal = () => {
+    const modal = document.getElementById('companyProfileModal');
+    if (modal) modal.classList.remove('active');
+  };
+
+  const saveCompanyProfileFromModal = () => {
+    const getVal = (id) => (document.getElementById(id)?.value || '').trim();
+    const name = getVal('settingIssuerName') || '株式会社アルバワークス';
+    const invoiceNumber = getVal('settingIssuerInvoiceNo');
+    const zip = getVal('settingIssuerZip');
+    const tel = getVal('settingIssuerTel');
+    const fax = getVal('settingIssuerFax');
+    const email = getVal('settingIssuerEmail');
+    const address = getVal('settingIssuerAddress');
+    const bankInfo = getVal('settingBankInfo') || '高崎信用金庫\n前橋南支店\n普通　012 2182393\nカ)　アルバワークス';
+    const showStamp = document.getElementById('settingCheckShowStamp')?.checked !== false;
+
+    let stampDataUrl = tempSettingStampDataUrl;
+    if (!stampDataUrl && name) {
+      stampDataUrl = generateCompanyStamp(name);
+    }
+
+    const updated = {
+      name,
+      invoiceNumber,
+      zip,
+      tel,
+      fax,
+      email,
+      address,
+      bankInfo,
+      showStamp,
+      stampDataUrl
+    };
+
+    saveIssuerProfile(updated);
+
+    if (currentDoc) {
+      if (!currentDoc.issuer) currentDoc.issuer = {};
+      currentDoc.issuer = { ...currentDoc.issuer, ...updated };
+      renderAll();
+    }
+
+    updatePortalInfo();
+    closeCompanyProfileModal();
+    showToast('自社情報・印鑑・口座設定を保存しました！', 'success');
+  };
+
+  const btnOpenCompanyProfile = document.getElementById('btnOpenCompanyProfile');
+  if (btnOpenCompanyProfile) {
+    btnOpenCompanyProfile.addEventListener('click', openCompanyProfileModal);
+  }
+  const btnCloseCompanyProfile = document.getElementById('btnCloseCompanyProfileModal');
+  if (btnCloseCompanyProfile) {
+    btnCloseCompanyProfile.addEventListener('click', closeCompanyProfileModal);
+  }
+  const btnCancelCompanyProfile = document.getElementById('btnCancelCompanyProfileModal');
+  if (btnCancelCompanyProfile) {
+    btnCancelCompanyProfile.addEventListener('click', closeCompanyProfileModal);
+  }
+  const btnSaveCompanyProfile = document.getElementById('btnSaveCompanyProfileModal');
+  if (btnSaveCompanyProfile) {
+    btnSaveCompanyProfile.addEventListener('click', saveCompanyProfileFromModal);
+  }
+  const modalComp = document.getElementById('companyProfileModal');
+  if (modalComp) {
+    modalComp.addEventListener('click', (e) => {
+      if (e.target === modalComp) closeCompanyProfileModal();
+    });
+  }
+
+  // 角印自動生成ボタン
+  const settingBtnAutoStamp = document.getElementById('settingBtnAutoGenerateStamp');
+  if (settingBtnAutoStamp) {
+    settingBtnAutoStamp.addEventListener('click', () => {
+      const name = (document.getElementById('settingIssuerName')?.value || '株式会社アルバワークス').trim();
+      const stampDataUrl = generateCompanyStamp(name);
+      updateSettingStampThumbnail(stampDataUrl);
+      showToast('社名から角印を生成しました！');
+    });
+  }
+
+  // 印鑑画像の安全圧縮処理（最大256x256px、容量超過エラーを完全防止）
+  function resizeStampImage(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        img.onload = () => {
+          const maxDim = 256;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/png');
+          resolve(compressed);
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // 印鑑画像アップロード
+  const settingFileUpload = document.getElementById('settingFileStampUpload');
+  if (settingFileUpload) {
+    settingFileUpload.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      try {
+        const compressedDataUrl = await resizeStampImage(file);
+        updateSettingStampThumbnail(compressedDataUrl);
+        showToast('印鑑画像を最適化して読み込みました！');
+      } catch (err) {
+        console.error('Stamp image load error:', err);
+        showToast('印鑑画像の読み込みに失敗しました。別の画像をお試しください。', 'error');
+      }
+    });
+  }
+
+  window.openCompanyProfileModal = openCompanyProfileModal;
+  window.closeCompanyProfileModal = closeCompanyProfileModal;
 
   // 商品マスタモーダル制御
   if (DOM.btnOpenItemMaster) {
@@ -2585,10 +2840,12 @@ function updateThemeColor(colorKey) {
 // 印鑑サムネイル更新
 // ==========================================================================
 function updateStampThumbnail(dataUrl) {
+  const thumb = DOM.stampPreviewThumb || document.getElementById('stampPreviewThumb') || document.getElementById('settingStampPreviewThumb');
+  if (!thumb) return;
   if (dataUrl) {
-    DOM.stampPreviewThumb.innerHTML = `<img src="${dataUrl}" style="width: 100%; height: 100%; object-fit: contain;">`;
+    thumb.innerHTML = `<img src="${dataUrl}" style="width: 100%; height: 100%; object-fit: contain;">`;
   } else {
-    DOM.stampPreviewThumb.innerHTML = `<span style="font-size: 0.7rem; color: var(--text-muted);">プレビュー</span>`;
+    thumb.innerHTML = `<span style="font-size: 0.7rem; color: var(--text-muted);">プレビュー</span>`;
   }
 }
 
@@ -2700,6 +2957,21 @@ function openHistoryModal() {
 
   // 5. 検索＆描画実行
   filterAndRenderHistoryList();
+
+  // 6. サーバーから最新の書類履歴をバックグラウンド自動同期して他ユーザーの作成データを即座に反映
+  if (typeof syncInvoicesHistoryWithServer === 'function') {
+    syncInvoicesHistoryWithServer().then(synced => {
+      if (modal.classList.contains('active') || modal.style.display === 'flex') {
+        const updatedList = getHistoryList();
+        if (DOM.historyTotalCountBadge) {
+          DOM.historyTotalCountBadge.textContent = `全 ${updatedList.length} 件`;
+        }
+        filterAndRenderHistoryList();
+      }
+    }).catch(err => {
+      console.warn('History auto sync error:', err);
+    });
+  }
 }
 
 function closeHistoryModal() {
@@ -5256,14 +5528,63 @@ function setActiveExpenseClaimant(claimant) {
     localStorage.setItem('alva_active_expense_claimant', claimant);
   } catch (e) {}
 
-  if (DOM.btnClaimantKobayashi) DOM.btnClaimantKobayashi.classList.toggle('active', claimant === '小林俊介');
-  if (DOM.btnClaimantMiyazaki) DOM.btnClaimantMiyazaki.classList.toggle('active', claimant === '宮崎真輔');
-  if (DOM.btnClaimantCompany) DOM.btnClaimantCompany.classList.toggle('active', claimant === '会社立替/その他');
+  const list = [
+    { id: 'btnClaimantKobayashi', val: '小林俊介' },
+    { id: 'btnClaimantMiyazaki', val: '宮崎真輔' },
+    { id: 'btnClaimantCompany', val: '会社立替/その他' }
+  ];
 
-  if (DOM.expenseInputClaimant && DOM.expenseInputClaimant.value !== claimant) {
-    DOM.expenseInputClaimant.value = claimant;
+  list.forEach(item => {
+    const el = document.getElementById(item.id) || DOM[item.id];
+    if (!el) return;
+    const isAct = (item.val === claimant);
+    el.classList.toggle('active', isAct);
+    if (isAct) {
+      el.style.background = '#4f46e5';
+      el.style.color = '#ffffff';
+      el.style.borderColor = '#4338ca';
+      el.style.fontWeight = '700';
+    } else {
+      el.style.background = '#ffffff';
+      el.style.color = '#475569';
+      el.style.borderColor = '#cbd5e1';
+      el.style.fontWeight = '600';
+    }
+  });
+
+  const inputClaimant = document.getElementById('expenseInputClaimant') || DOM.expenseInputClaimant;
+  if (inputClaimant && inputClaimant.value !== claimant) {
+    inputClaimant.value = claimant;
   }
 }
+window.setActiveExpenseClaimant = setActiveExpenseClaimant;
+
+function switchExpenseMobileTab(tab) {
+  const grid = document.querySelector('.expenses-view-grid');
+  const btnForm = document.getElementById('btnTabExpenseForm');
+  const btnList = document.getElementById('btnTabExpenseList');
+  if (!grid) return;
+
+  if (tab === 'list') {
+    grid.classList.remove('tab-form-active');
+    grid.classList.add('tab-list-active');
+    if (btnForm) btnForm.classList.remove('active');
+    if (btnList) btnList.classList.add('active');
+    if (typeof renderAccountingExpenses === 'function') {
+      const period = (typeof currentAccGlobalPeriod !== 'undefined') ? currentAccGlobalPeriod : { preset: 'all' };
+      renderAccountingExpenses(period);
+    }
+    // スムーズスクロール
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } else {
+    grid.classList.remove('tab-list-active');
+    grid.classList.add('tab-form-active');
+    if (btnForm) btnForm.classList.add('active');
+    if (btnList) btnList.classList.remove('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+window.switchExpenseMobileTab = switchExpenseMobileTab;
 
 function initReceiptUploadHandlers() {
   const dropZone = DOM.receiptDropZone;
@@ -5287,32 +5608,61 @@ function initReceiptUploadHandlers() {
     DOM.expenseInputClaimant.addEventListener('change', (e) => setActiveExpenseClaimant(e.target.value));
   }
 
-  // ローカルサーバーの Gemini API 連携状態をチェック
-  if (typeof window !== 'undefined' && window.location) {
-    if (window.location.protocol.startsWith('http')) {
-      fetch('/api/status')
-        .then(res => res.json())
+  // サーバーの Gemini API 連携状態をチェック＆自己診断
+  function checkGeminiStatus() {
+    if (!DOM.geminiOcrBadge) return;
+    DOM.geminiOcrBadge.style.display = 'inline-block';
+
+    if (typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http')) {
+      const fetchFn = window.apiFetch || fetch;
+      fetchFn('status')
+        .then(async (res) => {
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+          }
+          return res.json();
+        })
         .then(status => {
-          if (status && status.hasGeminiKey && DOM.geminiOcrBadge) {
-            DOM.geminiOcrBadge.style.display = 'inline-block';
+          if (!DOM.geminiOcrBadge) return;
+          if (status && status.hasGeminiKey) {
             const remaining = status.rateLimit ? status.rateLimit.dailyRemaining : '200';
             DOM.geminiOcrBadge.textContent = `✨ Gemini AI 連携中（本日無料枠 残り${remaining}回）`;
             DOM.geminiOcrBadge.style.background = 'linear-gradient(135deg, #e0e7ff, #ede9fe)';
             DOM.geminiOcrBadge.style.color = '#4338ca';
-            DOM.geminiOcrBadge.title = `Google Gemini AI (Flash) による超高精度OCRが有効です。無料枠セーフティガード（上限1日200回/残り${remaining}回）により安全に保護されています。`;
+            DOM.geminiOcrBadge.style.border = '1px solid #c7d2fe';
+            DOM.geminiOcrBadge.title = `Google Gemini AI による超高精度OCRが有効です。無料枠セーフティガード（上限1日200回/残り${remaining}回）により安全に保護されています。`;
+            DOM.geminiOcrBadge.onclick = () => {
+              alert('✨ Gemini AI は正常に連携中です！\n\nレシート画像をアップロードすると、Google Gemini AI により店名・金額・日付・インボイス番号が自動解析されます。');
+            };
+            DOM.geminiOcrBadge.style.cursor = 'pointer';
+          } else {
+            DOM.geminiOcrBadge.textContent = '📖 ブラウザ内AI動作中 (Gemini設定可)';
+            DOM.geminiOcrBadge.style.background = '#f1f5f9';
+            DOM.geminiOcrBadge.style.color = '#475569';
+            DOM.geminiOcrBadge.style.border = '1px solid #cbd5e1';
+            DOM.geminiOcrBadge.style.cursor = 'pointer';
+            DOM.geminiOcrBadge.title = '現在は無料のブラウザ内OCRで動作しています。クリックで診断・設定案内を表示';
+            DOM.geminiOcrBadge.onclick = () => {
+              alert('【Gemini AI 設定診断】\n\n・サーバー接続: 正常（通信成功）\n・Geminiキー判定: 未設定または空欄\n\n【有効化手順】\nサーバー上の config.php の GEMINI_API_KEY にGoogle AI StudioのAPIキー（AIzaSy...）を記入して保存してください。\n※キーが未設定でも、現在のブラウザ内OCRで通常通りご利用いただけます。');
+            };
           }
         })
-        .catch(() => {});
-    } else if (DOM.geminiOcrBadge) {
-      // file:/// で直接開いている場合
-      DOM.geminiOcrBadge.style.display = 'inline-block';
-      DOM.geminiOcrBadge.textContent = '⚠️ start.command で起動するとGemini有効';
-      DOM.geminiOcrBadge.style.background = '#fef3c7';
-      DOM.geminiOcrBadge.style.color = '#92400e';
-      DOM.geminiOcrBadge.style.borderColor = '#fde68a';
-      DOM.geminiOcrBadge.title = 'フォルダ内の start.command をダブルクリックして開くと、Gemini API による高精度OCRが利用できます';
+        .catch(err => {
+          if (!DOM.geminiOcrBadge) return;
+          DOM.geminiOcrBadge.textContent = '📖 ブラウザ内AI動作中 (Gemini設定可)';
+          DOM.geminiOcrBadge.style.background = '#fef2f2';
+          DOM.geminiOcrBadge.style.color = '#991b1b';
+          DOM.geminiOcrBadge.style.border = '1px solid #fecaca';
+          DOM.geminiOcrBadge.style.cursor = 'pointer';
+          DOM.geminiOcrBadge.title = 'サーバー通信診断。クリックして詳細を確認';
+          DOM.geminiOcrBadge.onclick = () => {
+            alert(`【Gemini API サーバー通信診断】\n\nサーバーとの通信で以下の状況が発生しています:\n${err.message || err}\n\n※最新の alva-erp-wordpress.zip をサーバーへ上書き解凍すると解消されます。\n※ブラウザ内OCRは引き続き正常にご利用いただけます。`);
+          };
+        });
     }
   }
+  window.checkGeminiStatus = checkGeminiStatus;
+  checkGeminiStatus();
 
   dropZone.addEventListener('click', () => fileInput.click());
 
@@ -5401,7 +5751,7 @@ async function handleReceiptFiles(fileList) {
 
       const savedExp = saveExpense(expItem);
       if (savedExp && typeof fetch !== 'undefined' && compressedDataUrl.startsWith('data:image/')) {
-        fetch('/api/save-receipt', {
+        (window.apiFetch || fetch)('save-receipt', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: savedExp.id, image: compressedDataUrl })
@@ -5421,6 +5771,11 @@ async function handleReceiptFiles(fileList) {
 
   if (DOM.receiptOcrStatus) {
     DOM.receiptOcrStatus.style.display = 'none';
+  }
+
+  // サーバーへ完全同期して他ユーザーの端末にも即時共有
+  if (typeof syncExpensesWithServer === 'function') {
+    await syncExpensesWithServer().catch(() => {});
   }
 
   clearReceiptImage();
@@ -5636,112 +5991,150 @@ function resetExpenseForm() {
 }
 
 function handleSaveExpense() {
-  const date = DOM.expenseInputDate.value;
-  const amount = Number(DOM.expenseInputAmount.value);
-  const category = DOM.expenseSelectCategory.value;
-  const taxRate = Number(DOM.expenseSelectTax.value) || 10;
-  const payee = DOM.expenseInputPayee.value.trim();
-  const invoiceNumber = DOM.expenseInputInvoiceNum ? DOM.expenseInputInvoiceNum.value.trim() : '';
-  const note = DOM.expenseInputNote.value.trim();
-  const id = DOM.expenseEditId.value || undefined;
-  const claimant = (DOM.expenseInputClaimant ? DOM.expenseInputClaimant.value : activeExpenseClaimant) || '小林俊介';
+  try {
+    const date = DOM.expenseInputDate.value;
+    const amount = Number(DOM.expenseInputAmount.value);
+    const category = DOM.expenseSelectCategory.value;
+    const taxRate = Number(DOM.expenseSelectTax.value) || 10;
+    const payee = DOM.expenseInputPayee.value.trim();
+    const invoiceNumber = DOM.expenseInputInvoiceNum ? DOM.expenseInputInvoiceNum.value.trim() : '';
+    const note = DOM.expenseInputNote.value.trim();
+    const id = (DOM.expenseEditId ? DOM.expenseEditId.value : undefined) || ('exp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6));
+    const claimant = (DOM.expenseInputClaimant ? DOM.expenseInputClaimant.value : (typeof activeExpenseClaimant !== 'undefined' ? activeExpenseClaimant : '小林俊介')) || '小林俊介';
 
-  if (!date) {
-    alert('日付を入力してください。');
-    return;
-  }
-  if (!amount || amount <= 0) {
-    alert('有効な金額（1円以上）を入力してください。');
-    return;
-  }
-
-  const isPurchase = DOM.radioExpenseTypePurchase && DOM.radioExpenseTypePurchase.checked;
-  let linkedInventoryId = '';
-  let linkedInventoryQty = 1;
-
-  if (isPurchase) {
-    linkedInventoryId = DOM.expenseSelectInventoryItem ? DOM.expenseSelectInventoryItem.value : '';
-    linkedInventoryQty = DOM.expenseInputInQty ? Math.max(1, parseInt(DOM.expenseInputInQty.value, 10) || 1) : 1;
-
-    if (!linkedInventoryId) {
-      alert('仕入れ入庫を行う対象の在庫品目を選択してください。\n（該当する品目がない場合は「＋新規品目」から在庫マスタに登録できます）');
-      if (DOM.expenseSelectInventoryItem) DOM.expenseSelectInventoryItem.focus();
+    if (!date) {
+      alert('日付を入力してください。');
       return;
     }
-  }
-
-  const expenseItem = {
-    id,
-    date,
-    category: isPurchase ? '仕入高' : category,
-    amount,
-    taxRate,
-    payee,
-    invoiceNumber,
-    note,
-    claimant,
-    isSettled: false,
-    isCost: isPurchase, // 損益計算書の売上原価へ算入
-    isPurchase: isPurchase,
-    linkedInventoryId: isPurchase ? linkedInventoryId : undefined,
-    linkedInventoryQty: isPurchase ? linkedInventoryQty : undefined,
-    receiptImage: currentReceiptDataUrl || undefined
-  };
-
-  const savedExp = saveExpense(expenseItem);
-
-  // 仕入れ入庫連動：在庫マスタの数量を加算し、入庫ログを記録
-  if (isPurchase && linkedInventoryId && linkedInventoryQty > 0) {
-    const rawMatchTarget = payee || note || '仕入伝票';
-    const unitCost = Math.round(amount / linkedInventoryQty);
-
-    adjustStock(linkedInventoryId, linkedInventoryQty, `仕入入庫: ${payee || '仕入先未指定'}`, {
-      sourceRef: savedExp ? savedExp.id : '',
-      payee: payee,
-      unitCost: unitCost,
-      date: date
-    });
-
-    // 仕入名目と在庫商品のマッピングを学習辞書に保存
-    if (DOM.expenseCheckSaveMapping && DOM.expenseCheckSaveMapping.checked && rawMatchTarget) {
-      savePurchaseMapping(rawMatchTarget, linkedInventoryId);
+    if (!amount || amount <= 0) {
+      alert('有効な金額（1円以上）を入力してください。');
+      return;
     }
-    renderInventoryTable();
-  }
 
-  // サーバー稼働時は data/receipts に原本写真を安全保管（経費データと1対1対応を保証）
-  if (savedExp && typeof fetch !== 'undefined') {
-    if (currentReceiptDataUrl && currentReceiptDataUrl.startsWith('data:image/')) {
-      fetch('/api/save-receipt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: savedExp.id, image: currentReceiptDataUrl })
-      }).then(res => res.json()).then(data => {
-        if (data && data.url) {
-          savedExp.receiptImage = data.url;
-          savedExp.receiptDataUrl = data.url;
-        }
-        syncReceiptStorageWithExpenses();
-      }).catch(e => console.warn('Receipt server storage sync skipped:', e));
-    } else if (!currentReceiptDataUrl && id) {
-      // 編集時に写真を解除して保存された場合、サーバー側のファイルも削除
-      fetch('/api/delete-receipt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: id })
-      }).then(() => syncReceiptStorageWithExpenses()).catch(e => console.warn('Receipt delete skipped:', e));
+    const isPurchase = DOM.radioExpenseTypePurchase && DOM.radioExpenseTypePurchase.checked;
+    let linkedInventoryId = '';
+    let linkedInventoryQty = 1;
+
+    if (isPurchase) {
+      linkedInventoryId = DOM.expenseSelectInventoryItem ? DOM.expenseSelectInventoryItem.value : '';
+      linkedInventoryQty = DOM.expenseInputInQty ? Math.max(1, parseInt(DOM.expenseInputInQty.value, 10) || 1) : 1;
+
+      if (!linkedInventoryId) {
+        alert('仕入れ入庫を行う対象の在庫品目を選択してください。\n（該当する品目がない場合は「＋新規品目」から在庫マスタに登録できます）');
+        if (DOM.expenseSelectInventoryItem) DOM.expenseSelectInventoryItem.focus();
+        return;
+      }
+    }
+
+    const tempReceiptDataUrl = (typeof currentReceiptDataUrl !== 'undefined' && currentReceiptDataUrl) ? currentReceiptDataUrl : undefined;
+
+    const expenseItem = {
+      id,
+      date,
+      category: isPurchase ? '仕入高' : category,
+      amount,
+      taxRate,
+      payee,
+      invoiceNumber,
+      note,
+      claimant,
+      isSettled: false,
+      isCost: isPurchase,
+      isPurchase: isPurchase,
+      linkedInventoryId: isPurchase ? linkedInventoryId : undefined,
+      linkedInventoryQty: isPurchase ? linkedInventoryQty : undefined,
+      // ⚠️ localStorageの容量オーバー(QuotaExceededError)を防ぐため、Base64の巨大文字列は初回保存時には空にする
+      receiptImage: (tempReceiptDataUrl && tempReceiptDataUrl.startsWith('data:image/')) ? '' : tempReceiptDataUrl
+    };
+
+    const savedExp = saveExpense(expenseItem);
+
+    if (isPurchase && linkedInventoryId && linkedInventoryQty > 0) {
+      const rawMatchTarget = payee || note || '仕入伝票';
+      const unitCost = Math.round(amount / linkedInventoryQty);
+
+      if (typeof adjustStock === 'function') {
+        adjustStock(linkedInventoryId, linkedInventoryQty, `仕入入庫: ${payee || '仕入先未指定'}`, {
+          sourceRef: savedExp ? savedExp.id : '',
+          payee: payee,
+          unitCost: unitCost,
+          date: date
+        });
+      }
+
+      if (DOM.expenseCheckSaveMapping && DOM.expenseCheckSaveMapping.checked && rawMatchTarget) {
+        if (typeof savePurchaseMapping === 'function') savePurchaseMapping(rawMatchTarget, linkedInventoryId);
+      }
+      if (typeof renderInventoryTable === 'function') renderInventoryTable();
+    }
+
+    // 画像アップロードと後追いのURL更新
+    if (savedExp && typeof fetch !== 'undefined') {
+      if (tempReceiptDataUrl && tempReceiptDataUrl.startsWith('data:image/')) {
+        (window.apiFetch || fetch)('save-receipt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: savedExp.id, image: tempReceiptDataUrl })
+        }).then(res => res.json()).then(data => {
+          if (data && data.error) {
+            alert('画像保存エラー: ' + data.error + '\n詳細: ' + (data.details || ''));
+            return;
+          }
+          if (data && data.url) {
+            // アップロード成功後、サーバー上のURLに置き換えて再度保存（これでlocalStorageが軽く保たれる）
+            savedExp.receiptImage = data.url;
+            savedExp.receiptDataUrl = data.url;
+            if (typeof saveExpense === 'function') saveExpense(savedExp);
+          }
+          if (typeof syncReceiptStorageWithExpenses === 'function') syncReceiptStorageWithExpenses();
+          if (typeof syncExpensesWithServer === 'function') syncExpensesWithServer().catch(e => console.warn(e));
+        }).catch(e => {
+          console.warn('Receipt server storage sync skipped:', e);
+          alert('サーバーとの通信エラーで画像を保存できませんでした。');
+        });
+      } else if (!tempReceiptDataUrl && id) {
+        (window.apiFetch || fetch)('delete-receipt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: id })
+        }).then(() => {
+          if (typeof syncReceiptStorageWithExpenses === 'function') syncReceiptStorageWithExpenses();
+        }).catch(e => console.warn('Receipt delete skipped:', e));
+      } else {
+        if (typeof syncReceiptStorageWithExpenses === 'function') syncReceiptStorageWithExpenses();
+      }
+    }
+
+    if (!tempReceiptDataUrl || !tempReceiptDataUrl.startsWith('data:image/')) {
+      if (typeof syncExpensesWithServer === 'function') {
+        syncExpensesWithServer().catch(e => console.warn('Server expenses sync error:', e));
+      }
+    }
+
+    if (typeof resetExpenseForm === 'function') resetExpenseForm();
+    
+    if (typeof applyAccGlobalPeriod === 'function' && typeof currentAccGlobalPeriod !== 'undefined') {
+      applyAccGlobalPeriod(currentAccGlobalPeriod.preset);
+    }
+
+    if (window.innerWidth <= 1024 && typeof switchExpenseMobileTab === 'function') {
+      switchExpenseMobileTab('list');
+    }
+    
+    if (isPurchase) {
+      if (typeof showToast === 'function') showToast(`仕入データを登録し、在庫を +${linkedInventoryQty} 反映しました！`, 'success');
     } else {
-      syncReceiptStorageWithExpenses();
+      if (typeof showToast === 'function') showToast(id ? '経費データを更新しました！' : '経費と領収書写真を保存しました（電帳法対応）！', 'success');
     }
-  }
 
-  resetExpenseForm();
-  applyAccGlobalPeriod(currentAccGlobalPeriod.preset);
-  
-  if (isPurchase) {
-    showToast(`仕入データを登録し、在庫を +${linkedInventoryQty} 反映しました！`, 'success');
-  } else {
-    showToast(id ? '経費データを更新しました！' : '経費と領収書写真を保存しました（電帳法対応）！', 'success');
+    if (typeof isDateInPeriod === 'function' && typeof currentAccGlobalPeriod !== 'undefined') {
+      if (!isDateInPeriod(date, currentAccGlobalPeriod)) {
+        alert(`保存が完了しましたが、日付が「${date}」のため、現在の表示期間外となり一覧には表示されていません。\n表示期間を「すべての期間」に変更してご確認ください。`);
+      }
+    }
+  } catch (err) {
+    console.error('handleSaveExpense error:', err);
+    alert('保存処理中にエラーが発生しました:\n' + err.message);
   }
 }
 
@@ -5764,7 +6157,7 @@ function syncReceiptStorageWithExpenses() {
       }
     });
 
-    fetch('/api/sync-receipts', {
+    (window.apiFetch || fetch)('sync-receipts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ activeIds, keepSamples: true })
@@ -5958,7 +6351,7 @@ window.__deleteExpense = function(id) {
 
     // サーバー上の写真ファイルも連動削除して1対1対応を完全に維持
     if (typeof fetch !== 'undefined') {
-      fetch('/api/delete-receipt', {
+      (window.apiFetch || fetch)('delete-receipt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: id, receiptUrl: receiptUrl })
@@ -6527,30 +6920,47 @@ function handleSaveManualAttendance() {
 let currentSheetYM = getTodayDateString().substring(0, 7);
 
 function openAttendanceSheetModal(targetYM = '') {
-  currentSheetYM = targetYM || currentSheetYM || getTodayDateString().substring(0, 7);
-  if (DOM.sheetMonthSelector) {
-    DOM.sheetMonthSelector.value = currentSheetYM;
-  }
-  
-  // 社員番号・氏名の初期反映
-  const emp = getAttendanceEmployee();
-  if (DOM.inputSheetEmpNo) DOM.inputSheetEmpNo.value = emp.empNo || '2';
-  if (DOM.inputSheetEmpName) DOM.inputSheetEmpName.value = emp.empName || '宮崎真輔';
+  try {
+    const modal = DOM.attendanceSheetModal || document.getElementById('attendanceSheetModal');
+    if (modal) {
+      modal.classList.add('active');
+    }
+    document.body.style.overflow = 'hidden';
 
-  renderAttendanceCalendarSheet(currentSheetYM);
+    currentSheetYM = targetYM || currentSheetYM || getTodayDateString().substring(0, 7);
+    const selector = DOM.sheetMonthSelector || document.getElementById('sheetMonthSelector');
+    if (selector) {
+      selector.value = currentSheetYM;
+    }
+    
+    // 社員番号・氏名の初期反映
+    if (typeof getAttendanceEmployee === 'function') {
+      const emp = getAttendanceEmployee();
+      const empNo = DOM.inputSheetEmpNo || document.getElementById('inputSheetEmpNo');
+      const empName = DOM.inputSheetEmpName || document.getElementById('inputSheetEmpName');
+      if (empNo) empNo.value = emp.empNo || '2';
+      if (empName) empName.value = emp.empName || '宮崎真輔';
+    }
 
-  if (DOM.attendanceSheetModal) {
-    DOM.attendanceSheetModal.classList.add('active');
+    if (typeof renderAttendanceCalendarSheet === 'function') {
+      renderAttendanceCalendarSheet(currentSheetYM);
+    }
+  } catch (err) {
+    console.error('openAttendanceSheetModal error:', err);
+    const modal = document.getElementById('attendanceSheetModal');
+    if (modal) modal.classList.add('active');
   }
-  document.body.style.overflow = 'hidden';
 }
 
 function closeAttendanceSheetModal() {
-  if (DOM.attendanceSheetModal) {
-    DOM.attendanceSheetModal.classList.remove('active');
+  const modal = DOM.attendanceSheetModal || document.getElementById('attendanceSheetModal');
+  if (modal) {
+    modal.classList.remove('active');
   }
   document.body.style.overflow = '';
 }
+window.openAttendanceSheetModal = openAttendanceSheetModal;
+window.closeAttendanceSheetModal = closeAttendanceSheetModal;
 
 function changeSheetMonth(diff) {
   const [yStr, mStr] = currentSheetYM.split('-');
@@ -7563,9 +7973,91 @@ function showToast(message, type = 'info') {
   }, 3200);
 }
 
+// ==========================================================================
+// 全社共通モーダル・画面切替操作のグローバルエクスポート
+// ==========================================================================
+window.openCompanyProfileModal = typeof openCompanyProfileModal !== 'undefined' ? openCompanyProfileModal : function() {
+  const m = document.getElementById('companyProfileModal');
+  if (m) m.classList.add('active');
+};
+window.closeCompanyProfileModal = typeof closeCompanyProfileModal !== 'undefined' ? closeCompanyProfileModal : function() {
+  const m = document.getElementById('companyProfileModal');
+  if (m) m.classList.remove('active');
+};
+window.openItemMasterModal = typeof openItemMasterModal !== 'undefined' ? openItemMasterModal : null;
+window.closeItemMasterModal = typeof closeItemMasterModal !== 'undefined' ? closeItemMasterModal : null;
+window.openClientMasterModal = typeof openClientMasterModal !== 'undefined' ? openClientMasterModal : null;
+window.closeClientMasterModal = typeof closeClientMasterModal !== 'undefined' ? closeClientMasterModal : null;
+window.openInventoryMasterModal = typeof openInventoryMasterModal !== 'undefined' ? openInventoryMasterModal : null;
+window.closeInventoryMasterModal = typeof closeInventoryMasterModal !== 'undefined' ? closeInventoryMasterModal : null;
+window.openBackupModal = typeof openBackupModal !== 'undefined' ? openBackupModal : null;
+window.closeBackupModal = typeof closeBackupModal !== 'undefined' ? closeBackupModal : null;
+window.openHistoryModal = typeof openHistoryModal !== 'undefined' ? openHistoryModal : null;
+window.closeHistoryModal = typeof closeHistoryModal !== 'undefined' ? closeHistoryModal : null;
+window.openDiscountModal = typeof openDiscountModal !== 'undefined' ? openDiscountModal : null;
+window.closeDiscountModal = typeof closeDiscountModal !== 'undefined' ? closeDiscountModal : null;
+window.openAttendanceSheetModal = typeof openAttendanceSheetModal !== 'undefined' ? openAttendanceSheetModal : null;
+window.closeAttendanceSheetModal = typeof closeAttendanceSheetModal !== 'undefined' ? closeAttendanceSheetModal : null;
+window.openExpenseSettlementModal = typeof openExpenseSettlementModal !== 'undefined' ? openExpenseSettlementModal : null;
+window.closeExpenseSettlementModal = typeof closeExpenseSettlementModal !== 'undefined' ? closeExpenseSettlementModal : null;
+window.setActiveExpenseClaimant = typeof setActiveExpenseClaimant !== 'undefined' ? setActiveExpenseClaimant : null;
+window.syncExpensesWithServer = typeof syncExpensesWithServer !== 'undefined' ? syncExpensesWithServer : null;
+window.renderAccountingExpenses = typeof renderAccountingExpenses !== 'undefined' ? renderAccountingExpenses : null;
+window.syncInvoicesHistoryWithServer = typeof syncInvoicesHistoryWithServer !== 'undefined' ? syncInvoicesHistoryWithServer : null;
+window.filterAndRenderHistoryList = typeof filterAndRenderHistoryList !== 'undefined' ? filterAndRenderHistoryList : null;
+window.switchAccountingTab = typeof switchAccountingTab !== 'undefined' ? switchAccountingTab : null;
+window.switchEditorTab = typeof switchEditorTab !== 'undefined' ? switchEditorTab : null;
+window.switchAppView = typeof switchAppView !== 'undefined' ? switchAppView : null;
+
+async function triggerServerSyncAll() {
+  const choice = confirm(
+    '【☁️ サーバー全データ同期（端末間共有）】\n\n' +
+    '・[OK] を押すと:\n' +
+    '  この端末の最新データ（商品マスタ・取引先・自社情報・経費・伝票・勤怠）をサーバーへアップロード（保存）します。\n' +
+    '  ※PCでこれを実行すると、スマホなど全端末に同じデータが共有されます！\n\n' +
+    '・[キャンセル] を押すと:\n' +
+    '  サーバーから最新データをダウンロードして、この端末に完全同期します。\n' +
+    '  ※スマホでPCの最新データを受け取りたい場合はキャンセルを押してください。'
+  );
+
+  if (choice) {
+    if (typeof pushAllLocalDataToServer === 'function') {
+      showToast('☁️ サーバーへ全データをアップロード中...', 'info');
+      const res = await pushAllLocalDataToServer();
+      if (res && res.success) {
+        showToast('✨ 全データをサーバーへアップロードしました！全端末へ即時共有されます。', 'success');
+      } else {
+        alert('サーバーへの保存に失敗しました: ' + (res ? res.error : '通信エラー'));
+      }
+    }
+  } else {
+    if (typeof pullAllServerDataToLocal === 'function') {
+      showToast('☁️ サーバーから最新データをダウンロード中...', 'info');
+      const res = await pullAllServerDataToLocal();
+      if (res && res.success) {
+        showToast('✨ サーバーから最新データを取得しました！画面を更新します。', 'success');
+        setTimeout(() => location.reload(), 600);
+      } else {
+        alert('サーバーからの取得に失敗しました: ' + (res ? res.error : '通信エラー'));
+      }
+    }
+  }
+}
+window.triggerServerSyncAll = triggerServerSyncAll;
+
 // アプリ起動
 if (document.readyState === 'loading') {
-  window.addEventListener('DOMContentLoaded', initApp);
+  window.addEventListener('DOMContentLoaded', async () => {
+    if (typeof pullAllServerDataToLocal === 'function') {
+      try { await pullAllServerDataToLocal(); } catch(e) {}
+    }
+    initApp();
+  });
 } else {
-  initApp();
+  (async () => {
+    if (typeof pullAllServerDataToLocal === 'function') {
+      try { await pullAllServerDataToLocal(); } catch(e) {}
+    }
+    initApp();
+  })();
 }

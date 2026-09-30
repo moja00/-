@@ -333,8 +333,8 @@ export function parseReceiptText(rawText = '', expenseHistory = []) {
     for (let i = 0; i < Math.min(6, lines.length); i++) {
       const line = lines[i];
       if (!/^\d{2,4}-\d{2,4}-\d{4}/.test(line) &&
-          !/^\d{4}[\/\-.]/.test(line) &&
-          !/^(領収書|レシート|RECEIPT|お会計|取扱|登録番号|インボイス|No\.|TEL|電話)/i.test(line)) {
+        !/^\d{4}[\/\-.]/.test(line) &&
+        !/^(領収書|レシート|RECEIPT|お会計|取扱|登録番号|インボイス|No\.|TEL|電話)/i.test(line)) {
         if (line.length >= 2 && line.length <= 25) {
           result.payee = line;
           break;
@@ -399,15 +399,23 @@ export async function analyzeReceiptImage(dataUrlOrFile, onProgress = null, expe
     try {
       if (onProgress) onProgress('✨ Google Gemini AIで超高精度解析中...');
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 18000);
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
 
-      const res = await fetch('/api/ocr', {
+      const fetchFn = (typeof window !== 'undefined' && window.apiFetch) ? window.apiFetch : fetch;
+      const res = await fetchFn('ocr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: dataUrl, fileName }),
         signal: controller.signal
       });
       clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Gemini OCR API failed with status:', res.status, errorText);
+        if (typeof showToast === 'function') showToast('⚠️ AI解析失敗: ' + (errorText.substring(0, 50)), 'error');
+        throw new Error('API returns ' + res.status);
+      }
 
       if (res.ok) {
         const geminiResult = await res.json();
@@ -431,7 +439,14 @@ export async function analyzeReceiptImage(dataUrlOrFile, onProgress = null, expe
         }
       }
     } catch (e) {
-      console.log('Gemini API proxy unavailable or not configured, falling back to local OCR engine:', e);
+      console.log('Gemini API Error:', e);
+      // Gemini APIの明確なエラー(500, 400等)が返ってきた場合は、勝手にローカルOCRへ進まずここで処理を中断する。
+      // これにより、ユーザーはトーストでエラー内容を確認できる。
+      if (e.message && e.message.includes('API returns')) {
+        if (onProgress) onProgress('❌ 解析失敗 (APIエラー)');
+        return null; // 中断
+      }
+      console.log('Gemini API proxy unavailable, falling back to local OCR engine');
     }
   }
 
@@ -499,7 +514,7 @@ export async function analyzeReceiptImage(dataUrlOrFile, onProgress = null, expe
     const fnDate = fileName.match(/202[4-9][\-_]?[0-1][0-9][\-_]?[0-3][0-9]/);
     if (fnDate && (!parsed.date || parsed.date === new Date().toISOString().split('T')[0])) {
       const clean = fnDate[0].replace(/[\-_]/g, '');
-      parsed.date = `${clean.substr(0,4)}-${clean.substr(4,2)}-${clean.substr(6,2)}`;
+      parsed.date = `${clean.substr(0, 4)}-${clean.substr(4, 2)}-${clean.substr(6, 2)}`;
     }
     const fnAmount = fileName.match(/([0-9]{2,7})(?:円|yen)/i);
     if (fnAmount && (!parsed.amount || parsed.amount === 0)) {

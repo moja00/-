@@ -2240,19 +2240,77 @@ label.form-label {
   gap: 20px;
 }
 
-/* 経費専用画面 2カラムレイアウト */
+/* 経費専用画面 2カラムレイアウト（PC時は常時2カラム、スマホ時はタブ切替） */
 .expenses-view-grid {
   display: grid;
   grid-template-columns: 480px 1fr;
   gap: 24px;
   max-width: 1560px;
   margin: 0 auto;
-  height: 100%;
 }
 
-@media (max-width: 1100px) {
+/* スマホ用切替タブ（PCでは非表示） */
+.expense-mobile-tabs {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .expense-mobile-tabs {
+    display: flex !important;
+    background: #e2e8f0;
+    padding: 4px;
+    border-radius: 10px;
+    margin: 8px 12px 14px;
+    gap: 6px;
+  }
+  .expense-m-tab-btn {
+    flex: 1;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: #475569;
+    font-weight: 700;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .expense-m-tab-btn.active {
+    background: #4f46e5 !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 6px rgba(79, 70, 229, 0.35);
+  }
+
   .expenses-view-grid {
-    grid-template-columns: 1fr;
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    gap: 16px;
+  }
+
+  /* タブによる表示切り替え */
+  .expenses-view-grid.tab-form-active #expenseColForm {
+    display: flex !important;
+  }
+  .expenses-view-grid.tab-form-active #expenseColList {
+    display: none !important;
+  }
+  .expenses-view-grid.tab-list-active #expenseColForm {
+    display: none !important;
+  }
+  .expenses-view-grid.tab-list-active #expenseColList {
+    display: flex !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  #expenseColForm,
+  #expenseColList {
+    display: flex !important;
   }
 }
 
@@ -2452,6 +2510,298 @@ label.form-label {
   border-color: #93c5fd;
   box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.12);
   transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   モバイル（スマートフォン）徹底最適化スタイル
+   1. スクロール不全の完全解消
+   2. ヘッダーのごちゃごちゃ解消（横フリック型タブバー）
+   3. ポップアップ（商品・取引先・在庫マスタ）の劇的視認性＆操作性改善
+   ========================================================================== */
+@media (max-width: 768px) {
+  /* 1. スクロール不全の完全解消 */
+  html, body {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .app-view-screen {
+    position: relative !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: auto !important;
+    height: auto !important;
+    min-height: calc(100vh - 54px) !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* 全専用画面のコンテンツ領域：スマホで高さを固定せず、自然に全縦スクロール可能にする */
+  .view-screen-content {
+    flex: none !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow-y: visible !important;
+    padding: 10px 8px 80px !important;
+  }
+
+  /* 納品請求書エディタ画面：縦積みに展開し自然にスクロール可能にする */
+  #appLayoutInvoice.app-view-screen {
+    position: relative !important;
+    top: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  #appLayoutInvoice.app-view-screen.active {
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: visible !important;
+  }
+
+  .editor-sidebar {
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 12px 10px !important;
+  }
+
+  .preview-container {
+    width: 100% !important;
+    height: auto !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    padding: 16px 8px !important;
+    background: #475569 !important;
+  }
+
+  .invoice-sheet {
+    transform-origin: top left;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 24px 14px !important;
+  }
+
+  /* 2. ヘッダーのごちゃごちゃ解消 */
+  .app-header {
+    height: 52px !important;
+    padding: 0 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 6px !important;
+  }
+
+  .brand-area {
+    flex-shrink: 0 !important;
+    gap: 6px !important;
+  }
+  .brand-logo {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 14px !important;
+  }
+  .brand-title {
+    font-size: 0.9rem !important;
+    line-height: 1.1 !important;
+  }
+  .brand-subtitle {
+    display: none !important;
+  }
+
+  /* 右側マスタ管理ボタン群をヘッダーから隠してスペース確保（ポータルメニューに完備） */
+  .header-actions {
+    display: none !important;
+  }
+
+  /* アプリスイッチャーをスムーズにフリックできる1行タブバーに */
+  .app-switcher-nav {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    padding: 2px 0 !important;
+    flex: 1 !important;
+    justify-content: flex-end !important;
+  }
+  .app-switcher-nav::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .app-switch-btn {
+    padding: 5px 8px !important;
+    font-size: 0.72rem !important;
+    gap: 3px !important;
+    flex-shrink: 0 !important;
+    border-radius: 6px !important;
+  }
+  .app-switch-btn .app-switch-icon {
+    font-size: 13px !important;
+  }
+  .app-switch-btn span.app-switch-label {
+    display: inline-block !important;
+    font-size: 10.5px !important;
+    font-weight: 700 !important;
+  }
+
+  /* ポータル画面カードのレスポンシブ */
+  .portal-container {
+    padding: 12px 10px 30px !important;
+  }
+  .portal-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .portal-quick-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .portal-quick-bar .quick-link-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 10px !important;
+    font-size: 0.9rem !important;
+  }
+
+  /* 3. ポップアップ（モーダル全般）の劇的視認性＆操作性改善 */
+  .modal-overlay {
+    padding: 6px !important;
+    align-items: flex-end !important; /* スマホでは下部ドック型または全画面 */
+  }
+
+  .modal-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 92vh !important;
+    max-height: 92vh !important;
+    border-radius: 16px 16px 0 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-shadow: 0 -10px 25px rgba(0, 0, 0, 0.3) !important;
+  }
+
+  .modal-header {
+    padding: 12px 16px !important;
+    flex-shrink: 0 !important;
+    border-bottom: 1.5px solid #e2e8f0 !important;
+  }
+  .modal-title {
+    font-size: 1.1rem !important;
+    font-weight: 800 !important;
+  }
+  .btn-icon-danger, .modal-close {
+    width: 34px !important;
+    height: 34px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 50% !important;
+    font-size: 1.2rem !important;
+    background: #fee2e2 !important;
+    color: #ef4444 !important;
+    border: none !important;
+  }
+
+  .modal-body {
+    padding: 12px 14px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex: 1 !important;
+  }
+
+  .modal-body .form-input,
+  .modal-body .form-select,
+  .modal-body .form-textarea {
+    font-size: 16px !important; /* iOSでの自動ズームを防止 */
+    height: 44px !important;
+    border-radius: 8px !important;
+  }
+
+  /* 商品マスタ・取引先マスタカード：スマホで大きく読みやすく、親指で押しやすい */
+  .master-item-card,
+  .master-client-card {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    padding: 14px !important;
+    border-radius: 10px !important;
+    margin-bottom: 12px !important;
+    border: 1.5px solid #cbd5e1 !important;
+    background: #ffffff !important;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05) !important;
+  }
+
+  .master-item-info,
+  .master-client-info {
+    width: 100% !important;
+  }
+
+  /* 品名・社名フォントを太く大きく */
+  .master-item-name,
+  .master-client-name {
+    font-size: 1.08rem !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    line-height: 1.35 !important;
+    margin-bottom: 4px !important;
+    word-break: break-all !important;
+  }
+
+  /* 単価をはっきり大きく */
+  .master-item-price-row {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: baseline !important;
+    gap: 8px !important;
+    margin-bottom: 8px !important;
+  }
+  .master-item-price {
+    font-size: 1.25rem !important;
+    font-weight: 900 !important;
+    color: #2563eb !important;
+  }
+
+  /* カード下部のアクションボタン：フルワイドで押しやすく */
+  .master-item-actions,
+  .master-client-actions {
+    width: 100% !important;
+    display: flex !important;
+    gap: 8px !important;
+    margin-top: 4px !important;
+  }
+
+  .master-item-actions .btn,
+  .master-client-actions .btn {
+    flex: 1 !important;
+    height: 44px !important;
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+    border-radius: 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .modal-footer {
+    padding: 10px 16px !important;
+    flex-shrink: 0 !important;
+  }
+  .modal-footer .btn {
+    height: 42px !important;
+    font-size: 0.95rem !important;
+  }
 }
 
 

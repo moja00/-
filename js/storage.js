@@ -22,139 +22,231 @@ const KEYS = {
   PREVIOUS_YEAR_INCOME: 'billcraft_previous_year_income'
 };
 
+let syncTimeout = null;
+function localStorageSetItemAndSync(key, value) {
+  localStorage.setItem(key, value);
+  if (syncTimeout) clearTimeout(syncTimeout);
+  syncTimeout = setTimeout(async () => {
+    if (typeof window !== 'undefined' && window.pushAllLocalDataToServer) {
+      try {
+        const res = await window.pushAllLocalDataToServer();
+        if (!res.success && typeof showToast === 'function') {
+          showToast('⚠️ サーバーへの自動保存に失敗しました: ' + res.error, 'error');
+        }
+      } catch (e) {
+        if (typeof showToast === 'function') {
+          showToast('⚠️ サーバー通信エラー: 自動保存失敗', 'error');
+        }
+      }
+    }
+  }, 1000);
+}
+
+
+/**
+ * 商品名・取引先名の正規化（全角半角スペース・英数記号の揺れを統一）
+ */
+export function normalizeMasterName(name) {
+  if (!name) return '';
+  return String(name)
+    .normalize('NFKC') // 全角英数や全角記号を半角に正規化
+    .replace(/[\s\u3000]+/g, ' ') // 全角スペースや連続空白を1つの半角スペースに統一
+    .trim();
+}
+
+/**
+ * マスタの比較用キー（大文字小文字・空白揺れを完全吸収）
+ */
+export function getMasterKey(name) {
+  return normalizeMasterName(name).toLowerCase();
+}
+
+// 排除すべきサンプルデータの一覧（正規化キー）
+export const SAMPLE_ITEM_KEYS = new Set([
+  getMasterKey('製品基本セット（一式）'),
+  getMasterKey('製品基本セット(一式)'),
+  getMasterKey('システム導入・初期設定作業費'),
+  getMasterKey('月額保守サポート（1ヶ月）'),
+  getMasterKey('月額保守サポート(1ヶ月)'),
+  getMasterKey('交換用消耗部品セット'),
+  getMasterKey('Webサイトリニューアル UI/UX設計・Figmaデザイン作成'),
+  getMasterKey('フロントエンド実装・レスポンシブWebコーディング'),
+  getMasterKey('CMS（WordPress/Headless）導入・管理画面カスタマイズ'),
+  getMasterKey('月額クラウドサーバー運用保守（2026年9月度）'),
+  getMasterKey('プロジェクト管理用資材・リファレンス書籍（軽減税率対象）'),
+  getMasterKey('ホームページUI/UXリニューアルデザイン一式'),
+  getMasterKey('フロントエンド実装・レスポンシブコーディング'),
+  getMasterKey('参考技術書籍・資材費（軽減税率対象）')
+]);
+
+/**
+ * サンプル品目かどうかを判定
+ */
+export function isSampleItem(item) {
+  if (!item) return false;
+  const name = typeof item === 'string' ? item : (item.name || '');
+  const key = getMasterKey(name);
+  if (SAMPLE_ITEM_KEYS.has(key)) return true;
+  const sku = typeof item === 'object' && item.sku ? String(item.sku).toUpperCase().trim() : '';
+  if (['PRD-001', 'SP-01', 'SMP-01', 'SMP-02'].includes(sku)) return true;
+  if (/製品基本セット|交換用消耗部品|システム導入|保守サポート|クラウドサーバー|クラウドストレージ|リニューアルデザイン/i.test(name)) return true;
+  return false;
+}
+
+const SAMPLE_CLIENT_KEYS = new Set([
+  getMasterKey('株式会社サンプル'),
+  getMasterKey('株式会社テクノロジー'),
+  getMasterKey('サンプル石油株式会社'),
+  getMasterKey('サンプル運送株式会社'),
+  getMasterKey('サンプルパーキング株式会社'),
+  getMasterKey('アークス・テクノロジー株式会社'),
+  getMasterKey('グローバル・イノベーション株式会社'),
+  getMasterKey('スタジオ・ネクサス合同会社')
+]);
+
 const DEFAULT_ITEMS_MASTER = [
   {
-    id: 'item_mst_1',
-    name: '製品基本セット（一式）',
-    unitPrice: 83333,
-    userPrice: 110000,
-    unit: '式',
+    id: "prod_1790320521317_adue",
+    name: "DP-MS　スプレッダー",
+    unitPrice: 59612,
+    userPrice: 80000,
+    unit: "個",
     taxRate: 10,
-    note: '標準構成一式',
-    usageCount: 10
+    note: "",
+    usageCount: 2,
+    createdAt: "2026-09-25T07:15:21.317Z",
+    updatedAt: "2026-09-28T04:09:29.451Z",
+    lastUsedAt: "2026-09-28T04:09:29.445Z"
   },
   {
-    id: 'item_mst_2',
-    name: 'システム導入・初期設定作業費',
-    unitPrice: 37879,
-    userPrice: 50000,
-    unit: '回',
+    id: "prod_1790319200414_10bm",
+    name: "DP-MS　メカニカルスプレッダー",
+    unitPrice: 73025,
+    userPrice: 98000,
+    unit: "個",
     taxRate: 10,
-    note: '現地作業含む',
-    usageCount: 7
+    note: "",
+    usageCount: 1,
+    createdAt: "2026-09-25T06:53:20.414Z",
+    updatedAt: "2026-09-25T06:53:20.414Z",
+    lastUsedAt: "2026-09-25T06:55:37.851Z"
   },
   {
-    id: 'item_mst_3',
-    name: '月額保守サポート（1ヶ月）',
-    unitPrice: 15152,
-    userPrice: 20000,
-    unit: '月',
+    id: "prod_1790319164152_angp",
+    name: "DP-EG　3点引きアタッチメント",
+    unitPrice: 163934,
+    userPrice: 220000,
+    unit: "セット",
     taxRate: 10,
-    note: 'リモート対応',
-    usageCount: 5
+    note: "",
+    usageCount: 1,
+    createdAt: "2026-09-25T06:52:44.152Z",
+    updatedAt: "2026-09-25T06:52:44.152Z",
+    lastUsedAt: "2026-09-25T06:55:25.362Z"
   },
   {
-    id: 'item_mst_4',
-    name: '交換用消耗部品セット',
-    unitPrice: 7576,
-    userPrice: 10000,
-    unit: '組',
+    id: "prod_1790319113830_war6",
+    name: "DP-AC　アクセサリーキット",
+    unitPrice: 176602,
+    userPrice: 237000,
+    unit: "セット",
     taxRate: 10,
-    note: '型番: SP-01',
-    usageCount: 2
+    note: "",
+    usageCount: 2,
+    createdAt: "2026-09-25T06:51:53.830Z",
+    updatedAt: "2026-09-25T06:51:53.830Z",
+    lastUsedAt: "2026-09-28T02:39:29.185Z"
+  },
+  {
+    id: "prod_1790317962497_3xgg",
+    name: "DP-5000　ベーシックセット　バッテリー２個",
+    unitPrice: 268257,
+    userPrice: 360000,
+    unit: "式",
+    taxRate: 10,
+    note: "",
+    usageCount: 7,
+    createdAt: "2026-09-25T06:32:42.497Z",
+    lastUsedAt: "2026-09-29T05:06:55.002Z",
+    updatedAt: "2026-09-29T05:06:55.007Z"
   }
 ];
 
 const DEFAULT_CLIENT_MASTER = [
   {
-    id: 'client_mst_1',
-    name: '株式会社サンプル',
-    code: 'C001',
-    honorific: '御中',
-    zip: '100-0001',
-    address: '東京都千代田区千代田1-1',
-    contactPerson: '総務部 田中 様',
-    tel: '03-1111-2222',
-    email: 'tanaka@sample.example.jp',
-    invoiceNumber: '',
-    category: 'customer',
-    closingDay: '末日',
-    paymentTerms: '翌月末',
-    note: '基本取引先。請求書は郵送およびPDF送付',
-    usageCount: 12,
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'client_mst_2',
-    name: '株式会社テクノロジー',
-    code: 'C002',
-    honorific: '御中',
-    zip: '108-0075',
-    address: '東京都港区港南2-15-1',
-    contactPerson: 'IT推進室 鈴木 様',
-    tel: '03-3333-4444',
-    email: 'suzuki@tech.example.jp',
-    invoiceNumber: 'T2010001099887',
-    category: 'customer',
-    closingDay: '20日',
-    paymentTerms: '当月末',
-    note: 'システム開発関連プロジェクト',
-    usageCount: 8,
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'client_mst_3',
-    name: 'サンプル石油株式会社',
-    code: 'V001',
-    honorific: '御中',
-    zip: '100-0002',
-    address: '東京都千代田区皇居外苑1-1',
-    contactPerson: '',
-    tel: '03-0000-0001',
-    email: '',
-    invoiceNumber: 'T1000000000001',
-    category: 'vendor',
-    closingDay: '都度',
-    paymentTerms: '即時（法人カード）',
-    note: '社用車ガソリン給油',
+    id: "client_mst_4",
+    name: "日本郵便株式会社 高崎郵便局",
+    code: "V002",
+    honorific: "御中",
+    zip: "370-8799",
+    address: "群馬県高崎市高松町26-1",
+    contactPerson: "",
+    tel: "0570-007-889",
+    email: "",
+    invoiceNumber: "T1010001112577",
+    category: "vendor",
+    closingDay: "都度",
+    paymentTerms: "即時現金・切手",
+    note: "レターパック、書類郵送",
     usageCount: 5,
-    createdAt: new Date().toISOString()
+    createdAt: "2026-09-25T06:26:30.325Z"
   },
   {
-    id: 'client_mst_4',
-    name: 'サンプル運送株式会社',
-    code: 'V002',
-    honorific: '御中',
-    zip: '100-0003',
-    address: '東京都千代田区霞が関1-1',
-    contactPerson: '',
-    tel: '03-0000-0002',
-    email: '',
-    invoiceNumber: 'T1000000000002',
-    category: 'vendor',
-    closingDay: '都度',
-    paymentTerms: '即時決済',
-    note: '書類・資材配送便',
-    usageCount: 4,
-    createdAt: new Date().toISOString()
+    id: "client_1790317751749_imw2",
+    name: "奥村塗料株式会社",
+    code: "",
+    honorific: "御中",
+    zip: "501-6105",
+    address: "岐阜県岐阜市柳津町梅松４丁目１４５番地",
+    contactPerson: "",
+    tel: "",
+    email: "",
+    invoiceNumber: "",
+    category: "customer",
+    closingDay: "末日",
+    paymentTerms: "翌月末",
+    note: "",
+    usageCount: 10,
+    createdAt: "2026-09-25T06:29:11.749Z",
+    updatedAt: "2026-09-29T05:06:55.007Z",
+    lastUsedAt: "2026-09-29T05:06:55.003Z"
   },
   {
-    id: 'client_mst_5',
-    name: 'サンプルパーキング株式会社',
-    code: 'V003',
-    honorific: '御中',
-    zip: '100-0004',
-    address: '東京都千代田区永田町1-1',
-    contactPerson: '',
-    tel: '03-0000-0003',
-    email: '',
-    invoiceNumber: 'T1000000000003',
-    category: 'vendor',
-    closingDay: '都度',
-    paymentTerms: '現地精算',
-    note: 'コインパーキング利用',
+    id: "client_mst_3",
+    name: "ENEOSウイング関東第1支店 EW 高崎インター東TS",
+    code: "V001",
+    honorific: "御中",
+    zip: "370-0015",
+    address: "群馬県高崎市島野町890-1",
+    contactPerson: "",
+    tel: "027-353-8181",
+    email: "",
+    invoiceNumber: "T6180001016088",
+    category: "vendor",
+    closingDay: "都度",
+    paymentTerms: "即時（法人カード）",
+    note: "社用車ガソリン給油・洗車",
+    usageCount: 5,
+    createdAt: "2026-09-25T06:26:30.325Z"
+  },
+  {
+    id: "rescued_vendor_1790319015890_aoft",
+    name: "タイムズ２４株式会社　高崎郵便局駐車場",
+    code: "V003",
+    honorific: "御中",
+    zip: "141-8924",
+    address: "東京都品川区西五反田2-27-2",
+    contactPerson: "",
+    tel: "0120-31-8924",
+    email: "",
+    invoiceNumber: "T4010001137274",
+    category: "vendor",
+    closingDay: "都度",
+    paymentTerms: "現地精算",
+    note: "コインパーキング利用（高崎郵便局駐車場）",
     usageCount: 3,
-    createdAt: new Date().toISOString()
+    createdAt: "2026-09-24",
+    updatedAt: "2026-09-25T16:50:00.000Z"
   }
 ];
 
@@ -163,58 +255,152 @@ const DEFAULT_DISCOUNT_REASONS = [
   { name: '特別キャンペーン値引き', count: 4 },
   { name: '初回お取引値引き', count: 3 },
   { name: 'まとめ買いボリューム値引き', count: 2 },
-  { name: '端数値引き', count: 1 }
+  { name: '端数処理値引き', count: 1 }
 ];
 
 export const DEFAULT_INVENTORY = [
   {
     id: 'inv_1',
-    itemId: 'item_mst_1',
-    name: '製品基本セット（一式）',
-    sku: 'PRD-001',
-    currentStock: 25,
-    safetyStock: 5,
+    itemId: 'prod_1790317962497_3xgg',
+    name: 'DP-5000　ベーシックセット　バッテリー２個',
+    sku: 'DP-5000-B2',
+    currentStock: 5,
+    safetyStock: 2,
     unit: '式',
-    unitCost: 50000,
-    unitPrice: 83333,
+    unitCost: 180000,
+    unitPrice: 268257,
     location: '本社倉庫 A-1',
     lastInDate: '2026-09-25',
     note: '主力構成商品',
     history: [
-      { id: 'log_init_1', date: '2026-09-25', type: 'in', qty: 25, reason: '初期棚卸在庫登録', currentStock: 25, timestamp: new Date().toISOString() }
+      { id: 'log_init_1', date: '2026-09-25', type: 'in', qty: 5, reason: '初期棚卸在庫登録', currentStock: 5, timestamp: new Date().toISOString() }
     ]
   },
   {
     id: 'inv_2',
-    itemId: 'item_mst_4',
-    name: '交換用消耗部品セット',
-    sku: 'SP-01',
-    currentStock: 12,
-    safetyStock: 3,
-    unit: '組',
-    unitCost: 4500,
-    unitPrice: 7576,
+    itemId: 'prod_1790320521317_adue',
+    name: 'DP-MS　スプレッダー',
+    sku: 'DP-MS-01',
+    currentStock: 3,
+    safetyStock: 1,
+    unit: '個',
+    unitCost: 40000,
+    unitPrice: 59612,
     location: 'パーツ保管棚 B-2',
-    lastInDate: '2026-09-20',
-    note: '定期補充対象部品',
+    lastInDate: '2026-09-25',
+    note: '',
     history: [
-      { id: 'log_init_2', date: '2026-09-20', type: 'in', qty: 12, reason: '仕入入庫', currentStock: 12, timestamp: new Date().toISOString() }
+      { id: 'log_init_2', date: '2026-09-25', type: 'in', qty: 3, reason: '初期棚卸在庫登録', currentStock: 3, timestamp: new Date().toISOString() }
     ]
   }
 ];
 
 export const DEFAULT_PURCHASE_MAPPINGS = {
-  "消耗部品まとめ": "inv_2",
-  "交換パーツ一式": "inv_2",
-  "基本パーツセット": "inv_1"
+  "スプレッダー": "inv_2",
+  "ベーシックセット": "inv_1"
 };
+
+/**
+ * 商品マスタの重複を自動統合・サンプルのパージを実行
+ * @param {Array} list
+ * @returns {Array} 重複排除・クリーンアップ済みリスト
+ */
+export function deduplicateItemMasterList(list) {
+  if (!Array.isArray(list)) return [];
+  const map = new Map();
+
+  for (const item of list) {
+    if (!item || !item.name) continue;
+    const cleanName = (item.name || '').trim();
+    if (!cleanName) continue;
+    const key = getMasterKey(cleanName);
+    if (!key) continue;
+
+    // サンプル商品は自動パージ（完全排除）
+    if (SAMPLE_ITEM_KEYS.has(key)) continue;
+
+    if (!map.has(key)) {
+      map.set(key, { ...item });
+    } else {
+      const existing = map.get(key);
+      const isExistingRescued = !!(existing.rescued || (existing.note && existing.note.includes('自動復元')));
+      const isItemRescued = !!(item.rescued || (item.note && item.note.includes('自動復元')));
+      const totalUsage = (Number(existing.usageCount) || 0) + (Number(item.usageCount) || 0);
+
+      let merged;
+      if (isExistingRescued && !isItemRescued) {
+        // 正規マスタを優先採用
+        merged = { ...existing, ...item };
+      } else if (!isExistingRescued && isItemRescued) {
+        merged = { ...item, ...existing };
+      } else {
+        // どちらも同じ状態の場合は更新日が新しい方を優先
+        const timeA = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+        const timeB = new Date(item.updatedAt || item.createdAt || 0).getTime();
+        merged = timeB > timeA ? { ...existing, ...item } : { ...item, ...existing };
+      }
+      merged.usageCount = totalUsage;
+      map.set(key, merged);
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+/**
+ * 取引先マスタの重複を自動統合・サンプルのパージを実行
+ * @param {Array} list
+ * @returns {Array} 重複排除・クリーンアップ済みリスト
+ */
+export function deduplicateClientMasterList(list) {
+  if (!Array.isArray(list)) return [];
+  const map = new Map();
+
+  for (const client of list) {
+    if (!client || !client.name) continue;
+    const cleanName = (client.name || '').trim();
+    if (!cleanName) continue;
+    const key = getMasterKey(cleanName);
+    if (!key) continue;
+
+    // サンプル取引先は自動パージ（完全排除）
+    if (SAMPLE_CLIENT_KEYS.has(key)) continue;
+
+    if (!map.has(key)) {
+      map.set(key, { ...client });
+    } else {
+      const existing = map.get(key);
+      const isExistingRescued = !!(existing.rescued || (existing.note && existing.note.includes('自動復元')));
+      const isClientRescued = !!(client.rescued || (client.note && client.note.includes('自動復元')));
+      const totalUsage = (Number(existing.usageCount) || 0) + (Number(client.usageCount) || 0);
+
+      let merged;
+      if (isExistingRescued && !isClientRescued) {
+        merged = { ...existing, ...client };
+      } else if (!isExistingRescued && isClientRescued) {
+        merged = { ...client, ...existing };
+      } else {
+        const timeA = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+        const timeB = new Date(client.updatedAt || client.createdAt || 0).getTime();
+        merged = timeB > timeA ? { ...existing, ...client } : { ...client, ...existing };
+      }
+      merged.usageCount = totalUsage;
+      map.set(key, merged);
+    }
+  }
+
+  // タイムズ２４の重複統合（高崎郵便局駐車場を優先維持）
+  const mergedList = Array.from(map.values());
+  const hasDetailedTimes = mergedList.some(c => c.name && c.name.includes('高崎郵便局駐車場'));
+  return hasDetailedTimes ? mergedList.filter(c => c.name !== 'タイムズ２４') : mergedList;
+}
 
 /**
  * 現在編集中の帳票を保存
  */
 export function saveActiveDoc(doc) {
   try {
-    localStorage.setItem(KEYS.ACTIVE_DOC, JSON.stringify(doc));
+    localStorageSetItemAndSync(KEYS.ACTIVE_DOC, JSON.stringify(doc));
     // サーバーファイル（data/invoices/active_doc.json）にも即時保存
     saveServerActiveDoc(doc).catch(e => {
       console.warn('Server active doc save failed:', e);
@@ -242,7 +428,7 @@ export function loadActiveDoc() {
  */
 export function saveIssuerProfile(issuer) {
   try {
-    localStorage.setItem(KEYS.ISSUER_PROFILE, JSON.stringify(issuer));
+    localStorageSetItemAndSync(KEYS.ISSUER_PROFILE, JSON.stringify(issuer));
     // サーバーファイル（data/issuer_profile.json）にも即時保存
     saveServerIssuerProfile(issuer).catch(e => {
       console.warn('Server issuer profile save failed:', e);
@@ -260,17 +446,25 @@ export function loadIssuerProfile() {
     const raw = localStorage.getItem(KEYS.ISSUER_PROFILE);
     const profile = raw ? JSON.parse(raw) : {};
 
+    let modified = false;
     // 振込先情報および自社情報の消失防止フォールバック（サーバーの正真データと完全連動）
-    if (!profile.bankInfo || profile.bankInfo.trim() === '') {
+    if (!profile.bankInfo || profile.bankInfo.trim() === '' || profile.bankInfo.includes('サンプルショウジ') || profile.bankInfo.includes('みずほ銀行')) {
       profile.bankInfo = '高崎信用金庫\n前橋南支店\n普通　012 2182393\nカ)　アルバワークス';
+      modified = true;
     }
-    if (!profile.name || profile.name.trim() === '' || profile.name === 'スタジオ・ネクサス合同会社') {
+    if (!profile.name || profile.name.trim() === '' || profile.name.includes('サンプル') || profile.name === 'スタジオ・ネクサス合同会社') {
       profile.name = '株式会社アルバワークス';
       profile.invoiceNumber = 'T2070001004966';
       profile.zip = '379-2144';
       profile.address = '群馬県前橋市下川町63-7';
       profile.tel = '027-289-0367';
       profile.fax = '027-289-0368';
+      modified = true;
+    }
+
+    if (modified) {
+      localStorageSetItemAndSync(KEYS.ISSUER_PROFILE, JSON.stringify(profile));
+      saveServerIssuerProfile(profile).catch(() => { });
     }
 
     return profile;
@@ -308,7 +502,7 @@ export function saveDocToHistory(doc) {
   try {
     const list = getHistoryList();
     const existingIndex = list.findIndex(item => item.id === doc.id);
-    
+
     // 金額・税金の計算
     let subtotal = 0;
     let taxTotal = 0;
@@ -359,10 +553,10 @@ export function saveDocToHistory(doc) {
       list.length = 50;
     }
 
-    localStorage.setItem(KEYS.HISTORY, JSON.stringify(list));
-    // サーバーファイル（data/invoices/invoices_history.json）にも即時保存
-    saveServerInvoicesHistory(list).catch(e => {
-      console.warn('Server invoices history save failed:', e);
+    localStorageSetItemAndSync(KEYS.HISTORY, JSON.stringify(list));
+    // サーバーファイル（data/invoices/invoices_history.json）にも双方向マージ即時保存
+    syncInvoicesHistoryWithServer().catch(e => {
+      console.warn('Server invoices history sync failed:', e);
     });
     // 自社情報もプロファイルに保存
     if (doc.issuer) {
@@ -383,7 +577,7 @@ export function saveDocToHistory(doc) {
 export function deleteDocFromHistory(id) {
   try {
     const list = getHistoryList().filter(item => item.id !== id);
-    localStorage.setItem(KEYS.HISTORY, JSON.stringify(list));
+    localStorageSetItemAndSync(KEYS.HISTORY, JSON.stringify(list));
     // サーバーファイル（data/invoices/invoices_history.json）にも即時保存
     saveServerInvoicesHistory(list).catch(e => {
       console.warn('Server invoices history delete save failed:', e);
@@ -426,12 +620,63 @@ export function getItemMasterUsageMap() {
 }
 
 // ==========================================================================
-// サーバー通信・マスタ永続化APIヘルパー
+// サーバー通信・マスタ永続化APIヘルパー（サブディレクトリ・WordPress・Python完全両対応）
 // ==========================================================================
+
+export function getAppBaseDir() {
+  if (typeof window === 'undefined' || !window.location) return '/';
+  let path = window.location.pathname.split('?')[0].split('#')[0];
+  if (/\.[a-zA-Z0-9]+$/.test(path)) {
+    path = path.substring(0, path.lastIndexOf('/') + 1);
+  } else if (!path.endsWith('/')) {
+    path += '/';
+  }
+  return path;
+}
+
+export async function apiFetch(path, options = {}) {
+  const clean = path.replace(/^\/?api\/?/, '').replace(/^\//, '');
+  const dir = getAppBaseDir();
+
+  // 候補URL順:
+  // 1. /epr/api.php?endpoint= (WordPress/サブディレクトリ/Nginx/Apache全てで確実に到達)
+  // 2. api.php?endpoint= (相対パス)
+  // 3. /epr/api/... (相対パス・Rewrite環境)
+  // 4. /api/... (ルート直下起動・Python環境)
+  const candidates = [
+    `${dir}api.php?endpoint=${clean}`,
+    `api.php?endpoint=${clean}`,
+    `${dir}api/${clean}`,
+    `/api/${clean}`
+  ];
+
+  const fetchOpts = {
+    credentials: 'same-origin',
+    ...options
+  };
+
+  let lastErr = null;
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, fetchOpts);
+      if (res.status !== 404 && res.status !== 405) {
+        return res;
+      }
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  if (lastErr) throw lastErr;
+  return new Response(JSON.stringify({ error: 'Endpoint not reachable' }), { status: 404 });
+}
+
+if (typeof window !== 'undefined') {
+  window.apiFetch = apiFetch;
+}
 
 export async function fetchServerMasterItems() {
   try {
-    const res = await fetch('/api/master/items', { cache: 'no-store' });
+    const res = await apiFetch('master/items', { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) return data;
@@ -444,7 +689,7 @@ export async function fetchServerMasterItems() {
 
 export async function saveServerMasterItems(items) {
   try {
-    const res = await fetch('/api/master/items', {
+    const res = await apiFetch('master/items', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(items)
@@ -457,7 +702,7 @@ export async function saveServerMasterItems(items) {
 
 export async function fetchServerMasterClients() {
   try {
-    const res = await fetch('/api/master/clients', { cache: 'no-store' });
+    const res = await apiFetch('master/clients', { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) return data;
@@ -470,7 +715,7 @@ export async function fetchServerMasterClients() {
 
 export async function saveServerMasterClients(clients) {
   try {
-    const res = await fetch('/api/master/clients', {
+    const res = await apiFetch('master/clients', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(clients)
@@ -483,7 +728,7 @@ export async function saveServerMasterClients(clients) {
 
 export async function fetchServerIssuerProfile() {
   try {
-    const res = await fetch('/api/issuer', { cache: 'no-store' });
+    const res = await apiFetch('issuer', { cache: 'no-store' });
     if (res.ok) {
       return await res.json();
     }
@@ -495,7 +740,7 @@ export async function fetchServerIssuerProfile() {
 
 export async function saveServerIssuerProfile(issuer) {
   try {
-    const res = await fetch('/api/issuer', {
+    const res = await apiFetch('issuer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(issuer)
@@ -508,7 +753,7 @@ export async function saveServerIssuerProfile(issuer) {
 
 export async function fetchServerAttendance() {
   try {
-    const res = await fetch('/api/attendance', { cache: 'no-store' });
+    const res = await apiFetch('attendance', { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) return data;
@@ -521,7 +766,7 @@ export async function fetchServerAttendance() {
 
 export async function saveServerAttendance(attendanceList) {
   try {
-    const res = await fetch('/api/attendance', {
+    const res = await apiFetch('attendance', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(attendanceList)
@@ -534,7 +779,7 @@ export async function saveServerAttendance(attendanceList) {
 
 export async function fetchServerAttendanceEmployee() {
   try {
-    const res = await fetch('/api/attendance/employee', { cache: 'no-store' });
+    const res = await apiFetch('attendance/employee', { cache: 'no-store' });
     if (res.ok) {
       return await res.json();
     }
@@ -546,7 +791,7 @@ export async function fetchServerAttendanceEmployee() {
 
 export async function saveServerAttendanceEmployee(empInfo) {
   try {
-    const res = await fetch('/api/attendance/employee', {
+    const res = await apiFetch('attendance/employee', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(empInfo)
@@ -562,7 +807,7 @@ export async function deleteServerAttendanceRecord(date = '', id = '') {
     const params = new URLSearchParams();
     if (date) params.set('date', date);
     if (id) params.set('id', id);
-    const res = await fetch(`/api/attendance?${params.toString()}`, {
+    const res = await apiFetch(`attendance?${params.toString()}`, {
       method: 'DELETE'
     });
     return res.ok;
@@ -573,18 +818,18 @@ export async function deleteServerAttendanceRecord(date = '', id = '') {
 
 export async function fetchServerInvoicesHistory() {
   try {
-    const res = await fetch('/api/invoices/history', { cache: 'no-store' });
+    const res = await apiFetch('invoices/history', { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) return data;
     }
-  } catch (e) {}
+  } catch (e) { }
   return null;
 }
 
 export async function saveServerInvoicesHistory(invoices) {
   try {
-    const res = await fetch('/api/invoices/history', {
+    const res = await apiFetch('invoices/history', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(invoices)
@@ -595,19 +840,77 @@ export async function saveServerInvoicesHistory(invoices) {
   }
 }
 
+/**
+ * 請求書履歴の双方向スマートマージ同期
+ * サーバーとローカルをIDキーで結合し、全ユーザー・全端末の書類履歴を確実に共有・保持
+ */
+export async function syncInvoicesHistoryWithServer() {
+  try {
+    const serverInvoices = await fetchServerInvoicesHistory();
+    const localInvoices = getHistoryList();
+
+    const invoiceMap = new Map();
+
+    // 1. ローカル履歴を取り込み
+    if (Array.isArray(localInvoices)) {
+      localInvoices.forEach(inv => {
+        if (inv && inv.id) {
+          invoiceMap.set(inv.id, inv);
+        }
+      });
+    }
+
+    // 2. サーバー履歴を取り込み（更新日時またはサーバー側データをスマートマージ）
+    if (Array.isArray(serverInvoices)) {
+      serverInvoices.forEach(sinv => {
+        if (sinv && sinv.id) {
+          const existing = invoiceMap.get(sinv.id);
+          if (!existing) {
+            invoiceMap.set(sinv.id, sinv);
+          } else {
+            const serverDate = new Date(sinv.updatedAt || sinv.issuedAt || sinv.issueDate || 0).getTime();
+            const localDate = new Date(existing.updatedAt || existing.issuedAt || existing.issueDate || 0).getTime();
+            if (serverDate >= localDate) {
+              invoiceMap.set(sinv.id, sinv);
+            }
+          }
+        }
+      });
+    }
+
+    // 3. 発行日降順にソート
+    const mergedList = Array.from(invoiceMap.values()).sort((a, b) => {
+      const dateA = a.issueDate || a.updatedAt || '';
+      const dateB = b.issueDate || b.updatedAt || '';
+      return dateB.localeCompare(dateA);
+    });
+
+    // 4. ローカルストレージに保存
+    localStorageSetItemAndSync(KEYS.HISTORY, JSON.stringify(mergedList));
+
+    // 5. サーバーへもマージ後全件を保存して同期整合性を担保
+    await saveServerInvoicesHistory(mergedList);
+
+    return mergedList;
+  } catch (e) {
+    console.warn('Sync invoices history with server failed:', e);
+    return getHistoryList();
+  }
+}
+
 export async function fetchServerActiveDoc() {
   try {
-    const res = await fetch('/api/invoices/active', { cache: 'no-store' });
+    const res = await apiFetch('invoices/active', { cache: 'no-store' });
     if (res.ok) {
       return await res.json();
     }
-  } catch (e) {}
+  } catch (e) { }
   return null;
 }
 
 export async function saveServerActiveDoc(doc) {
   try {
-    const res = await fetch('/api/invoices/active', {
+    const res = await apiFetch('invoices/active', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(doc)
@@ -620,18 +923,18 @@ export async function saveServerActiveDoc(doc) {
 
 export async function fetchServerExpenses() {
   try {
-    const res = await fetch('/api/expenses', { cache: 'no-store' });
+    const res = await apiFetch('expenses', { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) return data;
     }
-  } catch (e) {}
+  } catch (e) { }
   return null;
 }
 
 export async function saveServerExpenses(expenses) {
   try {
-    const res = await fetch('/api/expenses', {
+    const res = await apiFetch('expenses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(expenses)
@@ -639,6 +942,67 @@ export async function saveServerExpenses(expenses) {
     return res.ok;
   } catch (e) {
     return false;
+  }
+}
+
+/**
+ * 経費データのサーバー双方向同期（全端末・他ユーザー間での完全共有）
+ * @returns {Promise<Array>} 最新マージ済み経費リスト
+ */
+export async function syncExpensesWithServer() {
+  try {
+    const serverList = await fetchServerExpenses();
+    const localList = getAllExpenseList();
+
+    if (!serverList || !Array.isArray(serverList)) {
+      return localList;
+    }
+
+    const mergedMap = new Map();
+
+    // 1. サーバー側のデータを追加
+    serverList.forEach(item => {
+      if (item && item.id) {
+        mergedMap.set(item.id, item);
+      }
+    });
+
+    // 2. ローカル側のデータをスマートマージ
+    let hasLocalChanges = false;
+    localList.forEach(item => {
+      if (!item || !item.id) return;
+      if (!mergedMap.has(item.id)) {
+        mergedMap.set(item.id, item);
+        hasLocalChanges = true;
+      } else {
+        const serverItem = mergedMap.get(item.id);
+        const localTime = new Date(item.updatedAt || item.date || 0).getTime();
+        const serverTime = new Date(serverItem.updatedAt || serverItem.date || 0).getTime();
+        if (localTime > serverTime) {
+          mergedMap.set(item.id, item);
+          hasLocalChanges = true;
+        }
+      }
+    });
+
+    const mergedList = Array.from(mergedMap.values()).sort((a, b) => {
+      return (b.date || '').localeCompare(a.date || '') || (b.updatedAt || '').localeCompare(a.updatedAt || '');
+    });
+
+    // ローカルストレージに最新一覧を保存
+    localStorageSetItemAndSync(KEYS.EXPENSES, JSON.stringify(mergedList));
+
+    // サーバーに未反映のデータがある場合は保存
+    if (hasLocalChanges || mergedList.length !== serverList.length) {
+      saveServerExpenses(mergedList).catch(e => {
+        console.warn('Failed to push merged expenses to server:', e);
+      });
+    }
+
+    return mergedList;
+  } catch (err) {
+    console.warn('syncExpensesWithServer error:', err);
+    return getAllExpenseList();
   }
 }
 
@@ -655,6 +1019,22 @@ export function getItemMasterList(sortByFrequency = true) {
       list = [...DEFAULT_ITEMS_MASTER];
     } else {
       list = JSON.parse(raw);
+    }
+
+    // 重複およびサンプルの自動クリーンアップ（デデュプリケーション）
+    if (Array.isArray(list)) {
+      const cleanList = deduplicateItemMasterList(list);
+      if (cleanList.length !== list.length) {
+        localStorageSetItemAndSync(KEYS.ITEM_MASTER, JSON.stringify(cleanList));
+        saveServerMasterItems(cleanList).catch(() => { });
+        list = cleanList;
+      } else {
+        list = cleanList;
+      }
+    } else if (list && typeof list === 'object') {
+      list = Object.values(list);
+    } else {
+      list = [];
     }
 
     if (sortByFrequency) {
@@ -678,9 +1058,10 @@ export function getItemMasterList(sortByFrequency = true) {
  */
 export function saveItemMasterList(list) {
   try {
-    localStorage.setItem(KEYS.ITEM_MASTER, JSON.stringify(list));
+    const cleanList = deduplicateItemMasterList(list);
+    localStorageSetItemAndSync(KEYS.ITEM_MASTER, JSON.stringify(cleanList));
     // サーバーファイルにも即時非同期保存（二度と消えないようにする）
-    saveServerMasterItems(list).catch(err => {
+    saveServerMasterItems(cleanList).catch(err => {
       console.warn('Server item master save failed:', err);
     });
     return true;
@@ -696,7 +1077,8 @@ export function saveItemMasterList(list) {
 export function recordItemMasterUsage(itemId, itemName) {
   try {
     const list = getItemMasterList(false);
-    const target = list.find(i => (itemId && i.id === itemId) || (itemName && (i.name || '').trim() === itemName.trim()));
+    const targetKey = itemName ? getMasterKey(itemName) : '';
+    const target = list.find(i => (itemId && i.id === itemId) || (targetKey && getMasterKey(i.name) === targetKey));
     if (target) {
       target.usageCount = (Number(target.usageCount) || 0) + 1;
       target.lastUsedAt = new Date().toISOString();
@@ -715,16 +1097,19 @@ export function saveItemToMaster(item) {
     const list = getItemMasterList(false);
     const cleanName = (item.name || '').trim();
     if (!cleanName) return null;
+    const itemKey = getMasterKey(cleanName);
 
-    // IDまたは品名で既存商品を特定
-    const existingIndex = list.findIndex(i => (item.id && i.id === item.id) || ((i.name || '').trim() === cleanName));
+    // IDまたは正規化品名で既存商品を特定（スペース揺れ等による重複を完全防止）
+    const existingIndex = list.findIndex(i => (item.id && i.id === item.id) || (getMasterKey(i.name) === itemKey));
     const now = new Date().toISOString();
 
+    let savedItem = null;
     if (existingIndex >= 0) {
       list[existingIndex] = {
         ...list[existingIndex],
         ...item,
         name: cleanName,
+        sku: item.sku !== undefined ? item.sku : (list[existingIndex].sku || ''),
         unitPrice: Number(item.unitPrice !== undefined ? item.unitPrice : list[existingIndex].unitPrice) || 0,
         userPrice: Number(item.userPrice !== undefined ? item.userPrice : list[existingIndex].userPrice) || 0,
         unit: item.unit || list[existingIndex].unit || '式',
@@ -732,10 +1117,12 @@ export function saveItemToMaster(item) {
         note: item.note !== undefined ? item.note : (list[existingIndex].note || ''),
         updatedAt: now
       };
+      savedItem = list[existingIndex];
     } else {
       const newItem = {
         id: item.id || ('prod_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6)),
         name: cleanName,
+        sku: item.sku || '',
         unitPrice: Number(item.unitPrice) || 0,
         userPrice: Number(item.userPrice !== undefined ? item.userPrice : item.unitPrice) || 0,
         unit: item.unit || '式',
@@ -746,9 +1133,10 @@ export function saveItemToMaster(item) {
         updatedAt: now
       };
       list.unshift(newItem);
+      savedItem = newItem;
     }
     saveItemMasterList(list);
-    return true;
+    return savedItem;
   } catch (e) {
     console.error('Failed to save item to master:', e);
     return false;
@@ -815,15 +1203,20 @@ export function getClientMasterList(sortByFrequency = true) {
       list = JSON.parse(raw);
     }
 
-    if (list && Array.isArray(list)) {
-      const hasDetailedTimes = list.some(c => c.name && c.name.includes('高崎郵便局駐車場'));
-      if (hasDetailedTimes) {
-        const filtered = list.filter(c => !(c.name === 'タイムズ２４株式会社' || c.id === 'client_mst_5'));
-        if (filtered.length !== list.length) {
-          list = filtered;
-          localStorage.setItem(KEYS.CLIENT_MASTER, JSON.stringify(list));
-        }
+    // 重複およびサンプルの自動クリーンアップ（デデュプリケーション）
+    if (Array.isArray(list)) {
+      const cleanList = deduplicateClientMasterList(list);
+      if (cleanList.length !== list.length) {
+        localStorageSetItemAndSync(KEYS.CLIENT_MASTER, JSON.stringify(cleanList));
+        saveServerMasterClients(cleanList).catch(() => { });
+        list = cleanList;
+      } else {
+        list = cleanList;
       }
+    } else if (list && typeof list === 'object') {
+      list = Object.values(list);
+    } else {
+      list = [];
     }
 
     if (sortByFrequency) {
@@ -847,9 +1240,10 @@ export function getClientMasterList(sortByFrequency = true) {
  */
 export function saveClientMasterList(list) {
   try {
-    localStorage.setItem(KEYS.CLIENT_MASTER, JSON.stringify(list));
+    const cleanList = deduplicateClientMasterList(list);
+    localStorageSetItemAndSync(KEYS.CLIENT_MASTER, JSON.stringify(cleanList));
     // サーバーファイルにも即時非同期保存（二度と消えないようにする）
-    saveServerMasterClients(list).catch(err => {
+    saveServerMasterClients(cleanList).catch(err => {
       console.warn('Server client master save failed:', err);
     });
     return true;
@@ -873,77 +1267,92 @@ export function rescueMastersFromHistory() {
     const allDocs = [...history.map(h => h.fullDoc).filter(Boolean)];
     if (activeDoc) allDocs.push(activeDoc);
 
-    // 1. 商品マスタの自動救済
+    // 1. 商品マスタの自動救済（サンプル伝票やサンプル商品は除外）
     const currentItems = getItemMasterList(false);
-    const existingItemNames = new Set(currentItems.map(i => (i.name || '').trim().toLowerCase()));
+    const existingItemKeys = new Set(currentItems.map(i => getMasterKey(i.name)));
     const itemsToAdd = [];
 
     allDocs.forEach(doc => {
+      // サンプル伝票は救済対象外としてスキップ
+      if (doc.id && String(doc.id).startsWith('sample_')) return;
+      if (doc.client && SAMPLE_CLIENT_KEYS.has(getMasterKey(doc.client.name))) return;
+
       if (Array.isArray(doc.items)) {
         doc.items.forEach(it => {
-          const name = (it.name || '').trim();
-          if (name && !existingItemNames.has(name.toLowerCase())) {
-            existingItemNames.add(name.toLowerCase());
-            const newItem = {
-              id: 'rescued_item_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-              name: name,
-              unitPrice: Number(it.unitPrice) || 0,
-              userPrice: Number(it.userPrice !== undefined ? it.userPrice : it.unitPrice) || 0,
-              unit: it.unit || '式',
-              taxRate: it.taxRate !== undefined ? Number(it.taxRate) : 10,
-              note: it.note ? String(it.note) : '過去伝票より自動復元',
-              usageCount: 1,
-              createdAt: doc.updatedAt || doc.issueDate || new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              rescued: true
-            };
-            itemsToAdd.push(newItem);
-            rescuedItems++;
-          }
+          const rawName = (it.name || '').trim();
+          if (!rawName) return;
+          const key = getMasterKey(rawName);
+          if (!key) return;
+
+          // サンプル商品や既にマスタに存在するものは除外
+          if (SAMPLE_ITEM_KEYS.has(key) || existingItemKeys.has(key)) return;
+
+          existingItemKeys.add(key);
+          const newItem = {
+            id: 'rescued_item_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+            name: rawName,
+            unitPrice: Number(it.unitPrice) || 0,
+            userPrice: Number(it.userPrice !== undefined ? it.userPrice : it.unitPrice) || 0,
+            unit: it.unit || '式',
+            taxRate: it.taxRate !== undefined ? Number(it.taxRate) : 10,
+            note: it.note ? String(it.note) : '過去伝票より自動復元',
+            usageCount: 1,
+            createdAt: doc.updatedAt || doc.issueDate || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            rescued: true
+          };
+          itemsToAdd.push(newItem);
+          rescuedItems++;
         });
       }
     });
 
     if (itemsToAdd.length > 0) {
-      const mergedItems = [...itemsToAdd, ...currentItems];
+      const mergedItems = deduplicateItemMasterList([...itemsToAdd, ...currentItems]);
       saveItemMasterList(mergedItems);
       console.log(`[マスタ救済復元] 過去の伝票履歴から ${itemsToAdd.length} 件の商品マスタを自動復元しました！`, itemsToAdd.map(i => i.name));
     }
 
     // 2. 取引先マスタの自動救済
     const currentClients = getClientMasterList(false);
-    const existingClientNames = new Set(currentClients.map(c => (c.name || '').trim().toLowerCase()));
+    const existingClientKeys = new Set(currentClients.map(c => getMasterKey(c.name)));
     const clientsToAdd = [];
 
     allDocs.forEach(doc => {
+      if (doc.id && String(doc.id).startsWith('sample_')) return;
       const c = doc.client;
       if (c && c.name) {
-        const name = c.name.trim();
-        if (name && name !== '名称未設定' && !existingClientNames.has(name.toLowerCase())) {
-          existingClientNames.add(name.toLowerCase());
-          const newClient = {
-            id: 'rescued_client_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-            name: name,
-            code: c.code || '',
-            honorific: c.honorific || '御中',
-            zip: c.zip || '',
-            address: c.address || '',
-            contactPerson: c.contactPerson || '',
-            tel: c.tel || '',
-            email: c.email || '',
-            invoiceNumber: c.invoiceNumber || '',
-            category: 'customer',
-            closingDay: c.closingDay || '末日',
-            paymentTerms: c.paymentTerms || '翌月末',
-            note: '過去伝票より自動復元',
-            usageCount: 1,
-            createdAt: doc.updatedAt || doc.issueDate || new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            rescued: true
-          };
-          clientsToAdd.push(newClient);
-          rescuedClients++;
-        }
+        const rawName = c.name.trim();
+        if (!rawName || rawName === '名称未設定') return;
+        const key = getMasterKey(rawName);
+        if (!key) return;
+
+        // サンプル取引先や既にマスタに存在するものは除外
+        if (SAMPLE_CLIENT_KEYS.has(key) || existingClientKeys.has(key)) return;
+
+        existingClientKeys.add(key);
+        const newClient = {
+          id: 'rescued_client_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          name: rawName,
+          code: c.code || '',
+          honorific: c.honorific || '御中',
+          zip: c.zip || '',
+          address: c.address || '',
+          contactPerson: c.contactPerson || '',
+          tel: c.tel || '',
+          email: c.email || '',
+          invoiceNumber: c.invoiceNumber || '',
+          category: 'customer',
+          closingDay: c.closingDay || '末日',
+          paymentTerms: c.paymentTerms || '翌月末',
+          note: '過去伝票より自動復元',
+          usageCount: 1,
+          createdAt: doc.updatedAt || doc.issueDate || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          rescued: true
+        };
+        clientsToAdd.push(newClient);
+        rescuedClients++;
       }
     });
 
@@ -952,38 +1361,40 @@ export function rescueMastersFromHistory() {
       const expenses = getExpenseList();
       expenses.forEach(exp => {
         const payee = (exp.payee || '').trim();
-        if (payee && !existingClientNames.has(payee.toLowerCase())) {
-          existingClientNames.add(payee.toLowerCase());
-          const newVendor = {
-            id: 'rescued_vendor_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-            name: payee,
-            code: '',
-            honorific: '御中',
-            zip: '',
-            address: '',
-            contactPerson: '',
-            tel: '',
-            email: '',
-            invoiceNumber: exp.invoiceNumber || '',
-            category: 'vendor',
-            closingDay: '都度',
-            paymentTerms: '即時精算',
-            note: '過去経費より自動復元',
-            usageCount: 1,
-            createdAt: exp.date || new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            rescued: true
-          };
-          clientsToAdd.push(newVendor);
-          rescuedClients++;
-        }
+        if (!payee) return;
+        const key = getMasterKey(payee);
+        if (!key || SAMPLE_CLIENT_KEYS.has(key) || existingClientKeys.has(key)) return;
+
+        existingClientKeys.add(key);
+        const newVendor = {
+          id: 'rescued_vendor_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          name: payee,
+          code: '',
+          honorific: '御中',
+          zip: '',
+          address: '',
+          contactPerson: '',
+          tel: '',
+          email: '',
+          invoiceNumber: exp.invoiceNumber || '',
+          category: 'vendor',
+          closingDay: '都度',
+          paymentTerms: '即時精算',
+          note: '過去経費より自動復元',
+          usageCount: 1,
+          createdAt: exp.date || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          rescued: true
+        };
+        clientsToAdd.push(newVendor);
+        rescuedClients++;
       });
     } catch (e) {
       // 経費リスト取得エラー時はスキップ
     }
 
     if (clientsToAdd.length > 0) {
-      const mergedClients = [...clientsToAdd, ...currentClients];
+      const mergedClients = deduplicateClientMasterList([...clientsToAdd, ...currentClients]);
       saveClientMasterList(mergedClients);
       console.log(`[マスタ救済復元] 過去の履歴から ${clientsToAdd.length} 件の取引先マスタを自動復元しました！`, clientsToAdd.map(c => c.name));
     }
@@ -997,28 +1408,8 @@ export function rescueMastersFromHistory() {
           saveIssuerProfile(currentProfile);
           console.log('[自社プロファイル救済] 振込先情報をサーバーファイルから復元・同期しました');
         }
-      }).catch(() => {});
+      }).catch(() => { });
     }
-
-    // バックアップにあった商品（DP-MS スプレッダー, DP-AC アクセサリーキット）も安全に追加
-    const backupSpecialItems = [
-      { name: 'DP-MS　スプレッダー', unitPrice: 73025, userPrice: 98000, unit: '個' },
-      { name: 'DP-AC　アクセサリーキット', unitPrice: 149031, userPrice: 200000, unit: 'セット' }
-    ];
-    backupSpecialItems.forEach(bItem => {
-      if (!existingItemNames.has(bItem.name.toLowerCase())) {
-        existingItemNames.add(bItem.name.toLowerCase());
-        saveItemToMaster({
-          name: bItem.name,
-          unitPrice: bItem.unitPrice,
-          userPrice: bItem.userPrice,
-          unit: bItem.unit,
-          taxRate: 10,
-          note: 'バックアップより自動復元'
-        });
-        rescuedItems++;
-      }
-    });
 
   } catch (e) {
     console.error('Failed to rescue masters from history:', e);
@@ -1038,33 +1429,41 @@ export async function syncMastersWithServer() {
       const localItems = getItemMasterList(false);
       const itemMap = new Map();
 
-      // サーバーデータをベースにマッピング
+      // サーバーデータをベースにマッピング（正規化キー）
       serverItems.forEach(i => {
-        const key = (i.name || '').trim().toLowerCase();
-        if (key) itemMap.set(key, i);
+        const key = getMasterKey(i.name);
+        if (key && !SAMPLE_ITEM_KEYS.has(key)) itemMap.set(key, i);
       });
 
       // ローカルデータをマージ（ローカルに新しく追加されたアイテムもサーバーに反映）
       localItems.forEach(i => {
-        const key = (i.name || '').trim().toLowerCase();
-        if (key) {
+        const key = getMasterKey(i.name);
+        if (key && !SAMPLE_ITEM_KEYS.has(key)) {
           if (!itemMap.has(key)) {
             itemMap.set(key, i);
           } else {
-            // 両方にある場合、更新日時が新しい方を優先
+            // 両方にある場合、更新日時が新しい方を優先（ただし救済ノート付きより正規を優先）
             const existing = itemMap.get(key);
-            const timeA = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
-            const timeB = new Date(i.updatedAt || i.createdAt || 0).getTime();
-            if (timeB > timeA) {
+            const isExistingRescued = !!(existing.rescued || (existing.note && existing.note.includes('自動復元')));
+            const isItemRescued = !!(i.rescued || (i.note && i.note.includes('自動復元')));
+            if (isExistingRescued && !isItemRescued) {
               itemMap.set(key, { ...existing, ...i });
+            } else if (!isExistingRescued && isItemRescued) {
+              // サーバー側の正規データを維持
+            } else {
+              const timeA = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+              const timeB = new Date(i.updatedAt || i.createdAt || 0).getTime();
+              if (timeB > timeA) {
+                itemMap.set(key, { ...existing, ...i });
+              }
             }
           }
         }
       });
 
-      const mergedItems = Array.from(itemMap.values());
+      const mergedItems = deduplicateItemMasterList(Array.from(itemMap.values()));
       // LocalStorageを更新
-      localStorage.setItem(KEYS.ITEM_MASTER, JSON.stringify(mergedItems));
+      localStorageSetItemAndSync(KEYS.ITEM_MASTER, JSON.stringify(mergedItems));
       // サーバーにも完全体として永続化
       await saveServerMasterItems(mergedItems);
       console.log(`[マスタ同期完了] 商品マスタ: 全 ${mergedItems.length} 件をサーバー・ローカルで完全同期しました`);
@@ -1081,34 +1480,36 @@ export async function syncMastersWithServer() {
       const clientMap = new Map();
 
       serverClients.forEach(c => {
-        const key = (c.name || '').trim().toLowerCase();
-        if (key) clientMap.set(key, c);
+        const key = getMasterKey(c.name);
+        if (key && !SAMPLE_CLIENT_KEYS.has(key)) clientMap.set(key, c);
       });
 
       localClients.forEach(c => {
-        const key = (c.name || '').trim().toLowerCase();
-        if (key) {
+        const key = getMasterKey(c.name);
+        if (key && !SAMPLE_CLIENT_KEYS.has(key)) {
           if (!clientMap.has(key)) {
             clientMap.set(key, c);
           } else {
             const existing = clientMap.get(key);
-            const timeA = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
-            const timeB = new Date(c.updatedAt || c.createdAt || 0).getTime();
-            if (timeB > timeA) {
+            const isExistingRescued = !!(existing.rescued || (existing.note && existing.note.includes('自動復元')));
+            const isClientRescued = !!(c.rescued || (c.note && c.note.includes('自動復元')));
+            if (isExistingRescued && !isClientRescued) {
               clientMap.set(key, { ...existing, ...c });
+            } else if (!isExistingRescued && isClientRescued) {
+              // サーバー側の正規データを維持
+            } else {
+              const timeA = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+              const timeB = new Date(c.updatedAt || c.createdAt || 0).getTime();
+              if (timeB > timeA) {
+                clientMap.set(key, { ...existing, ...c });
+              }
             }
           }
         }
       });
 
-      // タイムズの重複統合（経費との1対1対応を完全に維持）
-      const mergedList = Array.from(clientMap.values());
-      const hasDetailedTimes = mergedList.some(c => c.name && c.name.includes('高崎郵便局駐車場'));
-      const finalClients = hasDetailedTimes 
-        ? mergedList.filter(c => !(c.name === 'タイムズ２４株式会社' || c.id === 'client_mst_5'))
-        : mergedList;
-
-      localStorage.setItem(KEYS.CLIENT_MASTER, JSON.stringify(finalClients));
+      const finalClients = deduplicateClientMasterList(Array.from(clientMap.values()));
+      localStorageSetItemAndSync(KEYS.CLIENT_MASTER, JSON.stringify(finalClients));
       await saveServerMasterClients(finalClients);
       console.log(`[マスタ同期完了] 取引先マスタ: 全 ${finalClients.length} 件をサーバー・ローカルで完全同期しました`);
     } else {
@@ -1120,7 +1521,7 @@ export async function syncMastersWithServer() {
     try {
       const serverIssuer = await fetchServerIssuerProfile();
       const localIssuer = loadIssuerProfile() || {};
-      
+
       let finalBankInfo = '';
       if (serverIssuer && serverIssuer.bankInfo && serverIssuer.bankInfo.trim() !== '') {
         finalBankInfo = serverIssuer.bankInfo;
@@ -1150,7 +1551,7 @@ export async function syncMastersWithServer() {
         mergedIssuer.bankInfo = finalBankInfo;
       }
 
-      localStorage.setItem(KEYS.ISSUER_PROFILE, JSON.stringify(mergedIssuer));
+      localStorageSetItemAndSync(KEYS.ISSUER_PROFILE, JSON.stringify(mergedIssuer));
       await saveServerIssuerProfile(mergedIssuer);
       console.log(`[マスタ同期完了] 自社プロファイル（振込先情報含む）をサーバー・ローカルで完全同期しました`);
     } catch (issuerErr) {
@@ -1164,7 +1565,7 @@ export async function syncMastersWithServer() {
         // サーバーファイルを真実のマスター（Source of Truth）として1対1同期
         // サーバー上で削除されたレコードはローカルからも消去され、不整合や古いデータの復活を完全防止
         serverAttendance.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-        localStorage.setItem(KEYS.ATTENDANCE, JSON.stringify(serverAttendance));
+        localStorageSetItemAndSync(KEYS.ATTENDANCE, JSON.stringify(serverAttendance));
         console.log(`[勤怠同期完了] 勤怠データ: 全 ${serverAttendance.length} 件をサーバー・ローカル間で1対1完全同期しました`);
       } else {
         const localAttendance = getAttendanceList();
@@ -1191,7 +1592,7 @@ export async function syncMastersWithServer() {
         finalEmp.empNo = '2';
       }
 
-      localStorage.setItem(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(finalEmp));
+      localStorageSetItemAndSync(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(finalEmp));
       await saveServerAttendanceEmployee(finalEmp);
       console.log(`[勤怠同期完了] 勤怠社員情報（氏名: ${finalEmp.empName}）をサーバー・ローカルで同期しました`);
     } catch (empErr) {
@@ -1204,7 +1605,7 @@ export async function syncMastersWithServer() {
       const localPayRecords = getPayrollRecords();
 
       if (serverPayRecords && serverPayRecords.length > 0) {
-        localStorage.setItem(KEYS.PAYROLL_RECORDS, JSON.stringify(serverPayRecords));
+        localStorageSetItemAndSync(KEYS.PAYROLL_RECORDS, JSON.stringify(serverPayRecords));
       } else if (localPayRecords.length > 0) {
         await saveServerPayrollRecords(localPayRecords);
       }
@@ -1218,7 +1619,7 @@ export async function syncMastersWithServer() {
       const localPaySettings = getPayrollSettings();
 
       if (serverPaySettings && serverPaySettings.empNo) {
-        localStorage.setItem(KEYS.PAYROLL_SETTINGS, JSON.stringify(serverPaySettings));
+        localStorageSetItemAndSync(KEYS.PAYROLL_SETTINGS, JSON.stringify(serverPaySettings));
       } else if (localPaySettings && localPaySettings.empNo) {
         await saveServerPayrollSettings(localPaySettings);
       }
@@ -1232,7 +1633,7 @@ export async function syncMastersWithServer() {
       const localPrevIncome = getPreviousYearIncome();
 
       if (serverPrevIncome && serverPrevIncome.targetYear) {
-        localStorage.setItem(KEYS.PREVIOUS_YEAR_INCOME, JSON.stringify(serverPrevIncome));
+        localStorageSetItemAndSync(KEYS.PREVIOUS_YEAR_INCOME, JSON.stringify(serverPrevIncome));
       } else if (localPrevIncome && localPrevIncome.targetYear) {
         await saveServerPreviousYearIncome(localPrevIncome);
       }
@@ -1242,16 +1643,8 @@ export async function syncMastersWithServer() {
 
     // 8. 請求書履歴（data/invoices/invoices_history.json）の同期
     try {
-      const serverInvoices = await fetchServerInvoicesHistory();
-      const localInvoices = getHistoryList();
-
-      if (serverInvoices && Array.isArray(serverInvoices) && serverInvoices.length > 0) {
-        localStorage.setItem(KEYS.HISTORY, JSON.stringify(serverInvoices));
-        console.log(`[請求書同期完了] 請求書履歴: 全 ${serverInvoices.length} 件をサーバーから同期しました`);
-      } else if (localInvoices && localInvoices.length > 0) {
-        await saveServerInvoicesHistory(localInvoices);
-        console.log(`[請求書同期完了] ローカル請求書履歴: 全 ${localInvoices.length} 件をサーバーへ保存しました`);
-      }
+      const syncedHistory = await syncInvoicesHistoryWithServer();
+      console.log(`[請求書同期完了] 請求書履歴: 全 ${syncedHistory.length} 件をサーバー・ローカル間で双方向同期しました`);
     } catch (invErr) {
       console.warn('Sync invoices history error:', invErr);
     }
@@ -1262,7 +1655,7 @@ export async function syncMastersWithServer() {
       const localActiveDoc = loadActiveDoc();
 
       if (serverActiveDoc) {
-        localStorage.setItem(KEYS.ACTIVE_DOC, JSON.stringify(serverActiveDoc));
+        localStorageSetItemAndSync(KEYS.ACTIVE_DOC, JSON.stringify(serverActiveDoc));
       } else if (localActiveDoc) {
         await saveServerActiveDoc(localActiveDoc);
       }
@@ -1272,16 +1665,8 @@ export async function syncMastersWithServer() {
 
     // 10. 経費データ（data/expenses/expenses.json）の同期
     try {
-      const serverExpenses = await fetchServerExpenses();
-      const localExpenses = getExpenseList();
-
-      if (serverExpenses && Array.isArray(serverExpenses) && serverExpenses.length > 0) {
-        localStorage.setItem(KEYS.EXPENSES, JSON.stringify(serverExpenses));
-        console.log(`[経費同期完了] 経費データ: 全 ${serverExpenses.length} 件をサーバーから同期しました`);
-      } else if (localExpenses && localExpenses.length > 0) {
-        await saveServerExpenses(localExpenses);
-        console.log(`[経費同期完了] ローカル経費データ: 全 ${localExpenses.length} 件をサーバーへ保存しました`);
-      }
+      const synced = await syncExpensesWithServer();
+      console.log(`[経費同期完了] 経費データ: 全 ${synced.length} 件をサーバー・ローカル間で双方向同期しました`);
     } catch (expErr) {
       console.warn('Sync expenses error:', expErr);
     }
@@ -1315,11 +1700,11 @@ export function autoRegisterMastersFromDoc(doc) {
       });
     }
 
-    // 商品明細の自動マスタ登録
+    // 商品明細の自動マスタ登録（サンプル商品は除外）
     if (Array.isArray(doc.items)) {
       doc.items.forEach(it => {
         const name = (it.name || '').trim();
-        if (name) {
+        if (name && !SAMPLE_ITEM_KEYS.has(getMasterKey(name))) {
           saveItemToMaster({
             name: name,
             unitPrice: Number(it.unitPrice) || 0,
@@ -1340,10 +1725,10 @@ export function autoRegisterMastersFromDoc(doc) {
  * アプリ起動時のマスタ永続化＆自動復元統合初期化
  */
 export async function initMastersPersistence() {
-  // 1. 過去伝票からの救済マイグレーションを即時実行
-  const rescueResult = rescueMastersFromHistory();
-  // 2. サーバー（PCディスク）との双方向同期を安全に実行
+  // 1. サーバー（PCディスク）との双方向同期を最優先で安全に実行（本番マスターを確実に取り込む）
   await syncMastersWithServer();
+  // 2. その後、万が一失われた商品・取引先があれば過去伝票から安全に救済
+  const rescueResult = rescueMastersFromHistory();
   return rescueResult;
 }
 
@@ -1356,8 +1741,9 @@ export function saveClientToMaster(client) {
     const id = client.id || ('client_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6));
     const cleanName = (client.name || '').trim();
     if (!cleanName) return null;
+    const clientKey = getMasterKey(cleanName);
 
-    const existingIndex = list.findIndex(c => c.id === id || (c.name && c.name.trim() === cleanName));
+    const existingIndex = list.findIndex(c => c.id === id || (c.name && getMasterKey(c.name) === clientKey));
     const now = new Date().toISOString();
 
     const clientRecord = {
@@ -1431,9 +1817,10 @@ export function recordClientMasterUsage(clientId, clientName) {
 export function findClientByName(name) {
   if (!name) return null;
   const list = getClientMasterList(false);
-  const clean = name.trim().toLowerCase();
-  return list.find(c => (c.name || '').trim().toLowerCase() === clean) ||
-         list.find(c => (c.name || '').toLowerCase().includes(clean)) || null;
+  const key = getMasterKey(name);
+  if (!key) return null;
+  return list.find(c => getMasterKey(c.name) === key) ||
+    list.find(c => getMasterKey(c.name).includes(key)) || null;
 }
 
 
@@ -1477,7 +1864,7 @@ export function recordUserPrice(itemName, price) {
     if (map[cleanName].length > 20) {
       map[cleanName].length = 20;
     }
-    localStorage.setItem(KEYS.USER_PRICE_HISTORY, JSON.stringify(map));
+    localStorageSetItemAndSync(KEYS.USER_PRICE_HISTORY, JSON.stringify(map));
   } catch (e) {
     console.error('Failed to record user price:', e);
   }
@@ -1580,7 +1967,7 @@ export function getDiscountReasons() {
  */
 export function saveDiscountReasons(list) {
   try {
-    localStorage.setItem(KEYS.DISCOUNT_REASONS, JSON.stringify(list));
+    localStorageSetItemAndSync(KEYS.DISCOUNT_REASONS, JSON.stringify(list));
     return true;
   } catch (e) {
     console.error('Failed to save discount reasons:', e);
@@ -1646,8 +2033,8 @@ export function updateDocPaymentStatus(docId, status = 'paid', paidDate = '', no
       if (note) item.fullDoc.paymentNote = note;
     }
 
-    localStorage.setItem(KEYS.HISTORY, JSON.stringify(list));
-    saveServerInvoicesHistory(list).catch(() => {});
+    localStorageSetItemAndSync(KEYS.HISTORY, JSON.stringify(list));
+    saveServerInvoicesHistory(list).catch(() => { });
     return true;
   } catch (e) {
     console.error('Failed to update payment status:', e);
@@ -1678,8 +2065,8 @@ export function cancelDocIssue(docId) {
       item.fullDoc.updatedAt = item.updatedAt;
     }
 
-    localStorage.setItem(KEYS.HISTORY, JSON.stringify(list));
-    saveServerInvoicesHistory(list).catch(() => {});
+    localStorageSetItemAndSync(KEYS.HISTORY, JSON.stringify(list));
+    saveServerInvoicesHistory(list).catch(() => { });
     return true;
   } catch (e) {
     console.error('Failed to cancel doc issue:', e);
@@ -1694,23 +2081,53 @@ export function cancelDocIssue(docId) {
 /**
  * 経費・仕入一覧を取得
  */
-export function getExpenseList() {
+export function getAllExpenseList() {
   try {
     const raw = localStorage.getItem(KEYS.EXPENSES);
     if (!raw) return [];
     const list = JSON.parse(raw);
     let modified = false;
     list.forEach(e => {
-      // receiptImage と receiptDataUrl の相互補完
-      if (!e.receiptImage && e.receiptDataUrl) {
+      // 過去の巨大なBase64データがlocalStorageに残ってQuotaExceededErrorを引き起こすのを防ぐ
+      const isBase64Image = e.receiptImage && e.receiptImage.startsWith('data:image/');
+      const isBase64DataUrl = e.receiptDataUrl && e.receiptDataUrl.startsWith('data:image/');
+      const isServerUrlImage = e.receiptImage && !e.receiptImage.startsWith('data:image/');
+      const isServerUrlDataUrl = e.receiptDataUrl && !e.receiptDataUrl.startsWith('data:image/');
+
+      // サーバーURLが片方にあるなら、Base64のほうは不要なので消す
+      if (isBase64Image && isServerUrlDataUrl) {
         e.receiptImage = e.receiptDataUrl;
-      } else if (!e.receiptDataUrl && e.receiptImage) {
+        modified = true;
+      }
+      if (isBase64DataUrl && isServerUrlImage) {
         e.receiptDataUrl = e.receiptImage;
+        modified = true;
       }
 
+      // 両方ともBase64の場合、片方にだけ持たせて容量を半減させる
+      if (isBase64Image && isBase64DataUrl && e.receiptImage === e.receiptDataUrl) {
+        e.receiptDataUrl = 'same';
+        modified = true;
+      }
+
+      // それでも巨大なBase64(約1MB以上)がlocalStorageに残っている場合は、泣く泣く破棄する(パンク防止優先)
+      if (e.receiptImage && e.receiptImage.startsWith('data:image/') && e.receiptImage.length > 1500000) {
+        e.receiptImage = '';
+        if (e.receiptDataUrl === 'same' || e.receiptDataUrl.startsWith('data:image/')) e.receiptDataUrl = '';
+        modified = true;
+      }
+
+      if (!e.receiptImage && e.receiptDataUrl && e.receiptDataUrl !== 'same') {
+        e.receiptImage = e.receiptDataUrl;
+        modified = true;
+      } else if (!e.receiptDataUrl && e.receiptImage) {
+        e.receiptDataUrl = e.receiptImage;
+        modified = true;
+      }
     });
+
     if (modified) {
-      localStorage.setItem(KEYS.EXPENSES, JSON.stringify(list));
+      localStorageSetItemAndSync(KEYS.EXPENSES, JSON.stringify(list));
     }
     return list;
   } catch (e) {
@@ -1720,12 +2137,19 @@ export function getExpenseList() {
 }
 
 /**
+ * 経費・仕入一覧を取得（削除済みを除外）
+ */
+export function getExpenseList() {
+  return getAllExpenseList().filter(e => !e.isDeleted);
+}
+
+/**
  * 経費・仕入データを保存（新規追加または更新）
  * @param {object} expense { id, date, category, amount, taxRate, payee, invoiceNumber, note, receiptImage, receiptDataUrl, isCost }
  */
 export function saveExpense(expense) {
   try {
-    const list = getExpenseList();
+    const list = getAllExpenseList();
     const id = expense.id || ('exp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6));
     const receiptImg = expense.receiptImage || expense.receiptDataUrl || '';
     const newExp = {
@@ -1738,7 +2162,7 @@ export function saveExpense(expense) {
       invoiceNumber: expense.invoiceNumber ? String(expense.invoiceNumber).trim().toUpperCase() : '',
       note: expense.note || '',
       receiptImage: receiptImg,
-      receiptDataUrl: receiptImg,
+      receiptDataUrl: receiptImg ? "same" : "", // サイズ削減のため同じデータを持たせない
       isCost: !!expense.isCost,
       claimant: expense.claimant || '小林俊介',
       isSettled: !!expense.isSettled,
@@ -1754,7 +2178,7 @@ export function saveExpense(expense) {
       list.unshift(newExp);
     }
 
-    localStorage.setItem(KEYS.EXPENSES, JSON.stringify(list));
+    localStorageSetItemAndSync(KEYS.EXPENSES, JSON.stringify(list));
     // サーバーファイル（data/expenses/expenses.json）にも即時保存
     saveServerExpenses(list).catch(e => {
       console.warn('Server expenses save failed:', e);
@@ -1776,7 +2200,7 @@ export function markExpensesSettled(expenseIds = [], settledDate = '') {
   try {
     if (!Array.isArray(expenseIds) || expenseIds.length === 0) return 0;
     const targetSet = new Set(expenseIds);
-    const list = getExpenseList();
+    const list = getAllExpenseList();
     const dateStr = settledDate || new Date().toISOString().split('T')[0];
     let count = 0;
 
@@ -1790,7 +2214,7 @@ export function markExpensesSettled(expenseIds = [], settledDate = '') {
     });
 
     if (count > 0) {
-      localStorage.setItem(KEYS.EXPENSES, JSON.stringify(list));
+      localStorageSetItemAndSync(KEYS.EXPENSES, JSON.stringify(list));
       saveServerExpenses(list).catch(e => console.warn('Server expenses save failed:', e));
     }
     return count;
@@ -1805,13 +2229,19 @@ export function markExpensesSettled(expenseIds = [], settledDate = '') {
  */
 export function deleteExpense(id) {
   try {
-    const list = getExpenseList().filter(e => e.id !== id);
-    localStorage.setItem(KEYS.EXPENSES, JSON.stringify(list));
-    // サーバーファイル（data/expenses/expenses.json）にも即時保存
-    saveServerExpenses(list).catch(e => {
-      console.warn('Server expenses delete save failed:', e);
-    });
-    return true;
+    const list = getAllExpenseList();
+    const existingIndex = list.findIndex(e => e.id === id);
+    if (existingIndex >= 0) {
+      list[existingIndex].isDeleted = true;
+      list[existingIndex].updatedAt = new Date().toISOString();
+      localStorageSetItemAndSync(KEYS.EXPENSES, JSON.stringify(list));
+      // サーバーファイル（data/expenses/expenses.json）にも即時保存
+      saveServerExpenses(list).catch(e => {
+        console.warn('Server expenses delete save failed:', e);
+      });
+      return true;
+    }
+    return false;
   } catch (e) {
     console.error('Failed to delete expense:', e);
     return false;
@@ -1877,9 +2307,9 @@ export function saveAttendance(attendance) {
     }
 
     list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-    localStorage.setItem(KEYS.ATTENDANCE, JSON.stringify(list));
+    localStorageSetItemAndSync(KEYS.ATTENDANCE, JSON.stringify(list));
     // サーバー（data/attendance.json）へ即座に非同期保存
-    saveServerAttendance(list).catch(() => {});
+    saveServerAttendance(list).catch(() => { });
     return record;
   } catch (e) {
     console.error('Failed to save attendance:', e);
@@ -1946,10 +2376,10 @@ export function clockOutToday(timeStr = '', note = '') {
 export function deleteAttendance(idOrDate) {
   try {
     const list = getAttendanceList().filter(a => a.id !== idOrDate && a.date !== idOrDate);
-    localStorage.setItem(KEYS.ATTENDANCE, JSON.stringify(list));
+    localStorageSetItemAndSync(KEYS.ATTENDANCE, JSON.stringify(list));
     // サーバー（data/attendance/attendance.json）側からも即時削除して1対1整合性を維持
-    deleteServerAttendanceRecord(idOrDate, idOrDate).catch(() => {});
-    saveServerAttendance(list).catch(() => {});
+    deleteServerAttendanceRecord(idOrDate, idOrDate).catch(() => { });
+    saveServerAttendance(list).catch(() => { });
     return true;
   } catch (e) {
     console.error('Failed to delete attendance:', e);
@@ -1966,18 +2396,18 @@ export function getAttendanceEmployee() {
     let data = raw ? JSON.parse(raw) : null;
     if (!data) {
       data = { empNo: '2', empName: '宮崎真輔' };
-      localStorage.setItem(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(data));
+      localStorageSetItemAndSync(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(data));
       return data;
     }
     // 旧デフォルト「山田 一郎」または未設定の場合は「宮崎真輔」に自動更新
     if (!data.empName || data.empName === '山田 一郎') {
       data.empName = '宮崎真輔';
-      localStorage.setItem(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(data));
+      localStorageSetItemAndSync(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(data));
     }
     // 社員番号未設定または旧番号「1111」の場合は「2」に自動更新
     if (!data.empNo || data.empNo === '1111') {
       data.empNo = '2';
-      localStorage.setItem(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(data));
+      localStorageSetItemAndSync(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(data));
     }
     return data;
   } catch (e) {
@@ -1995,9 +2425,9 @@ export function saveAttendanceEmployee(info) {
       empNo: info.empNo !== undefined ? String(info.empNo).trim() : current.empNo,
       empName: info.empName !== undefined ? String(info.empName).trim() : current.empName
     };
-    localStorage.setItem(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(updated));
+    localStorageSetItemAndSync(KEYS.ATTENDANCE_EMPLOYEE, JSON.stringify(updated));
     // サーバー（data/attendance_employee.json）へ即座に非同期保存
-    saveServerAttendanceEmployee(updated).catch(() => {});
+    saveServerAttendanceEmployee(updated).catch(() => { });
     return updated;
   } catch (e) {
     console.error('Failed to save attendance employee:', e);
@@ -2053,39 +2483,39 @@ export function importDataFromJSON(jsonString) {
     }
 
     if (data.issuerProfile) {
-      localStorage.setItem(KEYS.ISSUER_PROFILE, JSON.stringify(data.issuerProfile));
+      localStorageSetItemAndSync(KEYS.ISSUER_PROFILE, JSON.stringify(data.issuerProfile));
     }
     if (data.history && Array.isArray(data.history)) {
-      localStorage.setItem(KEYS.HISTORY, JSON.stringify(data.history));
+      localStorageSetItemAndSync(KEYS.HISTORY, JSON.stringify(data.history));
     }
     if (data.activeDoc) {
-      localStorage.setItem(KEYS.ACTIVE_DOC, JSON.stringify(data.activeDoc));
+      localStorageSetItemAndSync(KEYS.ACTIVE_DOC, JSON.stringify(data.activeDoc));
     }
     if (data.itemMaster && Array.isArray(data.itemMaster)) {
-      localStorage.setItem(KEYS.ITEM_MASTER, JSON.stringify(data.itemMaster));
+      localStorageSetItemAndSync(KEYS.ITEM_MASTER, JSON.stringify(data.itemMaster));
     }
     if (data.clientMaster && Array.isArray(data.clientMaster)) {
-      localStorage.setItem(KEYS.CLIENT_MASTER, JSON.stringify(data.clientMaster));
+      localStorageSetItemAndSync(KEYS.CLIENT_MASTER, JSON.stringify(data.clientMaster));
     }
     if (data.discountReasons && Array.isArray(data.discountReasons)) {
-      localStorage.setItem(KEYS.DISCOUNT_REASONS, JSON.stringify(data.discountReasons));
+      localStorageSetItemAndSync(KEYS.DISCOUNT_REASONS, JSON.stringify(data.discountReasons));
     }
     if (data.userPriceHistory && typeof data.userPriceHistory === 'object') {
-      localStorage.setItem(KEYS.USER_PRICE_HISTORY, JSON.stringify(data.userPriceHistory));
+      localStorageSetItemAndSync(KEYS.USER_PRICE_HISTORY, JSON.stringify(data.userPriceHistory));
     }
     if (data.expenses && Array.isArray(data.expenses)) {
-      localStorage.setItem(KEYS.EXPENSES, JSON.stringify(data.expenses));
+      localStorageSetItemAndSync(KEYS.EXPENSES, JSON.stringify(data.expenses));
     }
     if (data.attendance && Array.isArray(data.attendance)) {
-      localStorage.setItem(KEYS.ATTENDANCE, JSON.stringify(data.attendance));
+      localStorageSetItemAndSync(KEYS.ATTENDANCE, JSON.stringify(data.attendance));
     }
     if (data.inventory && Array.isArray(data.inventory)) {
-      localStorage.setItem(KEYS.INVENTORY, JSON.stringify(data.inventory));
-      saveServerInventory(data.inventory).catch(() => {});
+      localStorageSetItemAndSync(KEYS.INVENTORY, JSON.stringify(data.inventory));
+      saveServerInventory(data.inventory).catch(() => { });
     }
     if (data.purchaseMappings && typeof data.purchaseMappings === 'object') {
-      localStorage.setItem(KEYS.PURCHASE_MAPPINGS, JSON.stringify(data.purchaseMappings));
-      saveServerPurchaseMappings(data.purchaseMappings).catch(() => {});
+      localStorageSetItemAndSync(KEYS.PURCHASE_MAPPINGS, JSON.stringify(data.purchaseMappings));
+      saveServerPurchaseMappings(data.purchaseMappings).catch(() => { });
     }
     return { success: true, activeDoc: data.activeDoc || null };
   } catch (e) {
@@ -2103,11 +2533,11 @@ export function importDataFromJSON(jsonString) {
  */
 export async function fetchServerInventory() {
   try {
-    const res = await fetch('/api/inventory');
+    const res = await apiFetch('inventory');
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) {
-        localStorage.setItem(KEYS.INVENTORY, JSON.stringify(data));
+        localStorageSetItemAndSync(KEYS.INVENTORY, JSON.stringify(data));
         return data;
       }
     }
@@ -2122,7 +2552,7 @@ export async function fetchServerInventory() {
  */
 export async function saveServerInventory(inventoryList) {
   try {
-    await fetch('/api/inventory', {
+    await apiFetch('inventory', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(inventoryList)
@@ -2137,11 +2567,11 @@ export async function saveServerInventory(inventoryList) {
  */
 export async function fetchServerPurchaseMappings() {
   try {
-    const res = await fetch('/api/purchase-mappings');
+    const res = await apiFetch('purchase-mappings');
     if (res.ok) {
       const data = await res.json();
       if (data && typeof data === 'object') {
-        localStorage.setItem(KEYS.PURCHASE_MAPPINGS, JSON.stringify(data));
+        localStorageSetItemAndSync(KEYS.PURCHASE_MAPPINGS, JSON.stringify(data));
         return data;
       }
     }
@@ -2156,7 +2586,7 @@ export async function fetchServerPurchaseMappings() {
  */
 export async function saveServerPurchaseMappings(mappings) {
   try {
-    await fetch('/api/purchase-mappings', {
+    await apiFetch('purchase-mappings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(mappings)
@@ -2177,7 +2607,65 @@ export async function initInventoryFromServer() {
 }
 
 /**
- * 在庫マスタ一覧を取得（商品マスタと自動連携・同期）
+ * 在庫マスタの重複排除およびサンプル品目の完全パージ
+ */
+export function deduplicateInventoryList(rawList) {
+  if (!Array.isArray(rawList)) return [];
+  const map = new Map();
+
+  for (const inv of rawList) {
+    if (!inv || !inv.name) continue;
+    // 1. サンプル品目の完全排除
+    if (isSampleItem(inv)) continue;
+
+    const key = getMasterKey(inv.name);
+    if (!key) continue;
+
+    if (!map.has(key)) {
+      map.set(key, {
+        id: inv.id || (`inv_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`),
+        itemId: inv.itemId || '',
+        name: normalizeMasterName(inv.name),
+        sku: (inv.sku || '').trim(),
+        currentStock: Number(inv.currentStock) || 0,
+        safetyStock: Number(inv.safetyStock) >= 0 ? Number(inv.safetyStock) : 5,
+        unit: (inv.unit || '個').trim(),
+        unitCost: Number(inv.unitCost) || 0,
+        unitPrice: Number(inv.unitPrice) || 0,
+        location: (inv.location || '本社倉庫').trim(),
+        lastInDate: inv.lastInDate || '',
+        note: inv.note || '',
+        history: Array.isArray(inv.history) ? [...inv.history] : []
+      });
+    } else {
+      // 既存品目と統合（重複解消）
+      const existing = map.get(key);
+      if (!existing.itemId && inv.itemId) existing.itemId = inv.itemId;
+      if (!existing.sku && inv.sku) existing.sku = inv.sku;
+      if (!existing.unitCost && inv.unitCost) existing.unitCost = inv.unitCost;
+      if (!existing.unitPrice && inv.unitPrice) existing.unitPrice = inv.unitPrice;
+      if (inv.currentStock > existing.currentStock) existing.currentStock = inv.currentStock;
+      if (inv.safetyStock > existing.safetyStock) existing.safetyStock = inv.safetyStock;
+      if (!existing.lastInDate && inv.lastInDate) existing.lastInDate = inv.lastInDate;
+      // 履歴をマージ（重複IDを除外）
+      if (Array.isArray(inv.history)) {
+        const histIds = new Set(existing.history.map(h => h.id || (h.date + h.type + h.qty)));
+        for (const h of inv.history) {
+          const hId = h.id || (h.date + h.type + h.qty);
+          if (!histIds.has(hId)) {
+            existing.history.push(h);
+            histIds.add(hId);
+          }
+        }
+      }
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+/**
+ * 在庫マスタ一覧を取得（商品マスタと自動連携・同期・重複排除・サンプル完全パージ）
  */
 export function getInventoryList() {
   try {
@@ -2190,17 +2678,17 @@ export function getInventoryList() {
       list = Array.isArray(parsed) ? parsed : [...DEFAULT_INVENTORY];
     }
 
-    // 商品マスタ（itemMaster）の商品がすべて在庫リストに含まれるよう自動同期
-    let itemMaster = [];
-    try {
-      const rawItems = localStorage.getItem(KEYS.ITEM_MASTER);
-      itemMaster = rawItems ? JSON.parse(rawItems) : [];
-    } catch (e) {}
+    const beforeLen = list.length;
+    // 重複排除とサンプルパージを実行
+    list = deduplicateInventoryList(list);
 
-    let modified = false;
-    itemMaster.forEach(prod => {
-      // itemId または name でマッチング
-      const existing = list.find(inv => inv.itemId === prod.id || (inv.name && inv.name.trim() === prod.name.trim()));
+    // 商品マスタ（クリーンアップ済み）と同期
+    const cleanItems = getItemMasterList(false);
+    let modified = (list.length !== beforeLen);
+
+    cleanItems.forEach(prod => {
+      const prodKey = getMasterKey(prod.name);
+      const existing = list.find(inv => (inv.itemId && inv.itemId === prod.id) || (getMasterKey(inv.name) === prodKey));
       if (existing) {
         if (!existing.itemId) {
           existing.itemId = prod.id;
@@ -2208,6 +2696,10 @@ export function getInventoryList() {
         }
         if (!existing.unitPrice && prod.unitPrice) {
           existing.unitPrice = prod.unitPrice;
+          modified = true;
+        }
+        if (existing.name !== prod.name) {
+          existing.name = prod.name;
           modified = true;
         }
       } else {
@@ -2240,8 +2732,8 @@ export function getInventoryList() {
     });
 
     if (modified) {
-      localStorage.setItem(KEYS.INVENTORY, JSON.stringify(list));
-      saveServerInventory(list).catch(() => {});
+      localStorageSetItemAndSync(KEYS.INVENTORY, JSON.stringify(list));
+      saveServerInventory(list).catch(() => { });
     }
 
     return list;
@@ -2306,7 +2798,7 @@ export function saveInventoryItem(item) {
     const list = getInventoryList();
     const id = item.id || `inv_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
     const nowStr = new Date().toISOString().split('T')[0];
-    
+
     const existingIndex = list.findIndex(i => i.id === id || (item.itemId && i.itemId === item.itemId));
     const updatedItem = {
       id,
@@ -2341,8 +2833,9 @@ export function saveInventoryItem(item) {
       list.push(updatedItem);
     }
 
-    localStorage.setItem(KEYS.INVENTORY, JSON.stringify(list));
-    saveServerInventory(list).catch(() => {});
+    const clean = deduplicateInventoryList(list);
+    localStorageSetItemAndSync(KEYS.INVENTORY, JSON.stringify(clean));
+    saveServerInventory(clean).catch(() => { });
     return updatedItem;
   } catch (e) {
     console.error('Failed to save inventory item:', e);
@@ -2357,8 +2850,8 @@ export function deleteInventoryItem(id) {
   try {
     const list = getInventoryList();
     const filtered = list.filter(i => i.id !== id);
-    localStorage.setItem(KEYS.INVENTORY, JSON.stringify(filtered));
-    saveServerInventory(filtered).catch(() => {});
+    localStorageSetItemAndSync(KEYS.INVENTORY, JSON.stringify(filtered));
+    saveServerInventory(filtered).catch(() => { });
     return true;
   } catch (e) {
     console.error('Failed to delete inventory item:', e);
@@ -2424,8 +2917,8 @@ export function adjustStock(id, deltaQty, reason = '', metadata = {}, isDirectSe
       }
     }
 
-    localStorage.setItem(KEYS.INVENTORY, JSON.stringify(list));
-    saveServerInventory(list).catch(() => {});
+    localStorageSetItemAndSync(KEYS.INVENTORY, JSON.stringify(list));
+    saveServerInventory(list).catch(() => { });
     return { item, logEntry };
   } catch (e) {
     console.error('Failed to adjust stock:', e);
@@ -2442,7 +2935,7 @@ export function syncInventoryWithItemsMaster() {
   let itemMaster = [];
   try {
     itemMaster = rawItemMaster ? JSON.parse(rawItemMaster) : [];
-  } catch (e) {}
+  } catch (e) { }
 
   let addedCount = 0;
   itemMaster.forEach(item => {
@@ -2477,8 +2970,8 @@ export function syncInventoryWithItemsMaster() {
   });
 
   if (addedCount > 0) {
-    localStorage.setItem(KEYS.INVENTORY, JSON.stringify(invList));
-    saveServerInventory(invList).catch(() => {});
+    localStorageSetItemAndSync(KEYS.INVENTORY, JSON.stringify(invList));
+    saveServerInventory(invList).catch(() => { });
   }
   return { addedCount, total: invList.length };
 }
@@ -2490,8 +2983,8 @@ export function getPurchaseMappings() {
   try {
     const raw = localStorage.getItem(KEYS.PURCHASE_MAPPINGS);
     if (!raw) {
-      localStorage.setItem(KEYS.PURCHASE_MAPPINGS, JSON.stringify(DEFAULT_PURCHASE_MAPPINGS));
-      saveServerPurchaseMappings(DEFAULT_PURCHASE_MAPPINGS).catch(() => {});
+      localStorageSetItemAndSync(KEYS.PURCHASE_MAPPINGS, JSON.stringify(DEFAULT_PURCHASE_MAPPINGS));
+      saveServerPurchaseMappings(DEFAULT_PURCHASE_MAPPINGS).catch(() => { });
       return { ...DEFAULT_PURCHASE_MAPPINGS };
     }
     const parsed = JSON.parse(raw);
@@ -2510,12 +3003,12 @@ export function savePurchaseMapping(rawName, inventoryId) {
   if (!rawName || !inventoryId) return;
   const key = String(rawName).trim();
   if (!key) return;
-  
+
   try {
     const mappings = getPurchaseMappings();
     mappings[key] = inventoryId;
-    localStorage.setItem(KEYS.PURCHASE_MAPPINGS, JSON.stringify(mappings));
-    saveServerPurchaseMappings(mappings).catch(() => {});
+    localStorageSetItemAndSync(KEYS.PURCHASE_MAPPINGS, JSON.stringify(mappings));
+    saveServerPurchaseMappings(mappings).catch(() => { });
   } catch (e) {
     console.error('Failed to save purchase mapping:', e);
   }
@@ -2590,7 +3083,7 @@ export function findInventoryMatchForPurchase(rawName) {
 
 export async function fetchServerPayrollRecords() {
   try {
-    const res = await fetch('/api/payroll/records');
+    const res = await apiFetch('payroll/records');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (e) {
@@ -2600,7 +3093,7 @@ export async function fetchServerPayrollRecords() {
 
 export async function saveServerPayrollRecords(records) {
   try {
-    const res = await fetch('/api/payroll/records', {
+    const res = await apiFetch('payroll/records', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(records)
@@ -2613,7 +3106,7 @@ export async function saveServerPayrollRecords(records) {
 
 export async function fetchServerPayrollSettings() {
   try {
-    const res = await fetch('/api/payroll/settings');
+    const res = await apiFetch('payroll/settings');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (e) {
@@ -2623,7 +3116,7 @@ export async function fetchServerPayrollSettings() {
 
 export async function saveServerPayrollSettings(settings) {
   try {
-    const res = await fetch('/api/payroll/settings', {
+    const res = await apiFetch('payroll/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings)
@@ -2636,7 +3129,7 @@ export async function saveServerPayrollSettings(settings) {
 
 export async function fetchServerPreviousYearIncome() {
   try {
-    const res = await fetch('/api/payroll/previous-year');
+    const res = await apiFetch('payroll/previous-year');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (e) {
@@ -2646,7 +3139,7 @@ export async function fetchServerPreviousYearIncome() {
 
 export async function saveServerPreviousYearIncome(data) {
   try {
-    const res = await fetch('/api/payroll/previous-year', {
+    const res = await apiFetch('payroll/previous-year', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -2682,7 +3175,7 @@ export function getPreviousYearIncome() {
         monthlyRecords: [],
         notes: '前年の給与明細・源泉徴収票データ（受取後に詳細登録可能）'
       };
-      localStorage.setItem(KEYS.PREVIOUS_YEAR_INCOME, JSON.stringify(data));
+      localStorageSetItemAndSync(KEYS.PREVIOUS_YEAR_INCOME, JSON.stringify(data));
     }
     return data;
   } catch (e) {
@@ -2702,7 +3195,7 @@ export function savePreviousYearIncome(data) {
   try {
     const current = getPreviousYearIncome();
     const updated = { ...current, ...data, updatedAt: new Date().toISOString() };
-    localStorage.setItem(KEYS.PREVIOUS_YEAR_INCOME, JSON.stringify(updated));
+    localStorageSetItemAndSync(KEYS.PREVIOUS_YEAR_INCOME, JSON.stringify(updated));
     saveServerPreviousYearIncome(updated);
     return updated;
   } catch (e) {
@@ -2755,7 +3248,7 @@ export function getPayrollSettings() {
         birthDate: '1981-11-12',
         prefecture: '群馬県'
       };
-      localStorage.setItem(KEYS.PAYROLL_SETTINGS, JSON.stringify(data));
+      localStorageSetItemAndSync(KEYS.PAYROLL_SETTINGS, JSON.stringify(data));
     }
     return data;
   } catch (e) {
@@ -2775,7 +3268,7 @@ export function savePayrollSettings(settings) {
   try {
     const current = getPayrollSettings();
     const updated = { ...current, ...settings };
-    localStorage.setItem(KEYS.PAYROLL_SETTINGS, JSON.stringify(updated));
+    localStorageSetItemAndSync(KEYS.PAYROLL_SETTINGS, JSON.stringify(updated));
     saveServerPayrollSettings(updated);
     return updated;
   } catch (e) {
@@ -2823,7 +3316,7 @@ export function savePayrollRecord(record) {
       toSave.createdAt = new Date().toISOString();
       records.unshift(toSave);
     }
-    localStorage.setItem(KEYS.PAYROLL_RECORDS, JSON.stringify(records));
+    localStorageSetItemAndSync(KEYS.PAYROLL_RECORDS, JSON.stringify(records));
     saveServerPayrollRecords(records);
     return toSave;
   } catch (e) {
@@ -2839,11 +3332,80 @@ export function deletePayrollRecord(targetMonthOrId) {
   try {
     let records = getPayrollRecords();
     records = records.filter(r => r.id !== targetMonthOrId && r.targetMonth !== targetMonthOrId);
-    localStorage.setItem(KEYS.PAYROLL_RECORDS, JSON.stringify(records));
+    localStorageSetItemAndSync(KEYS.PAYROLL_RECORDS, JSON.stringify(records));
     saveServerPayrollRecords(records);
     return true;
   } catch (e) {
     console.error('Failed to delete payroll record:', e);
     return false;
   }
+}
+
+/**
+ * ローカルストレージ内の全データ（マスタ・経費・伝票・自社設定）をサーバーへ一括アップロード
+ */
+export async function pushAllLocalDataToServer() {
+  const fetchFn = (typeof window !== 'undefined' && window.apiFetch) ? window.apiFetch : fetch;
+  const payload = {
+    masterItems: getItemMasterList(false),
+    masterClients: getClientMasterList(false),
+    issuerProfile: loadIssuerProfile(),
+    expenses: getExpenseList(),
+    invoicesHistory: getHistoryList(),
+    attendance: (typeof getAttendanceRecords === 'function') ? getAttendanceRecords() : []
+  };
+
+  try {
+    const res = await fetchFn('sync/push-all', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    return { success: true, message: '全データをサーバーへ正常にバックアップ・同期しました！' };
+  } catch (err) {
+    console.error('Failed to push all local data to server:', err);
+    return { success: false, error: err.message || err };
+  }
+}
+
+/**
+ * サーバーから全データを一括取得してローカルストレージへ即時反映
+ */
+export async function pullAllServerDataToLocal() {
+  const fetchFn = (typeof window !== 'undefined' && window.apiFetch) ? window.apiFetch : fetch;
+  try {
+    const res = await fetchFn('sync/pull-all', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (!data) throw new Error('Empty data from server');
+
+    if (data.masterItems && Array.isArray(data.masterItems) && data.masterItems.length > 0) {
+      saveItemMasterList(data.masterItems);
+    }
+    if (data.masterClients && Array.isArray(data.masterClients) && data.masterClients.length > 0) {
+      saveClientMasterList(data.masterClients);
+    }
+    if (data.issuerProfile && typeof data.issuerProfile === 'object') {
+      saveIssuerProfile(data.issuerProfile);
+    }
+    if (data.expenses && Array.isArray(data.expenses) && data.expenses.length > 0) {
+      localStorageSetItemAndSync(KEYS.EXPENSES, JSON.stringify(data.expenses));
+    }
+    if (data.invoicesHistory && Array.isArray(data.invoicesHistory) && data.invoicesHistory.length > 0) {
+      localStorageSetItemAndSync(KEYS.HISTORY, JSON.stringify(data.invoicesHistory));
+    }
+    return { success: true, message: 'サーバーから最新データを同期しました！' };
+  } catch (err) {
+    console.error('Failed to pull all data from server:', err);
+    return { success: false, error: err.message || err };
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.pushAllLocalDataToServer = pushAllLocalDataToServer;
+  window.pullAllServerDataToLocal = pullAllServerDataToLocal;
 }
