@@ -29,3 +29,9 @@ tests/
 dist-wordpress/
 dist-flat/
 *.zip
+
+# GCP Service Account
+service-account.json
+serviceAccountKey.json
+*.json
+google-cloud-cli-*.tar.gz

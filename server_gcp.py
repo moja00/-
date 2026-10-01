@@ -20,22 +20,8 @@ import uuid
 import time
 from datetime import datetime
 
-PORT = int(os.environ.get("PORT", 3000))
+PORT = 3000
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-def get_vertex_token():
-    # Cloud Run / メタデータサーバーからトークン取得
-    try:
-        req = urllib.request.Request(
-            "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
-            headers={"Metadata-Flavor": "Google"}
-        )
-        with urllib.request.urlopen(req, timeout=5) as res:
-            data = json.loads(res.read().decode())
-            return data.get("access_token")
-    except Exception as e:
-        print(f"Metadata token fetch failed: {e}")
-        return None
 
 def load_env():
     env_path = os.path.join(BASE_DIR, '.env')
@@ -175,7 +161,6 @@ def call_gemini_vision_ocr(image_base64_data_url):
     request_payload = {
         "contents": [
             {
-                "role": "user",
                 "parts": [
                     {"text": prompt},
                     {
@@ -195,43 +180,25 @@ def call_gemini_vision_ocr(image_base64_data_url):
 
     req_json = json.dumps(request_payload).encode('utf-8')
 
-    candidate_models = ['gemini-2.5-flash']
+    # 現在のアカウントで動作確認済みの最新Flashモデル順に試行（複数モデルで無料枠を冗長化）
+    candidate_models = [
+        'gemini-1.5-flash',
+        'gemini-1.5-flash-8b'
+    ]
     last_err = None
 
     for model in candidate_models:
-        url = f"https://us-central1-aiplatform.googleapis.com/v1/projects/alva-epr-510301/locations/us-central1/publishers/google/models/{model}:generateContent"
-        url_for_log = url
+        for attempt in range(2):  # 各モデル最大2回試行（一時的な過負荷503に対応）
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            req = urllib.request.Request(
+                url,
+                data=req_json,
+                headers={'Content-Type': 'application/json'}
+            )
 
-        print(f"\n========== [Vertex AI Request ({model})] ==========")
-        print(f"URL: {url_for_log}")
-        print(f"Body: {json.dumps(request_payload, ensure_ascii=False)}")
-        print(f"======================================================\n")
-
-        token = get_vertex_token()
-        headers = {
-            "Content-Type": "application/json"
-        }
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
-
-        req = urllib.request.Request(
-            url,
-            data=req_json,
-            headers=headers,
-            method="POST"
-        )
-
-        print(f"[DEBUG] Vertex AI Headers: {req.headers}")
-
-        for attempt in range(2):
             try:
                 with urllib.request.urlopen(req, timeout=20) as res:
                     res_body = res.read().decode('utf-8')
-                    print(f"\n========== [Gemini API Response ({model})] =========")
-                    print(f"Status: {res.status}")
-                    print(f"Body: {res_body}")
-                    print(f"========================================================\n")
-
                     parsed_res = json.loads(res_body)
                     candidates = parsed_res.get('candidates', [])
                     if candidates and 'content' in candidates[0]:
@@ -254,22 +221,16 @@ def call_gemini_vision_ocr(image_base64_data_url):
                             return ocr_data
             except urllib.error.HTTPError as e:
                 err_msg = e.read().decode('utf-8', errors='ignore')
-                print(f"\n========== [Gemini API HTTP Error ({model} 試行{attempt+1})] ==========")
-                print(f"Status: {e.code}")
-                print(f"Body: {err_msg}")
-                print(f"==============================================================\n")
-                last_err = f"Gemini APIエラー ({model} {e.code}): {err_msg}"
+                print(f"[Gemini API HTTP Error ({model}, 試行{attempt+1})] {e.code}: {err_msg}")
+                last_err = f"Gemini APIエラー ({e.code}): {err_msg}"
                 if e.code == 503 and attempt == 0:
                     time.sleep(1.5)  # 一時的混雑時は1.5秒待機してリトライ
                     continue
-                # 404, 400などの場合はこのモデルへの再試行をやめて次のモデルへ
                 break
             except Exception as e:
-                print(f"[Gemini API Error ({model} 試行{attempt+1})] {e}")
+                print(f"[Gemini API Error ({model}, 試行{attempt+1})] {e}")
                 last_err = str(e)
                 break
-        
-        print(f"[Gemini API] {model} での解析に失敗しました。次のモデルを試します。")
 
     return {"error": f"Gemini APIでの解析に失敗しました: {last_err}"}
 
@@ -1425,7 +1386,7 @@ def open_browser():
 
 if __name__ == '__main__':
     print("=" * 60)
-    print(" Alva-works ERP - 統合業務管理サーバー起動中")
+    print(" Alva-works EPR - 統合業務管理サーバー起動中")
     print(f" URL: http://localhost:{PORT}")
     has_key = bool(get_gemini_api_key())
     if has_key:
@@ -1435,8 +1396,7 @@ if __name__ == '__main__':
     print(" 終了するには Ctrl+C を押してください")
     print("=" * 60)
 
-    if not os.environ.get('K_SERVICE'):
-        threading.Timer(0.8, open_browser).start()
+    threading.Timer(0.8, open_browser).start()
 
     try:
         socketserver.TCPServer.allow_reuse_address = True

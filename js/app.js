@@ -2340,9 +2340,13 @@ function setupEventListeners() {
   if (DOM.btnCancelClientMasterForm) {
     DOM.btnCancelClientMasterForm.addEventListener('click', resetClientMasterForm);
   }
-  if (DOM.btnSaveClientMasterForm) {
-    DOM.btnSaveClientMasterForm.addEventListener('click', handleSaveClientMaster);
-  }
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('#btnSaveClientMasterForm');
+    if (btn) {
+      e.preventDefault();
+      handleSaveClientMaster();
+    }
+  });
   if (DOM.inputClientName) {
     DOM.inputClientName.addEventListener('change', handleClientNameAutocomplete);
   }
@@ -3579,6 +3583,7 @@ function resetClientMasterForm() {
 }
 
 function handleSaveClientMaster() {
+  console.log("【マスタ保存実行】ボタンクリック検知", { timestamp: new Date().toISOString() });
   const name = DOM.clientMasterInputName ? DOM.clientMasterInputName.value.trim() : '';
   if (!name) {
     alert('取引先 会社名 / 屋号を入力してください。');

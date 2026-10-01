@@ -392,7 +392,7 @@ export async function analyzeReceiptImage(dataUrlOrFile, onProgress = null, expe
   }
 
   // ========================================================================
-  // 0. ローカルサーバー経由の Gemini 1.5 Flash Vision OCR（超高精度・最優先）
+  // 0. ローカルサーバー経由の Gemini 2.5 Flash Vision OCR（超高精度・最優先）
   // コードにはAPIキーを一切書かず、ローカルサーバー（.env）経由で安全に通信
   // ========================================================================
   if (typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http') && dataUrl) {

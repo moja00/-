@@ -2325,7 +2325,7 @@ async function analyzeReceiptImage(dataUrlOrFile, onProgress = null, expenseHist
   }
 
   // ========================================================================
-  // 0. ローカルサーバー経由の Gemini 1.5 Flash Vision OCR（超高精度・最優先）
+  // 0. ローカルサーバー経由の Gemini 2.5 Flash Vision OCR（超高精度・最優先）
   // コードにはAPIキーを一切書かず、ローカルサーバー（.env）経由で安全に通信
   // ========================================================================
   if (typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http') && dataUrl) {
@@ -8098,9 +8098,13 @@ function setupEventListeners() {
   if (DOM.btnCancelClientMasterForm) {
     DOM.btnCancelClientMasterForm.addEventListener('click', resetClientMasterForm);
   }
-  if (DOM.btnSaveClientMasterForm) {
-    DOM.btnSaveClientMasterForm.addEventListener('click', handleSaveClientMaster);
-  }
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('#btnSaveClientMasterForm');
+    if (btn) {
+      e.preventDefault();
+      handleSaveClientMaster();
+    }
+  });
   if (DOM.inputClientName) {
     DOM.inputClientName.addEventListener('change', handleClientNameAutocomplete);
   }
@@ -9337,6 +9341,7 @@ function resetClientMasterForm() {
 }
 
 function handleSaveClientMaster() {
+  console.log("【マスタ保存実行】ボタンクリック検知", { timestamp: new Date().toISOString() });
   const name = DOM.clientMasterInputName ? DOM.clientMasterInputName.value.trim() : '';
   if (!name) {
     alert('取引先 会社名 / 屋号を入力してください。');
@@ -11834,6 +11839,10 @@ function handleSaveExpense() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: savedExp.id, image: tempReceiptDataUrl })
         }).then(res => res.json()).then(data => {
+          if (data && data.error) {
+            alert('画像保存エラー: ' + data.error + '\n詳細: ' + (data.details || ''));
+            return;
+          }
           if (data && data.url) {
             // アップロード成功後、サーバー上のURLに置き換えて再度保存（これでlocalStorageが軽く保たれる）
             savedExp.receiptImage = data.url;
@@ -11842,7 +11851,10 @@ function handleSaveExpense() {
           }
           if (typeof syncReceiptStorageWithExpenses === 'function') syncReceiptStorageWithExpenses();
           if (typeof syncExpensesWithServer === 'function') syncExpensesWithServer().catch(e => console.warn(e));
-        }).catch(e => console.warn('Receipt server storage sync skipped:', e));
+        }).catch(e => {
+          console.warn('Receipt server storage sync skipped:', e);
+          alert('サーバーとの通信エラーで画像を保存できませんでした。');
+        });
       } else if (!tempReceiptDataUrl && id) {
         (window.apiFetch || fetch)('delete-receipt', {
           method: 'POST',
