@@ -766,13 +766,20 @@ export async function fetchServerAttendance() {
 
 export async function saveServerAttendance(attendanceList) {
   try {
+    console.log("【勤怠サーバー保存】実行開始", attendanceList);
     const res = await apiFetch('attendance', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(attendanceList)
     });
+    if (res.ok) {
+      console.log("【勤怠サーバー保存】成功");
+    } else {
+      console.error("【勤怠サーバー保存】失敗 HTTPステータス:", res.status);
+    }
     return res.ok;
   } catch (e) {
+    console.error('【勤怠サーバー保存】通信エラー:', e);
     return false;
   }
 }
@@ -1258,6 +1265,10 @@ export function saveClientMasterList(list) {
  * @returns {{rescuedItems: number, rescuedClients: number}}
  */
 export function rescueMastersFromHistory() {
+  // ユーザーが明示的に削除したマスタが再読み込みで勝手に復活してしまう問題を回避するため、
+  // 過去伝票からの自動復元機能を無効化します。
+  return { items: 0, clients: 0 };
+  
   let rescuedItems = 0;
   let rescuedClients = 0;
 
@@ -1426,47 +1437,12 @@ export async function syncMastersWithServer() {
     // 1. 商品マスタの同期
     const serverItems = await fetchServerMasterItems();
     if (serverItems && Array.isArray(serverItems)) {
-      const localItems = getItemMasterList(false);
-      const itemMap = new Map();
-
-      // サーバーデータをベースにマッピング（正規化キー）
-      serverItems.forEach(i => {
-        const key = getMasterKey(i.name);
-        if (key && !SAMPLE_ITEM_KEYS.has(key)) itemMap.set(key, i);
-      });
-
-      // ローカルデータをマージ（ローカルに新しく追加されたアイテムもサーバーに反映）
-      localItems.forEach(i => {
-        const key = getMasterKey(i.name);
-        if (key && !SAMPLE_ITEM_KEYS.has(key)) {
-          if (!itemMap.has(key)) {
-            itemMap.set(key, i);
-          } else {
-            // 両方にある場合、更新日時が新しい方を優先（ただし救済ノート付きより正規を優先）
-            const existing = itemMap.get(key);
-            const isExistingRescued = !!(existing.rescued || (existing.note && existing.note.includes('自動復元')));
-            const isItemRescued = !!(i.rescued || (i.note && i.note.includes('自動復元')));
-            if (isExistingRescued && !isItemRescued) {
-              itemMap.set(key, { ...existing, ...i });
-            } else if (!isExistingRescued && isItemRescued) {
-              // サーバー側の正規データを維持
-            } else {
-              const timeA = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
-              const timeB = new Date(i.updatedAt || i.createdAt || 0).getTime();
-              if (timeB > timeA) {
-                itemMap.set(key, { ...existing, ...i });
-              }
-            }
-          }
-        }
-      });
-
-      const mergedItems = deduplicateItemMasterList(Array.from(itemMap.values()));
+      // サーバーを正としてローカルを上書き（1対1の同期）
+      const validItems = serverItems.filter(i => !SAMPLE_ITEM_KEYS.has(getMasterKey(i.name)));
+      const mergedItems = deduplicateItemMasterList(validItems);
       // LocalStorageを更新
       localStorageSetItemAndSync(KEYS.ITEM_MASTER, JSON.stringify(mergedItems));
-      // サーバーにも完全体として永続化
-      await saveServerMasterItems(mergedItems);
-      console.log(`[マスタ同期完了] 商品マスタ: 全 ${mergedItems.length} 件をサーバー・ローカルで完全同期しました`);
+      console.log(`[マスタ同期完了] 商品マスタ: サーバーの全 ${mergedItems.length} 件でローカルを上書き同期しました`);
     } else {
       // サーバー上にまだファイルがない場合、ローカルの内容をサーバーへ書き込み
       const localItems = getItemMasterList(false);
@@ -1476,42 +1452,11 @@ export async function syncMastersWithServer() {
     // 2. 取引先マスタの同期
     const serverClients = await fetchServerMasterClients();
     if (serverClients && Array.isArray(serverClients)) {
-      const localClients = getClientMasterList(false);
-      const clientMap = new Map();
-
-      serverClients.forEach(c => {
-        const key = getMasterKey(c.name);
-        if (key && !SAMPLE_CLIENT_KEYS.has(key)) clientMap.set(key, c);
-      });
-
-      localClients.forEach(c => {
-        const key = getMasterKey(c.name);
-        if (key && !SAMPLE_CLIENT_KEYS.has(key)) {
-          if (!clientMap.has(key)) {
-            clientMap.set(key, c);
-          } else {
-            const existing = clientMap.get(key);
-            const isExistingRescued = !!(existing.rescued || (existing.note && existing.note.includes('自動復元')));
-            const isClientRescued = !!(c.rescued || (c.note && c.note.includes('自動復元')));
-            if (isExistingRescued && !isClientRescued) {
-              clientMap.set(key, { ...existing, ...c });
-            } else if (!isExistingRescued && isClientRescued) {
-              // サーバー側の正規データを維持
-            } else {
-              const timeA = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
-              const timeB = new Date(c.updatedAt || c.createdAt || 0).getTime();
-              if (timeB > timeA) {
-                clientMap.set(key, { ...existing, ...c });
-              }
-            }
-          }
-        }
-      });
-
-      const finalClients = deduplicateClientMasterList(Array.from(clientMap.values()));
+      // サーバーを正としてローカルを上書き（1対1の同期）
+      const validClients = serverClients.filter(c => !SAMPLE_CLIENT_KEYS.has(getMasterKey(c.name)));
+      const finalClients = deduplicateClientMasterList(validClients);
       localStorageSetItemAndSync(KEYS.CLIENT_MASTER, JSON.stringify(finalClients));
-      await saveServerMasterClients(finalClients);
-      console.log(`[マスタ同期完了] 取引先マスタ: 全 ${finalClients.length} 件をサーバー・ローカルで完全同期しました`);
+      console.log(`[マスタ同期完了] 取引先マスタ: サーバーの全 ${finalClients.length} 件でローカルを上書き同期しました`);
     } else {
       const localClients = getClientMasterList(false);
       await saveServerMasterClients(localClients);
@@ -3352,7 +3297,7 @@ export async function pushAllLocalDataToServer() {
     issuerProfile: loadIssuerProfile(),
     expenses: getExpenseList(),
     invoicesHistory: getHistoryList(),
-    attendance: (typeof getAttendanceRecords === 'function') ? getAttendanceRecords() : []
+    attendance: (typeof getAttendanceList === 'function') ? getAttendanceList() : []
   };
 
   try {

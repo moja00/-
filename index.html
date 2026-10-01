@@ -2043,7 +2043,7 @@
           <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
           <circle cx="12" cy="13" r="4" />
         </svg>
-        レシート読取＆経費入力
+        経費
       </button>
       <button type="button" class="acc-tab-btn" data-tab="acc-tab-journals"
         onclick="window.switchAccountingTab &amp;&amp; window.switchAccountingTab('acc-tab-journals')">
@@ -2281,8 +2281,19 @@
         </div>
       </div>
       <div class="view-screen-header-actions" style="display: flex; gap: 8px; align-items: center;">
+        <div style="display: inline-flex; align-items: center; gap: 8px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 4px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-right: 10px;">
+          <span style="font-size: 0.8rem; font-weight: 700; color: #334155; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;">📅 表示期間:</span>
+          <select id="expenseGlobalPeriodPreset" class="form-select" onchange="window.applyExpenseGlobalPeriod && window.applyExpenseGlobalPeriod(this.value)" style="padding: 4px 10px; font-size: 0.825rem; font-weight: 700; width: auto; border: 1px solid #94a3b8; border-radius: 6px; background: #f8fafc; color: #1e293b; cursor: pointer;">
+            <option value="thisMonth">今月</option>
+            <option value="lastMonth">先月</option>
+            <option value="last3Months">直近3ヶ月</option>
+            <option value="thisYear">今年度</option>
+            <option value="lastYear">前年度</option>
+            <option value="all" selected>全期間</option>
+          </select>
+        </div>
         <button type="button" class="btn btn-secondary btn-sm" id="btnOpenExpenseSettlementModal"
-          onclick="window.openExpenseSettlementModal &amp;&amp; window.openExpenseSettlementModal()"
+          onclick="window.openExpenseSettlementModal && window.openExpenseSettlementModal()"
           style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: #f0fdf4; border-color: #86efac; color: #166534; font-weight: 700; cursor: pointer;">
           <span>🖨️</span> 経費精算書 発行
         </button>

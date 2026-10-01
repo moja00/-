@@ -657,15 +657,46 @@ def get_fs_document(col_name, doc_id, default_data=None):
 
 def save_fs_collection(col_name, data_list, id_field='id'):
     try:
+        incoming_ids = set()
+        for item in data_list:
+            doc_id = item.get(id_field)
+            if doc_id:
+                incoming_ids.add(doc_id)
+        
+        existing_docs = db.collection(col_name).stream()
+        docs_to_delete = []
+        for doc in existing_docs:
+            if doc.id not in incoming_ids:
+                docs_to_delete.append(doc.reference)
+        
         batch = db.batch()
+        count = 0
+        
+        for ref in docs_to_delete:
+            batch.delete(ref)
+            count += 1
+            if count == 500:
+                batch.commit()
+                batch = db.batch()
+                count = 0
+                
         for item in data_list:
             doc_id = item.get(id_field)
             if doc_id:
                 doc_ref = db.collection(col_name).document(doc_id)
                 batch.set(doc_ref, item)
-        batch.commit()
+                count += 1
+                if count == 500:
+                    batch.commit()
+                    batch = db.batch()
+                    count = 0
+                    
+        if count > 0:
+            batch.commit()
+            
         return True, ""
     except Exception as e:
+        print(f"[Firestore] save_fs_collection error in {col_name}: {e}")
         return False, str(e)
 
 def save_fs_document(col_name, doc_id, data):

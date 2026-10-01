@@ -4721,6 +4721,12 @@ let currentAccGlobalPeriod = {
   end: ''
 };
 
+let currentExpenseGlobalPeriod = {
+  preset: 'all',
+  start: '',
+  end: ''
+};
+
 /**
  * プリセット名から開始日・終了日（YYYY-MM-DD）を算出
  * @param {string} preset 'all' | 'thisMonth' | 'lastMonth' | 'last3Months' | 'thisYear' | 'lastYear' | 'custom'
@@ -4973,6 +4979,22 @@ window.setAccDateRangeModalPreset = setAccDateRangeModalPreset;
 window.updateAccDateRangeModalPreview = updateAccDateRangeModalPreview;
 window.confirmAccDateRangeFromModal = confirmAccDateRangeFromModal;
 window.applyAccGlobalPeriod = applyAccGlobalPeriod;
+
+window.applyExpenseGlobalPeriod = function(preset = 'all') {
+  currentExpenseGlobalPeriod.preset = preset;
+  const range = getPresetPeriodRange(preset);
+  currentExpenseGlobalPeriod.start = range.start;
+  currentExpenseGlobalPeriod.end = range.end;
+  
+  const presetSelect = document.getElementById('expenseGlobalPeriodPreset');
+  if (presetSelect && presetSelect.value !== preset) {
+    presetSelect.value = preset;
+  }
+  
+  if (typeof renderAccountingExpenses === 'function') {
+    renderAccountingExpenses();
+  }
+};
 
 function initAccountingMonthSelector() {
   if (!DOM.accSelectMonth) return;
@@ -6187,8 +6209,8 @@ function renderAccountingExpenses(periodFilter = currentAccGlobalPeriod) {
 
   const allExpenses = getExpenseList();
 
-  // 1. 集計対象期間によるフィルタリング
-  let filtered = allExpenses.filter(exp => isDateInPeriod(exp.date, periodFilter));
+  // 1. 集計対象期間によるフィルタリング（経費専用画面用は独立した期間を使用）
+  let filtered = allExpenses.filter(exp => isDateInPeriod(exp.date, typeof currentExpenseGlobalPeriod !== 'undefined' ? currentExpenseGlobalPeriod : {preset: 'all'}));
 
   // 2. 社員（立替者）による絞り込み
   const claimantFilter = DOM.expenseFilterClaimant ? DOM.expenseFilterClaimant.value : 'all';
@@ -6891,6 +6913,8 @@ function handleSaveManualAttendance() {
   const clockOut = DOM.inputManualAttClockOut?.value || '';
   const note = DOM.inputManualAttNote?.value || '';
 
+  console.log("【勤怠手動保存】実行開始", { date, clockIn, clockOut, note });
+
   if (!date) {
     alert('勤務日を選択してください。');
     return;
@@ -6909,6 +6933,7 @@ function handleSaveManualAttendance() {
   });
 
   if (savedRec) {
+    console.log("【勤怠手動保存】ローカル保存成功", savedRec);
     showToast(`${date} の勤怠データを保存しました！`, 'success');
     toggleManualAttendanceForm(false);
     updateAttendanceUI();
