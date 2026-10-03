@@ -2594,6 +2594,16 @@ label.form-label {
     justify-content: flex-start !important;
   }
 
+  /* 勤怠管理画面：打刻ボタンのスマホサイズ調整 */
+  .btn-stamp-action {
+    font-size: 1rem !important;
+    padding: 14px 6px !important;
+  }
+  .btn-stamp-action svg {
+    width: 24px !important;
+    height: 24px !important;
+  }
+
   .editor-sidebar {
     width: 100% !important;
     min-width: 100% !important;
