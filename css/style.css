@@ -53,6 +53,8 @@ html, body {
   color: var(--text-primary);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 /* ==========================================================================
@@ -2633,13 +2635,38 @@ label.form-label {
     overflow-y: visible !important;
     padding: 16px 8px !important;
     background: #475569 !important;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    justify-content: flex-start;
+  }
+
+  /* プレビューツールバーを横スクロール可能に */
+  .preview-toolbar {
+    width: 100% !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    box-sizing: border-box !important;
+    justify-content: flex-start !important;
+    padding: 10px 8px !important;
+    border-radius: 8px !important;
+  }
+  .preview-toolbar::-webkit-scrollbar {
+    height: 4px;
+  }
+  .preview-toolbar::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.3);
+    border-radius: 4px;
   }
 
   .invoice-sheet {
     transform-origin: top left;
-    max-width: 100% !important;
+    /* max-widthを解除して本来のA4比率を維持し、はみ出た部分はスクロールさせるか縮小表示させる */
+    max-width: none !important;
+    width: 794px !important; /* A4サイズの基準幅 */
+    transform: scale(0.46) !important; /* スマホ画面幅(約375px)に合わせて縮小 */
+    margin-bottom: -500px !important; /* 縮小によって生じる下部の余白を相殺 */
     box-sizing: border-box !important;
-    padding: 24px 14px !important;
   }
 
   /* 2. ヘッダーのごちゃごちゃ解消 */
