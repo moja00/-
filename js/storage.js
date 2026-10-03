@@ -1506,16 +1506,32 @@ export async function syncMastersWithServer() {
     // 4. 勤怠打刻データ（data/attendance/attendance.json）の1対1整合性同期
     try {
       const serverAttendance = await fetchServerAttendance();
-      if (serverAttendance && Array.isArray(serverAttendance)) {
+      if (serverAttendance && Array.isArray(serverAttendance) && serverAttendance.length > 0) {
         // サーバーファイルを真実のマスター（Source of Truth）として1対1同期
-        // サーバー上で削除されたレコードはローカルからも消去され、不整合や古いデータの復活を完全防止
+        // 【復元ガード】上書き前にローカルの既存データをバックアップ保存
+        const existingData = localStorage.getItem(KEYS.ATTENDANCE);
+        if (existingData && existingData !== '[]') {
+          localStorage.setItem(KEYS.ATTENDANCE + '_backup', existingData);
+        }
+
         serverAttendance.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
         localStorageSetItemAndSync(KEYS.ATTENDANCE, JSON.stringify(serverAttendance));
         console.log(`[勤怠同期完了] 勤怠データ: 全 ${serverAttendance.length} 件をサーバー・ローカル間で1対1完全同期しました`);
       } else {
+        console.warn("サーバーデータが0件または取得エラーのため既存データを維持します。");
+        // もしローカルにデータがあればサーバーへ送信して復旧
         const localAttendance = getAttendanceList();
         if (localAttendance.length > 0) {
+          console.log("ローカルデータをサーバーにプッシュして復旧します。");
           await saveServerAttendance(localAttendance);
+        } else {
+          // ローカルも空の場合、バックアップから復元を試みる
+          const backupData = localStorage.getItem(KEYS.ATTENDANCE + '_backup');
+          if (backupData && backupData !== '[]') {
+            console.log("バックアップから勤怠データを復元しました。");
+            localStorageSetItemAndSync(KEYS.ATTENDANCE, backupData);
+            await saveServerAttendance(JSON.parse(backupData));
+          }
         }
       }
     } catch (attErr) {
@@ -3343,6 +3359,9 @@ export async function pullAllServerDataToLocal() {
     if (data.invoicesHistory && Array.isArray(data.invoicesHistory) && data.invoicesHistory.length > 0) {
       localStorageSetItemAndSync(KEYS.HISTORY, JSON.stringify(data.invoicesHistory));
     }
+    if (data.attendance && Array.isArray(data.attendance) && data.attendance.length > 0) {
+      localStorageSetItemAndSync(KEYS.ATTENDANCE, JSON.stringify(data.attendance));
+    }
     return { success: true, message: 'サーバーから最新データを同期しました！' };
   } catch (err) {
     console.error('Failed to pull all data from server:', err);
@@ -3353,4 +3372,14 @@ export async function pullAllServerDataToLocal() {
 if (typeof window !== 'undefined') {
   window.pushAllLocalDataToServer = pushAllLocalDataToServer;
   window.pullAllServerDataToLocal = pullAllServerDataToLocal;
+  window.restoreAttendanceFromBackup = function() {
+    const backup = localStorage.getItem(KEYS.ATTENDANCE + '_backup');
+    if (backup && backup !== '[]') {
+      localStorageSetItemAndSync(KEYS.ATTENDANCE, backup);
+      alert('バックアップから勤怠データを復元しました。画面をリロードしてください。');
+      location.reload();
+    } else {
+      alert('有効なバックアップデータが見つかりませんでした。');
+    }
+  };
 }

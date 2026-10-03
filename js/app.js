@@ -6819,30 +6819,65 @@ function renderAttendanceHistoryTable() {
   if (!DOM.attendanceTableBody) return;
   const list = getAttendanceList();
 
-  if (list.length === 0) {
+  const validList = list.filter(r => r && (r.date || r.workDate));
+
+  if (validList.length === 0) {
     DOM.attendanceTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--slate-400); padding: 24px;">打刻履歴はありません</td></tr>`;
     return;
   }
 
-  const sorted = [...list].sort((a, b) => b.date.localeCompare(a.date));
+  const sorted = [...validList].sort((a, b) => {
+    const dateA = a.date || a.workDate || '';
+    const dateB = b.date || b.workDate || '';
+    return dateB.localeCompare(dateA);
+  });
 
   let html = '';
-  sorted.forEach(item => {
-    const duration = calculateWorkDuration(item.clockIn, item.clockOut);
-    const workHours = item.clockIn && item.clockOut ? formatMinutesToDecimalHours(duration.workMinutes, true) : '-';
-    const overtimeHours = item.clockIn && item.clockOut ? (duration.overtimeMinutes > 0 ? formatMinutesToDecimalHours(duration.overtimeMinutes, true) : '0.00時間') : '-';
+  sorted.forEach(r => {
+    const dateVal = r.date || r.workDate || (r.rawRecord && r.rawRecord.targetMonth ? r.rawRecord.targetMonth + '-01' : '') || '-';
+    const clockInVal = r.clockIn || r.startTime || r.inTime || (r.workHours ? '09:00' : '-');
+    const clockOutVal = r.clockOut || r.endTime || r.outTime || (r.workHours ? '18:00' : '-');
+    let breakVal = '-';
+    if (r.breakHours || (clockInVal !== '-' && clockOutVal !== '-')) {
+      breakVal = '1時間（自動）';
+    }
+    
+    const duration = calculateWorkDuration(clockInVal === '-' ? '' : clockInVal, clockOutVal === '-' ? '' : clockOutVal);
+    
+    let workHoursVal = r.workHours || (r.rawRecord ? r.rawRecord.workHoursStandard : '') || '';
+    if (!workHoursVal && clockInVal !== '-' && clockOutVal !== '-') {
+      workHoursVal = formatMinutesToDecimalHours(duration.workMinutes, true);
+    }
+    
+    let formattedWorkHours = '-';
+    const parsedWork = parseFloat(String(workHoursVal).replace(/[^0-9.]/g, ''));
+    if (!isNaN(parsedWork) && parsedWork > 0) {
+      formattedWorkHours = parsedWork.toFixed(2) + '時間';
+    }
+    
+    let overtimeHoursVal = r.overtimeHours !== undefined ? r.overtimeHours : (r.rawRecord && r.rawRecord.overtimeHours !== undefined ? r.rawRecord.overtimeHours : '');
+    if (overtimeHoursVal === '' && clockInVal !== '-' && clockOutVal !== '-') {
+      overtimeHoursVal = duration.overtimeMinutes > 0 ? formatMinutesToDecimalHours(duration.overtimeMinutes, true) : '0';
+    }
+
+    let formattedOvertime = '0.00時間';
+    const parsedOt = parseFloat(String(overtimeHoursVal).replace(/[^0-9.]/g, ''));
+    if (!isNaN(parsedOt)) {
+      formattedOvertime = parsedOt.toFixed(2) + '時間';
+    }
+    const otNum = parsedOt || 0;
 
     html += `
       <tr>
-        <td style="font-weight: 600;">${escapeHtml(item.date)}</td>
-        <td style="font-family: monospace;">${escapeHtml(item.clockIn || '-')}</td>
-        <td style="font-family: monospace;">${escapeHtml(item.clockOut || '-')}</td>
-        <td style="color: var(--slate-500); font-size: 12px;">1時間（自動）</td>
-        <td style="font-weight: 700; color: var(--indigo-700); font-family: monospace;">${workHours}</td>
-        <td style="font-weight: 600; color: ${duration.overtimeMinutes > 0 ? '#e11d48' : 'var(--slate-500)'}; font-family: monospace;">${overtimeHours}</td>
-        <td style="text-align: center; white-space: nowrap;">
-          <button type="button" class="btn btn-secondary btn-xs" style="margin-right: 4px; padding: 2px 6px;" onclick="window.__editAttendanceRecord('${item.date}')">修正</button>
-          <button type="button" class="btn btn-outline btn-xs btn-danger" style="padding: 2px 6px;" onclick="window.__deleteAttendanceRecord('${item.date}', '${item.id || ''}')">削除</button>
+        <td style="font-weight: 600; text-align: left; padding: 8px 10px;">${escapeHtml(dateVal)}</td>
+        <td style="font-family: monospace; text-align: center; padding: 8px 10px;">${escapeHtml(clockInVal)}</td>
+        <td style="font-family: monospace; text-align: center; padding: 8px 10px;">${escapeHtml(clockOutVal)}</td>
+        <td style="color: var(--slate-500); font-size: 12px; text-align: center; padding: 8px 10px;">${escapeHtml(breakVal)}</td>
+        <td style="font-weight: 700; color: var(--indigo-700); font-family: monospace; text-align: center; padding: 8px 10px;">${escapeHtml(formattedWorkHours)}</td>
+        <td style="font-weight: 600; color: ${otNum > 0 ? '#e11d48' : 'var(--slate-500)'}; font-family: monospace; text-align: center; padding: 8px 10px;">${escapeHtml(formattedOvertime)}</td>
+        <td style="text-align: center; white-space: nowrap; padding: 8px 10px;">
+          <button type="button" class="btn btn-secondary btn-xs" style="margin-right: 4px; padding: 2px 6px;" onclick="window.__editAttendanceRecord('${dateVal}')">修正</button>
+          <button type="button" class="btn btn-outline btn-xs btn-danger" style="padding: 2px 6px;" onclick="window.__deleteAttendanceRecord('${dateVal}', '${r.id || ''}')">削除</button>
         </td>
       </tr>
     `;
@@ -7068,14 +7103,58 @@ window.__quickEditAttendanceDate = function(date) {
 };
 
 function handlePrintAttendanceSheet() {
-  document.body.classList.add('printing-attendance-sheet');
-  window.onafterprint = function() {
-    document.body.classList.remove('printing-attendance-sheet');
-  };
-  window.print();
-  setTimeout(() => {
-    document.body.classList.remove('printing-attendance-sheet');
-  }, 1000);
+  const modalPaper = document.getElementById('attendanceSheetPaper');
+  if (!modalPaper) return;
+
+  const htmlContent = modalPaper.outerHTML;
+  const printWindow = window.open('', '_blank', 'width=1000,height=800');
+  if (!printWindow) {
+    alert('ポップアップがブロックされました。ブラウザの設定で許可してください。');
+    return;
+  }
+
+  const doc = printWindow.document;
+  doc.open();
+  doc.write(`
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+      <meta charset="UTF-8">
+      <title>出勤簿 印刷</title>
+      <link rel="stylesheet" href="css/style.css">
+      <link rel="stylesheet" href="css/print.css">
+      <style>
+        body { margin: 0; padding: 20px; background: #fff; }
+        .no-print { display: none !important; }
+        @media print {
+          body { padding: 0; }
+          .attendance-sheet-paper {
+            margin: 0 auto !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            page-break-after: avoid !important;
+            break-inside: avoid !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      ${htmlContent}
+      <script>
+        window.onload = function() {
+          setTimeout(function() {
+            window.print();
+            window.close();
+          }, 500);
+        };
+      </script>
+    </body>
+    </html>
+  `);
+  doc.close();
 }
 
 // ==========================================================================
@@ -7553,10 +7632,14 @@ function updatePayrollSummaryDisplays(r) {
 }
 
 function handleImportAttendanceToPayroll() {
+  console.log("【勤怠情報読込】実行開始");
   const attList = getAttendanceList();
   // 当給与明細（発行月）に対応する「前月勤務分」の勤怠を集計（末日締め翌月10日払い）
   const workMonth = getPreviousMonthStr(currentPayrollMonth);
+  console.log("対象勤務月:", workMonth, "勤怠データ全件:", attList.length);
+  
   const summary = extractAttendanceForPayroll(attList, workMonth);
+  console.log("集計結果:", summary);
 
   const setVal = (id, val) => {
     const el = document.getElementById(id);
@@ -7580,9 +7663,11 @@ function handleImportAttendanceToPayroll() {
   const [pyStr, pmStr] = workMonth.split('-');
   const [cyStr, cmStr] = currentPayrollMonth.split('-');
   if (summary.workDaysActual > 0) {
-    showToast(`前月（${pyStr}年${parseInt(pmStr, 10)}月勤務分）の出勤 ${summary.workDaysActual}日・普通残業 ${summary.overtimeHours}時間を読み込み、${cyStr}年${parseInt(cmStr, 10)}月度給与を自動計算しました！`, 'success');
+    console.log("【勤怠情報読込】完了（データあり）");
+    showToast(`前月（${pyStr}年${parseInt(pmStr, 10)}月勤務分）の出勤 ${summary.workDaysActual}日・普通残業 ${summary.overtimeHours}時間を読み込みました`, 'success');
   } else {
-    showToast(`前月（${pyStr}年${parseInt(pmStr, 10)}月）の打刻データは0件でした。当明細は前月勤務分を反映します。`, 'info');
+    console.log("【勤怠情報読込】完了（データなし）");
+    showToast(`前月（${pyStr}年${parseInt(pmStr, 10)}月）の打刻データは0件でした。対象月に打刻データが存在するか「退勤・勤怠」画面で確認してください。`, 'info');
   }
 }
 
@@ -7854,14 +7939,58 @@ function closePayrollSheetModal() {
 }
 
 function handlePrintPayrollSheet() {
-  document.body.classList.add('printing-payroll-sheet');
-  window.onafterprint = function() {
-    document.body.classList.remove('printing-payroll-sheet');
-  };
-  window.print();
-  setTimeout(() => {
-    document.body.classList.remove('printing-payroll-sheet');
-  }, 1000);
+  const modalPaper = document.getElementById('payrollSheetPaper');
+  if (!modalPaper) return;
+
+  const htmlContent = modalPaper.outerHTML;
+  const printWindow = window.open('', '_blank', 'width=1000,height=800');
+  if (!printWindow) {
+    alert('ポップアップがブロックされました。ブラウザの設定で許可してください。');
+    return;
+  }
+
+  const doc = printWindow.document;
+  doc.open();
+  doc.write(`
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+      <meta charset="UTF-8">
+      <title>給与支給明細書 印刷</title>
+      <link rel="stylesheet" href="css/style.css">
+      <link rel="stylesheet" href="css/print.css">
+      <style>
+        body { margin: 0; padding: 20px; background: #fff; }
+        .no-print { display: none !important; }
+        @media print {
+          body { padding: 0; }
+          .payroll-sheet-paper {
+            margin: 0 auto !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            page-break-after: avoid !important;
+            break-inside: avoid !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      ${htmlContent}
+      <script>
+        window.onload = function() {
+          setTimeout(function() {
+            window.print();
+            window.close();
+          }, 500);
+        };
+      </script>
+    </body>
+    </html>
+  `);
+  doc.close();
 }
 
 // ==========================================================================

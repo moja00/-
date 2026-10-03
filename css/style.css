@@ -1778,9 +1778,11 @@ label.form-label {
   bottom: 0;
   background: #f8fafc;
   z-index: 45;
-  overflow-y: auto;
+  overflow-y: auto !important;
+  height: 100%;
   display: none;
   padding: 36px 24px 60px 24px;
+  padding-bottom: 80px !important;
 }
 
 .portal-menu-screen.active {
@@ -2563,6 +2565,35 @@ label.form-label {
     overflow: visible !important;
   }
 
+  /* 専用画面のヘッダーのレスポンシブ化（経費・勤怠など） */
+  .view-screen-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+    padding: 12px 14px !important;
+    height: auto !important;
+  }
+  .view-screen-header-left {
+    width: 100% !important;
+  }
+  .view-screen-title {
+    white-space: normal !important;
+    font-size: 1.1rem !important;
+    line-height: 1.3 !important;
+  }
+  .view-screen-subtitle {
+    display: block !important;
+    white-space: normal !important;
+    line-height: 1.4 !important;
+    margin-top: 4px !important;
+  }
+  .view-screen-header-actions {
+    width: 100% !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    justify-content: flex-start !important;
+  }
+
   .editor-sidebar {
     width: 100% !important;
     min-width: 100% !important;
@@ -2632,7 +2663,7 @@ label.form-label {
     scrollbar-width: none !important;
     padding: 2px 0 !important;
     flex: 1 !important;
-    justify-content: flex-end !important;
+    justify-content: flex-start !important;
   }
   .app-switcher-nav::-webkit-scrollbar {
     display: none !important;

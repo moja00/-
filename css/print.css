@@ -96,19 +96,18 @@
   /* ========================================================================
      出勤簿印刷モード（A4縦1枚ジャストフィット）
      ======================================================================== */
-  body.printing-attendance-sheet .app-header,
-  body.printing-attendance-sheet .app-layout,
-  body.printing-attendance-sheet .modal-overlay:not(#attendanceSheetModal),
-  body.printing-attendance-sheet .toast-container,
-  body.printing-attendance-sheet .no-print {
+  body.printing-attendance-sheet > *:not(#attendanceSheetModal) {
     display: none !important;
   }
 
   body.printing-attendance-sheet #attendanceSheetModal {
     display: block !important;
-    position: static !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
     background: transparent !important;
     padding: 0 !important;
+    margin: 0 !important;
     width: 100% !important;
     height: auto !important;
   }
@@ -119,21 +118,32 @@
     max-width: 100% !important;
     width: 100% !important;
     padding: 0 !important;
+    margin: 0 !important;
     background: transparent !important;
   }
 
   body.printing-attendance-sheet #attendanceSheetModal .modal-body {
     background: transparent !important;
     padding: 0 !important;
+    margin: 0 !important;
     overflow: visible !important;
+  }
+
+  body.printing-attendance-sheet #attendanceSheetModal .no-print {
+    display: none !important;
   }
 
   body.printing-attendance-sheet .attendance-sheet-paper {
     box-shadow: none !important;
     padding: 0 !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
     width: 100% !important;
+    max-width: 100% !important;
     min-height: auto !important;
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   /* ========================================================================
@@ -181,38 +191,56 @@
   /* ========================================================================
      給与明細書印刷モード（A4用紙）
      ======================================================================== */
-  #payrollSheetModal:not([style*="display: none"]) {
-    display: block !important;
-    position: static !important;
-    background: transparent !important;
-    padding: 0 !important;
-    width: 100% !important;
-    height: auto !important;
+  body.printing-payroll-sheet > *:not(#payrollSheetModal) {
+    display: none !important;
   }
 
-  #payrollSheetModal:not([style*="display: none"]) .modal-content {
+  body.printing-payroll-sheet #payrollSheetModal {
+    display: block !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  body.printing-payroll-sheet #payrollSheetModal .modal-content,
+  body.printing-payroll-sheet #payrollSheetModal .modal-card {
     box-shadow: none !important;
     border: none !important;
     max-width: 100% !important;
     width: 100% !important;
     padding: 0 !important;
+    margin: 0 !important;
     background: transparent !important;
     overflow: visible !important;
   }
 
-  #payrollSheetModal:not([style*="display: none"]) .modal-body {
+  body.printing-payroll-sheet #payrollSheetModal .modal-body {
     background: transparent !important;
-    padding: 0 !important;
-    overflow: visible !important;
-  }
-
-  #payrollSheetModal article {
-    box-shadow: none !important;
     padding: 0 !important;
     margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  body.printing-payroll-sheet #payrollSheetModal .no-print {
+    display: none !important;
+  }
+
+  body.printing-payroll-sheet #payrollSheetModal article {
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
     width: 100% !important;
     max-width: 100% !important;
     min-height: auto !important;
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
 

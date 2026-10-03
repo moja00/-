@@ -9,8 +9,8 @@
   <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet">
   <meta name="description" content="株式会社アルバワークス 統合業務システム。インボイス納品請求書発行、財務会計、AI経費OCR解析、タイムカード勤怠管理。">
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="css/style.css?v=20260930_expenses_sync_v8">
-  <link rel="stylesheet" href="css/print.css?v=20260925_attendance_sheet" media="print">
+  <link rel="stylesheet" href="css/style.css?v=20261004_responsive_header_2">
+  <link rel="stylesheet" href="css/print.css?v=20261004_payroll_sheet_fix_3" media="print">
   <!-- ブラウザ内AI文字認識（OCR）エンジン -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
@@ -65,12 +65,7 @@
     </nav>
 
     <div class="header-actions">
-      <button type="button" id="btnHeaderServerSync" class="btn btn-secondary btn-sm"
-        onclick="window.triggerServerSyncAll &amp;&amp; window.triggerServerSyncAll()"
-        style="color: #0284c7; border-color: #bae6fd; background: #f0f9ff; font-weight: 700;"
-        title="PCとスマホの全データをサーバー経由で即時同期・アップロード">
-        ☁️ 共有同期
-      </button>
+
       <button type="button" id="btnOpenCompanyProfile" class="btn btn-secondary btn-sm"
         onclick="window.openCompanyProfileModal &amp;&amp; window.openCompanyProfileModal()"
         title="自社名・インボイス番号・印鑑・口座設定">
@@ -1980,7 +1975,7 @@
           <span class="view-screen-subtitle">請求書連動の売上・入金消込・損益計算書（P/L）・自動仕訳帳</span>
         </div>
       </div>
-      <div class="view-screen-header-actions" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+      <div class="view-screen-header-actions">
         <!-- 全サブ機能連動 集計対象期間コントロール -->
         <div class="acc-global-period-control"
           style="display: inline-flex; align-items: center; gap: 8px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 4px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
@@ -2280,8 +2275,8 @@
           <span class="view-screen-subtitle">Gemini AIマルチモーダルOCR解析・適格請求書(インボイス)番号自動読取・経費精算</span>
         </div>
       </div>
-      <div class="view-screen-header-actions" style="display: flex; gap: 8px; align-items: center;">
-        <div style="display: inline-flex; align-items: center; gap: 8px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 4px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-right: 10px;">
+      <div class="view-screen-header-actions">
+        <div style="display: inline-flex; align-items: center; gap: 8px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 4px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
           <span style="font-size: 0.8rem; font-weight: 700; color: #334155; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;">📅 表示期間:</span>
           <select id="expenseGlobalPeriodPreset" class="form-select" onchange="window.applyExpenseGlobalPeriod && window.applyExpenseGlobalPeriod(this.value)" style="padding: 4px 10px; font-size: 0.825rem; font-weight: 700; width: auto; border: 1px solid #94a3b8; border-radius: 6px; background: #f8fafc; color: #1e293b; cursor: pointer;">
             <option value="thisMonth">今月</option>
@@ -2872,14 +2867,14 @@
             <div style="overflow-x: auto; flex: 1;">
               <table class="acc-table" style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
                 <thead>
-                  <tr style="background: #f1f5f9; color: #475569; text-align: left;">
-                    <th style="padding: 8px 10px;">日付</th>
-                    <th style="padding: 8px 10px;">出勤</th>
-                    <th style="padding: 8px 10px;">退勤</th>
-                    <th style="padding: 8px 10px;">休憩</th>
-                    <th style="padding: 8px 10px;">実働</th>
-                    <th style="padding: 8px 10px; text-align: right;">残業</th>
-                    <th style="padding: 8px 10px; text-align: center;">操作</th>
+                  <tr style="background: #f1f5f9; color: #475569; text-align: center;">
+                    <th style="padding: 8px 10px; width: 14%; text-align: left;">日付</th>
+                    <th style="padding: 8px 10px; width: 12%;">出勤</th>
+                    <th style="padding: 8px 10px; width: 12%;">退勤</th>
+                    <th style="padding: 8px 10px; width: 16%;">休憩</th>
+                    <th style="padding: 8px 10px; width: 14%;">実働</th>
+                    <th style="padding: 8px 10px; width: 14%;">残業</th>
+                    <th style="padding: 8px 10px; width: 18%;">操作</th>
                   </tr>
                 </thead>
                 <tbody id="attendanceTableBody">
@@ -2915,7 +2910,7 @@
       </div>
 
       <!-- アクションコントロールバー -->
-      <div class="view-screen-header-actions" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+      <div class="view-screen-header-actions">
         <!-- 対象年月セレクター -->
         <div
           style="display: flex; align-items: center; gap: 4px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 3px 6px;">
@@ -4292,7 +4287,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- JavaScript エントリーポイント (file:// 及び http:// 部分両対応) -->
-  <script src="js/app.bundle.js?v=20261001_v9"></script>
+  <script src="js/app.bundle.js?v=20261004_v20"></script>
 </body>
 
 </html>
