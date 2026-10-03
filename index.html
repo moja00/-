@@ -940,7 +940,7 @@
 
       <!-- 複合検索コントロールパネル（商品・同時購入・取引先・年月） -->
       <div style="padding: 14px 22px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 10px;"
+        <div id="historySearchFiltersArea" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 10px;"
           class="history-search-grid">
 
           <!-- ① 商品・同時購入検索 -->
@@ -1006,17 +1006,24 @@
             該当: <span id="historyMatchCount" style="color: #0284c7; font-weight: 800;">0</span> 件 / 合計金額: <span
               id="historyMatchTotalAmount" style="color: #0f172a; font-weight: 800;">¥0</span>
           </div>
-          <button type="button" id="btnResetHistoryFilters" class="btn btn-secondary btn-xs"
-            style="padding: 3px 10px; font-size: 0.75rem; border-color: #cbd5e1; background: #ffffff;">
-            ✕ 条件クリア
-          </button>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" id="btnToggleHistoryFilters" class="btn btn-secondary btn-xs"
+              onclick="const el = document.getElementById('historySearchFiltersArea'); const isHidden = el.style.display === 'none'; el.style.display = isHidden ? 'grid' : 'none'; this.innerHTML = isHidden ? '🔍 検索条件を閉じる ▲' : '🔍 検索条件を開く ▼';"
+              style="padding: 3px 10px; font-size: 0.75rem; border-color: #cbd5e1; background: #f1f5f9;">
+              🔍 検索条件を閉じる ▲
+            </button>
+            <button type="button" id="btnResetHistoryFilters" class="btn btn-secondary btn-xs"
+              style="padding: 3px 10px; font-size: 0.75rem; border-color: #cbd5e1; background: #ffffff;">
+              ✕ 条件クリア
+            </button>
+          </div>
         </div>
 
       </div>
 
       <!-- モーダル本体（リストスクロール領域） -->
       <div class="modal-body" id="historyListContainer"
-        style="padding: 16px 22px; overflow-y: auto; flex: 1; max-height: calc(90vh - 230px); background: #f8fafc;">
+        style="padding: 16px 22px; overflow-y: auto; flex: 1; min-height: 150px; background: #f8fafc;">
         <!-- 履歴一覧をJSでレンダリング -->
       </div>
 
@@ -4287,7 +4294,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- JavaScript エントリーポイント (file:// 及び http:// 部分両対応) -->
-  <script src="js/app.bundle.js?v=20261004_v22"></script>
+  <script src="js/app.bundle.js?v=20261004_v23"></script>
 </body>
 
 </html>

@@ -2959,6 +2959,16 @@ function openHistoryModal() {
   modal.style.display = 'flex';
   document.body.style.overflow = 'hidden';
 
+  // 4.5. スマホ画面なら初期状態で検索条件を折りたたむ
+  if (window.innerWidth <= 768) {
+    const filtersArea = document.getElementById('historySearchFiltersArea');
+    const toggleBtn = document.getElementById('btnToggleHistoryFilters');
+    if (filtersArea && toggleBtn) {
+      filtersArea.style.display = 'none';
+      toggleBtn.innerHTML = '🔍 検索条件を開く ▼';
+    }
+  }
+
   // 5. 検索＆描画実行
   filterAndRenderHistoryList();
 
