@@ -597,21 +597,6 @@
           </div>
         </div>
 
-        <div class="toolbar-group">
-          <span style="font-size: 0.8rem; color: #94a3b8;">テーマ色:</span>
-          <div class="color-picker-group">
-            <button type="button" class="color-dot-btn active" data-color="indigo" style="background-color: #3b5bdb;"
-              title="モダンインディゴ"></button>
-            <button type="button" class="color-dot-btn" data-color="navy" style="background-color: #1e293b;"
-              title="クラシックネイビー"></button>
-            <button type="button" class="color-dot-btn" data-color="emerald" style="background-color: #0f766e;"
-              title="フォレストエメラルド"></button>
-            <button type="button" class="color-dot-btn" data-color="crimson" style="background-color: #881337;"
-              title="ディープワイン"></button>
-            <button type="button" class="color-dot-btn" data-color="slate" style="background-color: #374151;"
-              title="スレートチャコール"></button>
-          </div>
-        </div>
       </div>
 
       <!-- A4 用紙シート本体 -->
@@ -798,6 +783,21 @@
         <p style="font-size: 0.825rem; color: var(--text-muted); margin-bottom: 16px;">
           ここで設定した会社名、インボイス番号、住所、印鑑、振込先口座は、すべての帳票（見積・納品・請求・領収書）に自動的に反映されます。
         </p>
+
+        <!-- テーマ色設定（プレビュー画面から移動） -->
+        <div class="form-section" style="margin-bottom: 16px;">
+          <div class="section-header" style="margin-bottom: 10px;">
+            <span class="section-title" style="font-size: 0.9rem;">🎨 アプリ・帳票テーマカラー</span>
+          </div>
+          <div class="color-picker-group" style="padding: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; display: inline-flex; gap: 12px;">
+            <button type="button" class="color-dot-btn active" data-color="indigo" style="background-color: #3b5bdb; width: 28px; height: 28px;" title="モダンインディゴ"></button>
+            <button type="button" class="color-dot-btn" data-color="navy" style="background-color: #1e293b; width: 28px; height: 28px;" title="クラシックネイビー"></button>
+            <button type="button" class="color-dot-btn" data-color="emerald" style="background-color: #0f766e; width: 28px; height: 28px;" title="フォレストエメラルド"></button>
+            <button type="button" class="color-dot-btn" data-color="crimson" style="background-color: #881337; width: 28px; height: 28px;" title="ディープワイン"></button>
+            <button type="button" class="color-dot-btn" data-color="slate" style="background-color: #374151; width: 28px; height: 28px;" title="スレートチャコール"></button>
+          </div>
+          <div style="font-size: 0.75rem; color: #64748b; margin-top: 6px;">※選択したテーマ色は請求書の枠線やアプリ全体のアクセントカラーとして適用されます。</div>
+        </div>
 
         <!-- 基本自社情報 -->
         <div class="form-section" style="margin-bottom: 16px;">
@@ -4294,7 +4294,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- JavaScript エントリーポイント (file:// 及び http:// 部分両対応) -->
-  <script src="js/app.bundle.js?v=20261004_v24"></script>
+  <script src="js/app.bundle.js?v=20261004_v25"></script>
 </body>
 
 </html>
